@@ -1,0 +1,26 @@
+---
+description: Frontend/backend work in gdtracker or gdtracker-api—read project docs before planning and before broad code search.
+globs:
+    - gdtracker/**
+    - gdtracker-api/**
+alwaysApply: false
+---
+
+# Read project guidance before planning or scanning
+
+When you are **planning a new feature**, **planning a change**, or **finding where to implement** work under `gdtracker/` or `gdtracker-api/`:
+
+## Do this first (same project root you will edit)
+
+1. Open that app’s **project summary / guidance**—typically **`docs/README.md`** (index), then **`docs/OVERVIEW.md`** and **`docs/FEATURES.md`** (or **`PROJECT.md`** if that is the only map).
+2. Use the **feature map** and **directory map** to narrow **which routes, screens, controllers, services, or packages** own the behavior.
+3. Only then run **targeted** search or open specific files those docs name.
+
+## Why
+
+- The docs give a **short orientation** so you do not have to read or search the whole repo to pick a starting point.
+- **Workspace-wide** guidance also applies: see **project-guidance-docs** for maintenance expectations (keep docs truthful when behavior changes).
+
+## Avoid
+
+- Starting with repo-wide semantic search or random file walks when the **feature map** already points to the right area.

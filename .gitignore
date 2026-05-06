@@ -1,0 +1,45 @@
+# --- Local-only / sensitive notes ---
+# Personal notes / scratchpad that may include credentials.
+annotations.md
+
+# Environment files at any depth (real values must never be committed).
+.env
+.env.*
+!.env.example
+
+# --- Node / Vite ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# --- Java / Maven ---
+target/
+*.jar
+*.war
+.m2/
+dependency-reduced-pom.xml
+
+# --- Logs ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- IDE / editor metadata ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db

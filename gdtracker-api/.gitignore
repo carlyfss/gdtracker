@@ -1,0 +1,30 @@
+# Environment files (real values must never be committed)
+.env
+.env.*
+!.env.example
+
+# Build output
+target/
+*.jar
+*.war
+dependency-reduced-pom.xml
+
+# Local Maven cache (project-scoped)
+.m2/
+
+# Logs
+*.log
+logs/
+
+# IDE / editor metadata
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Spotless / Checkstyle local caches
+.spotless-cache

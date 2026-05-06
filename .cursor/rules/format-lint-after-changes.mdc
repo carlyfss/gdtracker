@@ -1,0 +1,31 @@
+---
+description: Run formatters/linters after file edits or creation; standardize 120 columns and indent width 4; add tooling when missing per user-first installs
+alwaysApply: true
+---
+
+# Format and lint after changes
+
+After **creating or meaningfully editing** project source files (code, configs that affect style, not trivial typo-only tweaks), **run the project’s formatter and/or linter** on the touched paths (or the whole module if that is what the project scripts do).
+
+## Defaults to encode in project config
+
+When adding or adjusting formatter/linter configuration, prefer:
+
+- **Maximum line length / print width: 120** (or language equivalent: `printWidth`, `line-length`, `max_line_length`, Java `columnLimit`, etc.).
+- **Indentation: width 4** — use **4 spaces** unless the repo already standardizes on hard tabs; then set **tab width 4** and stay consistent with existing files.
+
+Use **EditorConfig** (`.editorconfig`) as the cross-language baseline when none exists.
+
+## If no formatter/linter is installed or configured
+
+1. **Detect stack** in the directory you changed (Node: Prettier/Biome/ESLint; Java: Spotless, Checkstyle, or Maven/Gradle format plugins; Python: Ruff/Black + isort; etc.).
+2. **Add minimal config** meeting the defaults above (and wire `npm run format` / `lint` or Maven goals if the project uses scripts).
+3. **New packages or plugins** are dependencies: follow **`dependency-install-user-first`** strictly—give exact install commands, **wait for the user to run them and confirm**, then validate with non-install checks and run format/lint. **Never** run package-manager or Maven dependency installs in the agent to add formatter/linter packages.
+
+## If tooling already exists
+
+Do **not** replace it just to match personal taste; only align **line length** and **indent width** if you are already touching that config or the user asked for this standard.
+
+## Verification
+
+Prefer **`read_lints`** on edited files after formatting. If the project exposes a check script, run it when reasonable (short, non-install).

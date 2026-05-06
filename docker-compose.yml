@@ -1,0 +1,64 @@
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: gdtracker-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-numb_tracker}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+            POSTGRES_DB: ${POSTGRES_DB:-numb_tracker}
+        ports:
+            - "5432:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+            interval: 5s
+            timeout: 5s
+            retries: 12
+        networks:
+            - gdtracker
+
+    backend:
+        build:
+            context: ./gdtracker-api
+            dockerfile: Dockerfile
+        image: gdtracker-api:local
+        container_name: gdtracker-api
+        restart: unless-stopped
+        depends_on:
+            postgres:
+                condition: service_healthy
+        environment:
+            DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/numb_tracker}
+            DB_USERNAME: ${DB_USERNAME:-numb_tracker}
+            DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+            SERVER_PORT: ${SERVER_PORT:-8080}
+        ports:
+            - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
+        networks:
+            - gdtracker
+
+    frontend:
+        build:
+            context: ./gdtracker
+            dockerfile: Dockerfile
+            args:
+                VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        image: gdtracker:local
+        container_name: gdtracker-web
+        restart: unless-stopped
+        depends_on:
+            - backend
+        ports:
+            - "${FRONTEND_PORT:-5173}:80"
+        networks:
+            - gdtracker
+
+volumes:
+    pgdata:
+        name: gdtracker-pgdata
+
+networks:
+    gdtracker:
+        name: gdtracker

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <include file="db/changelog/migrations/0001_create_features.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0002_create_tasks.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0003_create_trace_locations.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0004_create_game_exceptions.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0005_alter_features_add_description_status_color.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0006_users_games_multitenancy.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0007_categories_and_game_configuration.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0008_tasks_category.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0009_game_events_and_ingest_token.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0010_game_event_definition_color.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0011_rename_trace_locations.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0012_features_parent_subfeatures.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0013_tasks_parent_subtasks.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0014_tags_and_task_tags.sql" relativeToChangelogFile="false"/>
+
+</databaseChangeLog>

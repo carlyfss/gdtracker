@@ -1,0 +1,14 @@
+---
+description: Keep chat responses concise and high-signal
+alwaysApply: true
+---
+
+# Concise chat rule (always apply)
+
+- Prefer **short, high-signal** responses over verbose explanations.
+- Default to **1–3 short paragraphs** or a **tight bullet list**.
+- Avoid repeating the user’s request, restating obvious context, or narrating tool usage.
+- Only include details the user needs to decide or act; otherwise, omit.
+- Ask clarifying questions **only when required** to proceed safely/correctly.
+- When proposing a plan, keep it **brief** and immediately actionable.
+- Prefer **pointing to specific files/lines** over long paste-dumps.

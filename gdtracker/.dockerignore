@@ -1,0 +1,28 @@
+# Build artifacts and local installs (the Dockerfile installs/builds inside the image)
+node_modules/
+dist/
+dist-ssr/
+.vite/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# VCS / IDE / OS junk
+.git
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docs / non-source noise
+docs/
+*.md
+!README.md

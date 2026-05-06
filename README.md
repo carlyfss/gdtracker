@@ -1,0 +1,90 @@
+# GDTracker
+
+Two projects that together form GDTracker: a per-game error/event/heatmap dashboard backed by a Spring Boot REST API.
+
+| Project | Path | Stack |
+|---|---|---|
+| Frontend dashboard | [gdtracker/](./gdtracker/) | Vite + React 19 + TypeScript |
+| REST API | [gdtracker-api/](./gdtracker-api/) | Spring Boot 3.2 + Java 21 + PostgreSQL + Liquibase |
+
+Each project is self-contained — its own `README.md`, `Dockerfile`, `.env.example`, and `.gitignore` — so you can either keep this directory as a single monorepo or split each subfolder into its own GitHub repo.
+
+## Quick start (one command)
+
+```bash
+cp .env.example .env       # edit values; at minimum set POSTGRES_PASSWORD/DB_PASSWORD
+docker compose up -d --build
+```
+
+This starts:
+
+- `postgres` — PostgreSQL 16, persistent volume `gdtracker-pgdata`, exposed on `5432`.
+- `backend` — `gdtracker-api`, exposed on `${SERVER_PORT}` (default `8080`). Liquibase runs migrations on first start.
+- `frontend` — `gdtracker` served by nginx, exposed on `${FRONTEND_PORT}` (default `5173`). Open `http://localhost:5173`.
+
+If you previously used compose with the old volume name `numb-tracker-pgdata`, either keep using that data by renaming the Docker volume to `gdtracker-pgdata` or run `docker compose down -v` and start fresh (drops DB data).
+
+Useful follow-ups:
+
+```bash
+docker compose logs -f backend          # watch backend startup / migrations
+docker compose ps                       # service status
+docker compose down                     # stop (keep volume)
+docker compose down -v                  # stop and DROP the database volume
+docker compose build --no-cache frontend  # rebuild after changing VITE_API_BASE_URL
+```
+
+## Workspace env vars
+
+`.env` at the workspace root is consumed by `docker-compose.yml`. See [.env.example](./.env.example) for the canonical list. Highlights:
+
+| Variable | Required | Used by | Notes |
+|---|---|---|---|
+| `POSTGRES_USER` / `POSTGRES_DB` | recommended | postgres | Initial role and database created on first start |
+| `POSTGRES_PASSWORD` | **yes** | postgres | Compose refuses to start without it |
+| `DB_URL` / `DB_USERNAME` | recommended | backend | Default URL points at the compose `postgres` service |
+| `DB_PASSWORD` | **yes** | backend | Should match `POSTGRES_PASSWORD` |
+| `SERVER_PORT` | no | backend | Default `8080` |
+| `VITE_API_BASE_URL` | yes for prod build | frontend | Baked into the bundle at image build time |
+| `FRONTEND_PORT` | no | frontend | Host port to publish the SPA on (default `5173`) |
+
+## Standalone Postgres (without compose)
+
+Equivalent to the old `annotations.md` snippet, but with credentials read from the env:
+
+```bash
+docker run -d --name gdtracker-pg \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -e POSTGRES_DB="$POSTGRES_DB" \
+    -p 5432:5432 \
+    -v gdtracker-pgdata:/var/lib/postgresql/data \
+    postgres:16-alpine
+```
+
+## Troubleshooting
+
+- **Backend exits with `DB_PASSWORD` errors** — `application.properties` has no default for the password. Make sure `.env` is populated and that `docker compose up` was run from this directory.
+- **Backend can't reach Postgres in compose** — `DB_URL` should use the service name: `jdbc:postgresql://postgres:5432/...`. `localhost` only works when the backend runs on the host.
+- **Backend on host, Postgres in compose** — `DB_URL=jdbc:postgresql://localhost:5432/...` (compose maps `5432` to host).
+- **Backend in compose, Postgres on a remote host** — set `DB_URL=jdbc:postgresql://<your-db-host>:5432/...` in `.env`. On Linux, add `extra_hosts: ["<your-db-host>:<IP>"]` under the `backend` service if DNS doesn't resolve inside the container.
+- **Frontend hits the wrong API after changing `VITE_API_BASE_URL`** — the value is baked at build time. Rebuild: `docker compose build --no-cache frontend && docker compose up -d frontend`.
+- **Liquibase fails with "validate"** — `spring.jpa.hibernate.ddl-auto=validate` requires the schema to already exist. On a fresh DB, Liquibase creates everything before validation. If you point the API at a pre-existing DB with mismatched tables, fix the schema or temporarily switch `ddl-auto` to `update`.
+- **Port already in use** — change `SERVER_PORT` or `FRONTEND_PORT` in `.env`, then `docker compose up -d`.
+- **CSRF 403 on first POST** — the SPA uses double-submit CSRF. Issue any authenticated GET first (e.g. `GET /api/games`) so the `XSRF-TOKEN` cookie is set, then retry the POST.
+
+## Security & publishing notes (read before pushing to GitHub)
+
+- The DB password that previously lived in `gdtracker-api/src/main/resources/application.properties` (and `annotations.md`) is **considered compromised**. Rotate it on the actual database and update wherever it was used.
+- `annotations.md` is git-ignored at every level (workspace, frontend, backend) — keep it that way; it contains personal notes/credentials.
+- The backend ships with a **plaintext password encoder** for application users and a `legacy / legacy` bootstrap row in `0006_users_games_multitenancy.sql`. Both are intentional dev-only patterns; **do not deploy publicly without replacing them with bcrypt and removing the bootstrap row**.
+- Before the first `git push`, run `git status` and confirm none of these are staged: `.env`, `.env.local`, `target/`, `node_modules/`, `dist/`, `annotations.md`, `*.iml`.
+
+## Project guidance docs
+
+Each app keeps its own developer guidance under `docs/`:
+
+- [gdtracker-api/docs/README.md](./gdtracker-api/docs/README.md) — backend overview, REST surface, env vars.
+- [gdtracker/docs/README.md](./gdtracker/docs/README.md) — frontend layout, routing, env vars.
+
+When changing behavior, update the relevant `docs/` in the same change so the feature/directory maps stay accurate.

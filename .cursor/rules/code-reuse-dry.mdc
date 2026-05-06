@@ -1,0 +1,40 @@
+---
+description: Mandatory DRY—extract duplicated logic in gdtracker-api and gdtracker; prefer documented util/service/hook locations.
+globs:
+    - gdtracker/**
+    - gdtracker-api/**
+alwaysApply: false
+---
+
+# Code reuse (DRY)
+
+When you **add or change** code under `gdtracker/` or `gdtracker-api/`:
+
+## Trigger
+
+If **non-trivial logic** (validation, mapping, formatting, parsing, repeated HTTP/error handling, repeated UI structure) **already exists elsewhere**, or you are **copying** an existing pattern—**stop and consolidate** instead of duplicating.
+
+## Where to put shared code
+
+**Backend (`gdtracker-api/`)**
+
+- **`.../util/`** — stateless helpers (formatting, dates, pure functions). Prefer `final` classes with private constructors for static-only helpers.
+- **`service/`** — domain or business rules used by multiple callers (`@Service`).
+- **`dto/` / mapping** — repeated request/response shaping; keep mapping near DTOs or a dedicated mapper if the project adds one.
+
+Avoid a catch-all “utils” dumping ground for domain rules; put domain logic in services.
+
+**Frontend (`gdtracker/`)**
+
+- **`src/util/`** — pure TS helpers.
+- **`src/api/`** — HTTP clients and API-shaped helpers (axios usage).
+- **`components/`** — repeated UI; extract shared pieces when duplication is real.
+- **Custom hooks** — repeated state/effects (e.g. under `src/hooks/` or colocated where the repo already places hooks).
+
+## Exceptions
+
+One-off glue, generated code, or extraction that would **couple unrelated modules**—note briefly (commit/PR/chat) why duplication stays.
+
+## Documentation
+
+When you add a **new reusable module** or a **meaningful helper surface**, update that project’s **Shared utilities & reuse** section in `docs/` in the **same** change when feasible (see `docs/OVERVIEW.md` / `docs/README.md`).
