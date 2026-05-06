@@ -48,6 +48,7 @@ The canonical route list and request/response examples live in **[`docs/openapi.
 | Persistence | `spring-boot-starter-data-jpa` |
 | Boilerplate | **Lombok** (`lombok.config` at project root) — compile-time only; IDE needs Lombok plugin for navigation |
 | Database | **PostgreSQL** (driver at runtime). Connection and credentials are read from **environment variables** (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, optional `SERVER_PORT`) by `application.properties` placeholders. Local values go in a git-ignored `.env` (see `.env.example`). **Never** put real secrets in `application.properties`, docs, or `annotations.md`. |
+| License | **GPL-3.0-only** — workspace [`LICENSE`](../../LICENSE); see [`pom.xml`](../pom.xml) `licenses` metadata. |
 | Schema | **Liquibase** — `spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.xml` |
 | Hibernate | `spring.jpa.hibernate.ddl-auto=validate` (schema must match entities; changes go through Liquibase) |
 | Open session in view | `spring.jpa.open-in-view=false` |

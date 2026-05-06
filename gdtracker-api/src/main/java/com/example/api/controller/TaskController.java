@@ -65,12 +65,7 @@ public class TaskController {
             tasks = taskRepository.findByGameIdFiltered(gameId, featureIdParam, statusParam, categoryIdParam);
         } else if (matchAll) {
             tasks = taskRepository.findByGameIdFilteredMatchingAllTags(
-                    gameId,
-                    featureIdParam,
-                    statusParam,
-                    categoryIdParam,
-                    tagIdsList,
-                    tagIdsList.size());
+                    gameId, featureIdParam, statusParam, categoryIdParam, tagIdsList, tagIdsList.size());
         } else {
             tasks = taskRepository.findByGameIdFilteredMatchingAnyTag(
                     gameId, featureIdParam, statusParam, categoryIdParam, tagIdsList);

@@ -168,3 +168,7 @@ gdtracker-api/
 ├── .env.example
 └── pom.xml
 ```
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0**. See the [workspace `LICENSE`](../LICENSE) file.

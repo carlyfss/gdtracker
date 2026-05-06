@@ -80,6 +80,16 @@ docker run -d --name gdtracker-pg \
 - The backend ships with a **plaintext password encoder** for application users and a `legacy / legacy` bootstrap row in `0006_users_games_multitenancy.sql`. Both are intentional dev-only patterns; **do not deploy publicly without replacing them with bcrypt and removing the bootstrap row**.
 - Before the first `git push`, run `git status` and confirm none of these are staged: `.env`, `.env.local`, `target/`, `node_modules/`, `dist/`, `annotations.md`, `*.iml`.
 
+## License
+
+SPDX-License-Identifier: [GPL-3.0-only](https://spdx.org/licenses/GPL-3.0-only.html)
+
+Copyright (C) 2026 GDTracker contributors.
+
+The combined workspace (frontend, API, and orchestration files at this root) is licensed under the **GNU General Public License v3.0**. See the full text in [`LICENSE`](./LICENSE). Short summary: you may use, modify, and distribute this software; if you distribute modified versions, you must license them under GPL-3.0 and make corresponding source available under the same terms.
+
+Contributions: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
 ## Project guidance docs
 
 Each app keeps its own developer guidance under `docs/`:

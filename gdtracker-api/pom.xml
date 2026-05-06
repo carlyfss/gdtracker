@@ -18,6 +18,14 @@
     <name>GDTracker API</name>
     <description>GDTracker REST API with error reporting and game telemetry</description>
 
+    <licenses>
+        <license>
+            <name>GNU General Public License v3.0 only</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <properties>
         <java.version>21</java.version>
     </properties>
