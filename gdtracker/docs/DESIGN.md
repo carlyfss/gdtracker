@@ -44,6 +44,8 @@ The same variable **names** are reassigned in `@media (prefers-color-scheme: lig
 - Default accent matches **`DEFAULT_ACCENT_HEX`** in [`src/theme/defaults.ts`](../src/theme/defaults.ts) and default `--accent` in `:root`.
 - On game dashboard routes, [`GameThemeContext`](../src/context/GameThemeContext.tsx) may set **`document.documentElement` style `--accent`** from game configuration **`settings.THEME_COLOR`** (CSS hex; validated with `parseThemeColorHex` in that context). Configure the key in the **Settings** table on [`ConfigurationPage`](../src/pages/ConfigurationPage.tsx). When set, derived accent variables in CSS still follow `var(--accent)`.
 
+**Form focus:** Shared **`.textInput`**, **`.textArea`**, **`.intervalSelect`**, and **`.authInput`** use **`border-color: var(--accent)`** and **`box-shadow: 0 0 0 3px var(--accent-bg)`** on **`:focus`** in [`App.css`](../src/App.css) so focus rings follow the current accent (including per-game theme).
+
 ---
 
 ## Typography
@@ -75,6 +77,6 @@ Charts (e.g. Recharts) often use **`var(--accent-2)`** or event-specific colors;
 
 **Task tags:** filled pill styling lives under **`.tagChip`** / **`.tagChipInteractive`** / **`.tasksTagCell`** in [`src/App.css`](../src/App.css); foreground vs fill uses [`chipTextColor`](../src/util/chipTextColor.ts).
 
-**Integration page:** instructional panels use **`.integrationSection*`**; the live validation block uses **`.integrationValidationPanel`** with **`data-state="idle"`** (neutral border, **`.integrationValidationIdleDot`**), **`data-state="waiting"`** (amber tint, **`.integrationThrobber`**), and **`data-state="ok"`** (green tint, check). Warnings use **`.integrationWarn`**. Implemented in [`src/App.css`](../src/App.css); page: [`IntegrationPage.tsx`](../src/pages/IntegrationPage.tsx). Sidebar raster icon: **`.appSidebarRasterIcon`** next to vector **`.appSidebarIcon svg`** icons.
+**Integration page:** instructional panels use **`.integrationSection*`**; the live validation block uses **`.integrationValidationPanel`** with **`data-state="idle"`** (neutral border, **`.integrationValidationIdleDot`**), **`data-state="waiting"`** (amber tint, **`.integrationThrobber`**), and **`data-state="ok"`** (green tint, check). Warnings use **`.integrationWarn`**. Implemented in [`src/App.css`](../src/App.css); page: [`IntegrationPage.tsx`](../src/pages/IntegrationPage.tsx). Sidebar raster icons (Archive, Feedback, Integration, Configuration): **`.appSidebarRasterIcon`** in [`GameDashboardLayout.tsx`](../src/components/GameDashboardLayout.tsx); primary nav still uses vector **`.appSidebarIcon svg`** icons.
 
 **Feedback page:** page **`.gamePageStack`** with **`.feedbackPageSplit`** (50/50 grid, single column under **960px**); template table and inbox list share **`.gamePageSection`** / **`.cardHeader`** / **`.cardBody`**. Detail view uses the shared **`.modalBackdrop`** / **`.modalCard`** pattern. Page: [`FeedbackPage.tsx`](../src/pages/FeedbackPage.tsx).
