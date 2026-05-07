@@ -32,6 +32,7 @@ class GameExceptionControllerTest {
 
     private static final String GAME_ID = "game-test-1";
     private static final String EXCEPTION_ID = "exception-test-1";
+    private static final String EXCEPTION_ID_2 = "exception-test-2";
 
     @Autowired
     private MockMvc mockMvc;
@@ -96,7 +97,7 @@ class GameExceptionControllerTest {
         GameException ex = new GameException("E", "L", "M");
         ex.setId(EXCEPTION_ID);
         when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID, GAME_ID)).thenReturn(Optional.of(ex));
-        when(gameExceptionTaskSequenceService.reserveNextIndex(EXCEPTION_ID)).thenReturn(3);
+        when(gameExceptionTaskSequenceService.reserveNextIndexForGame(GAME_ID)).thenReturn(3);
 
         mockMvc.perform(post(
                         "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
@@ -109,7 +110,7 @@ class GameExceptionControllerTest {
         GameException ex = new GameException("E", "L", "M");
         ex.setId(EXCEPTION_ID);
         when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID, GAME_ID)).thenReturn(Optional.of(ex));
-        when(gameExceptionTaskSequenceService.reserveNextIndex(EXCEPTION_ID)).thenReturn(1, 2);
+        when(gameExceptionTaskSequenceService.reserveNextIndexForGame(GAME_ID)).thenReturn(1, 2);
 
         mockMvc.perform(post(
                         "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
@@ -118,6 +119,28 @@ class GameExceptionControllerTest {
 
         mockMvc.perform(post(
                         "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index").value(2));
+    }
+
+    @Test
+    void reserveTaskIndex_acrossDifferentExceptions_incrementsForGame() throws Exception {
+        GameException ex1 = new GameException("E", "L", "M");
+        ex1.setId(EXCEPTION_ID);
+        GameException ex2 = new GameException("E", "L", "M");
+        ex2.setId(EXCEPTION_ID_2);
+
+        when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID, GAME_ID)).thenReturn(Optional.of(ex1));
+        when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID_2, GAME_ID)).thenReturn(Optional.of(ex2));
+        when(gameExceptionTaskSequenceService.reserveNextIndexForGame(GAME_ID)).thenReturn(1, 2);
+
+        mockMvc.perform(post(
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index").value(1));
+
+        mockMvc.perform(post(
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID_2))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.index").value(2));
     }

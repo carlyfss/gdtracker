@@ -4,27 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import { TaskDescriptionMarkdown } from './TaskDescriptionMarkdown'
 import type { Feature } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
+import { archiveFeature, unarchiveFeature } from '../api/features'
 import { listTasks } from '../api/tasks'
+import { normalizeHex6 } from '../util/hexColor'
+import { statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
 
 const FALLBACK_FEATURE_COLOR = '#94a3b8'
-
-function statusLabel(s: TaskStatus) {
-    switch (s) {
-        case 'PENDING':
-            return 'Pending'
-        case 'TODO':
-            return 'Todo'
-        case 'IN_PROGRESS':
-            return 'In Progress'
-        case 'COMPLETED':
-            return 'Completed'
-        case 'DONE':
-            return 'Done'
-        default:
-            return s
-    }
-}
 
 function categoryLabel(t: Task) {
     const c = t.category
@@ -64,9 +50,18 @@ type Props = {
     progress: { done: number; total: number } | null
     /** Active lists omit archived tasks; archived scope loads archive-visible tasks and links to /archive. */
     taskListScope?: 'active' | 'archived'
+    onAfterArchiveOrUnarchive?: () => void | Promise<void>
 }
 
-export function FeatureTasksModal({ open, onClose, gameId, feature, progress, taskListScope = 'active' }: Props) {
+export function FeatureTasksModal({
+    open,
+    onClose,
+    gameId,
+    feature,
+    progress,
+    taskListScope = 'active',
+    onAfterArchiveOrUnarchive,
+}: Props) {
     const navigate = useNavigate()
     const [tasks, setTasks] = useState<Task[]>([])
     const [loading, setLoading] = useState(false)
@@ -120,8 +115,7 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress, ta
 
     if (!open || !feature) return null
 
-    const fc =
-        feature.color && /^#[0-9A-Fa-f]{6}$/i.test(feature.color) ? feature.color.toLowerCase() : FALLBACK_FEATURE_COLOR
+    const fc = normalizeHex6(feature.color, FALLBACK_FEATURE_COLOR)
 
     const openTaskOnTasksPage = (t: Task) => {
         onClose()
@@ -129,6 +123,29 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress, ta
         navigate(
             `/g/${encodeURIComponent(gameId)}/${segment}?feature=${encodeURIComponent(feature.id)}&task=${encodeURIComponent(t.id)}`
         )
+    }
+
+    const isArchivedFeature = taskListScope === 'archived' || feature.archived === true
+
+    const onArchiveOrUnarchiveFeature = async () => {
+        if (!feature) return
+        const ok = window.confirm(
+            isArchivedFeature
+                ? `Unarchive feature "${feature.name}" and all of its subfeatures?`
+                : `Archive feature "${feature.name}" and all of its subfeatures? They will only appear on the Archive page.`
+        )
+        if (!ok) return
+        try {
+            if (isArchivedFeature) {
+                await unarchiveFeature(gameId, feature.id)
+            } else {
+                await archiveFeature(gameId, feature.id)
+            }
+            onClose()
+            await onAfterArchiveOrUnarchive?.()
+        } catch {
+            window.alert(isArchivedFeature ? 'Could not unarchive feature.' : 'Could not archive feature.')
+        }
     }
 
     return createPortal(
@@ -294,6 +311,9 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress, ta
                     )}
                 </div>
                 <div className="modalFooter">
+                    <button type="button" className="btn" onClick={() => void onArchiveOrUnarchiveFeature()}>
+                        {isArchivedFeature ? 'Unarchive feature' : 'Archive feature'}
+                    </button>
                     <button type="button" className="btn btnPrimary" onClick={onClose}>
                         Close
                     </button>

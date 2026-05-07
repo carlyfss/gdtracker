@@ -30,6 +30,36 @@ export async function listGameExceptionsInterval(
     return Array.isArray(res.data) ? (res.data as GameException[]) : []
 }
 
+export type GameExceptionPage = {
+    content: GameException[]
+    totalElements: number
+    totalPages: number
+    number: number
+    size: number
+}
+
+export async function searchGameExceptions(
+    gameId: string,
+    params: { q?: string; page?: number; size?: number } = {}
+): Promise<GameExceptionPage> {
+    const query: Record<string, string | number> = {}
+    if (typeof params.q === 'string' && params.q.trim().length > 0) query.q = params.q.trim()
+    if (typeof params.page === 'number' && Number.isFinite(params.page))
+        query.page = Math.max(0, Math.floor(params.page))
+    if (typeof params.size === 'number' && Number.isFinite(params.size))
+        query.size = Math.max(1, Math.floor(params.size))
+
+    const res = await api.get(`${base(gameId)}/search`, { params: query })
+    const raw = res.data as Partial<GameExceptionPage> | null
+    return {
+        content: Array.isArray(raw?.content) ? (raw!.content as GameException[]) : [],
+        totalElements: typeof raw?.totalElements === 'number' ? raw!.totalElements : 0,
+        totalPages: typeof raw?.totalPages === 'number' ? raw!.totalPages : 0,
+        number: typeof raw?.number === 'number' ? raw!.number : 0,
+        size: typeof raw?.size === 'number' ? raw!.size : 0,
+    }
+}
+
 export async function getGameException(gameId: string, exceptionId: string): Promise<GameException> {
     const res = await api.get(`${base(gameId)}/${encodeURIComponent(exceptionId)}`)
     return res.data as GameException

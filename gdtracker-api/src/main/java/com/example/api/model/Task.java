@@ -79,6 +79,9 @@ public class Task {
     @Column(nullable = false)
     private boolean archived = false;
 
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(nullable = false, updatable = false)

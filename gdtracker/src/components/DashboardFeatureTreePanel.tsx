@@ -1,11 +1,10 @@
 import type { Feature, FeatureTaskProgressRow } from '../api/features'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import type { FeatureTreeRow } from '../util/featureTree'
+import { normalizeHex6 } from '../util/hexColor'
 
 function featureRowColor(f: Feature) {
-    const c = f.color
-    if (c && /^#[0-9A-Fa-f]{6}$/i.test(c)) return c.toLowerCase()
-    return DEFAULT_ACCENT_HEX
+    return normalizeHex6(f.color, DEFAULT_ACCENT_HEX)
 }
 
 function IconChevronTaskTree({ expanded }: { expanded: boolean }) {

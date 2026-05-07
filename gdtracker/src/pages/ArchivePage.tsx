@@ -17,6 +17,7 @@ export function ArchivePage() {
     const [featuresError, setFeaturesError] = useState<string | null>(null)
     const [progressError, setProgressError] = useState<string | null>(null)
     const [featureModal, setFeatureModal] = useState<Feature | null>(null)
+    const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
     const [listShowSubfeatures, setListShowSubfeatures] = useState(true)
     const [collapsedFeatureIds, setCollapsedFeatureIds] = useState<Set<string>>(() => new Set())
 
@@ -25,10 +26,13 @@ export function ArchivePage() {
             setFeaturesPanelLoading(true)
             setFeaturesError(null)
             try {
-                setFeatures(await listFeatures(gameId, { archived: true }))
+                const loaded = await listFeatures(gameId, { archived: true })
+                setFeatures(loaded)
+                setSelectedFeatureId((prev) => prev ?? loaded[0]?.id ?? null)
             } catch {
                 setFeatures([])
                 setFeaturesError('Failed to load archived features.')
+                setSelectedFeatureId(null)
             } finally {
                 setFeaturesPanelLoading(false)
             }
@@ -102,13 +106,23 @@ export function ArchivePage() {
                         onListShowSubfeaturesChange={setListShowSubfeatures}
                         collapsedFeatureIds={collapsedFeatureIds}
                         onToggleFeatureCollapsed={toggleFeatureRowCollapsed}
-                        onOpenFeature={setFeatureModal}
+                        onOpenFeature={(f) => {
+                            setSelectedFeatureId(f.id)
+                            setFeatureModal(f)
+                        }}
                         emptyStateMessage="No archived features yet. Archive from the Dashboard or Tasks page."
                     />
 
-                    <div className="dashboardExceptionsStack" style={{ minWidth: 0 }}>
-                        <h3 className="dashboardSubheading">Archived tasks</h3>
-                        <TasksPageBody gameId={gameId} archivedOnly layout="embedded" />
+                    <div className="dashboardFeaturesPanel dashboardArchiveTasksPanel" aria-label="Archived tasks">
+                        <h3 className="dashboardSubheading" style={{ marginBottom: 10 }}>
+                            Archived tasks
+                        </h3>
+                        <TasksPageBody
+                            gameId={gameId}
+                            archivedOnly
+                            layout="embedded"
+                            forcedFeatureId={selectedFeatureId}
+                        />
                     </div>
                 </div>
             </section>
@@ -120,6 +134,19 @@ export function ArchivePage() {
                 feature={featureModal}
                 progress={modalProgress}
                 taskListScope="archived"
+                onAfterArchiveOrUnarchive={async () => {
+                    try {
+                        const loaded = await listFeatures(gameId, { archived: true })
+                        setFeatures(loaded)
+                        setSelectedFeatureId((prev) => {
+                            if (prev && loaded.some((f) => f.id === prev)) return prev
+                            return loaded[0]?.id ?? null
+                        })
+                    } catch {
+                        setFeatures([])
+                        setSelectedFeatureId(null)
+                    }
+                }}
             />
         </div>
     )

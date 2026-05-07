@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { TagTasksModal } from '../components/TagTasksModal'
-import { TaskDescriptionMarkdown } from '../components/TaskDescriptionMarkdown'
 import { useGameId } from '../context/GameIdContext'
 import type { Category } from '../api/categories'
 import { listCategories } from '../api/categories'
@@ -12,193 +10,27 @@ import { getConfiguration } from '../api/configuration'
 import type { Feature } from '../api/features'
 import { listFeatures } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
-import { archiveTask, createTask, deleteTask, listTasks, updateTask } from '../api/tasks'
-import { chipTextColor } from '../util/chipTextColor'
-import { directChildProgress, flattenTasksForList, formatChildProgressLabel, isUnderAncestor } from '../util/taskTree'
+import { archiveTask, createTask, deleteTask, listTasks, unarchiveTask, updateTask } from '../api/tasks'
+import { nextTaskStatus, statusLabel } from '../util/taskStatus'
+import { flattenTasksForList } from '../util/taskTree'
+import { TaskModal } from './tasks/components/TaskModal'
+import { TasksFilterPanel } from './tasks/components/TasksFilterPanel'
+import { TasksListTable } from './tasks/components/TasksListTable'
+import {
+    type CreateFromExceptionState,
+    draftFromTask,
+    emptyDraft,
+    normalizeTitle,
+    parentTaskPickerOptions as _parentTaskPickerOptions,
+    type TaskDraft,
+    type TaskModal as TaskModalState,
+    tagIdsFromTask,
+    type UiState,
+    upsertBodyParentId,
+} from './tasks/tasksPageUtils'
 
-type UiState =
-    | { kind: 'idle' }
-    | { kind: 'loading'; message: string }
-    | { kind: 'error'; message: string }
-    | { kind: 'success'; message: string }
-
-type TaskDraft = {
-    title: string
-    description: string
-    status: TaskStatus
-    featureId: string
-    categoryId: string
-    parentTaskId: string
-    tagIds: string[]
-    sourceGameExceptionId: string
-}
-
-type CreateFromExceptionState = {
-    exceptionId: string
-    title: string
-    description: string
-    categoryId?: string
-}
-
-type TaskModal =
-    | { kind: 'closed' }
-    | { kind: 'create'; draft: TaskDraft }
-    | { kind: 'task'; taskId: string; surface: 'view'; draft: TaskDraft }
-    | { kind: 'task'; taskId: string; surface: 'edit'; draft: TaskDraft; editBaseline: TaskDraft }
-
-function normalizeTitle(raw: string) {
-    return raw.trim().replace(/\s+/g, ' ')
-}
-
-const allStatus: TaskStatus[] = ['PENDING', 'TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE']
-
-const FALLBACK_FEATURE_COLOR = '#94a3b8'
-
-function statusLabel(s: TaskStatus) {
-    switch (s) {
-        case 'PENDING':
-            return 'Pending'
-        case 'TODO':
-            return 'Todo'
-        case 'IN_PROGRESS':
-            return 'In Progress'
-        case 'COMPLETED':
-            return 'Completed'
-        case 'DONE':
-            return 'Done'
-        default:
-            return s
-    }
-}
-
-function featureMeta(t: Task, features: Feature[]) {
-    const f = t.feature ?? (t.featureId ? features.find((x) => x.id === t.featureId) : undefined)
-    const color = f?.color && /^#[0-9A-Fa-f]{6}$/i.test(f.color) ? f.color.toLowerCase() : FALLBACK_FEATURE_COLOR
-    return { name: f?.name ?? '', color }
-}
-
-function categoryMeta(t: Task, categories: Category[]) {
-    const c = t.category ?? (t.categoryId ? categories.find((x) => x.id === t.categoryId) : undefined)
-    const color = c?.color && /^#[0-9A-Fa-f]{6}$/i.test(c.color) ? c.color.toLowerCase() : FALLBACK_FEATURE_COLOR
-    return { name: c?.name ?? '', color }
-}
-
-function sortedTaskTags(t: Task): Tag[] {
-    const raw = t.tags
-    if (!Array.isArray(raw) || raw.length === 0) return []
-    return [...raw].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-}
-
-function nextTaskStatus(s: TaskStatus): TaskStatus | null {
-    const i = allStatus.indexOf(s)
-    if (i < 0 || i >= allStatus.length - 1) return null
-    return allStatus[i + 1]!
-}
-
-function tagIdsFromTask(t: Task): string[] {
-    const fromTags = t.tags?.map((x) => x.id).filter(Boolean)
-    if (fromTags && fromTags.length > 0) return fromTags
-    const raw = t.tagIds
-    if (Array.isArray(raw)) {
-        return raw.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    }
-    return []
-}
-
-function draftFromTask(t: Task): TaskDraft {
-    const pid = t.parentTaskId
-    const sid = t.sourceGameExceptionId
-    return {
-        title: t.title ?? '',
-        description: typeof t.description === 'string' ? t.description : '',
-        status: (t.status ?? 'TODO') as TaskStatus,
-        featureId: String(t.feature?.id ?? t.featureId ?? ''),
-        categoryId: String(t.category?.id ?? t.categoryId ?? ''),
-        parentTaskId: typeof pid === 'string' && pid.length > 0 ? pid : '',
-        tagIds: tagIdsFromTask(t),
-        sourceGameExceptionId: typeof sid === 'string' && sid.length > 0 ? sid : '',
-    }
-}
-
-function emptyDraft(featureId: string, categoryId: string): TaskDraft {
-    return {
-        title: '',
-        description: '',
-        status: 'TODO',
-        featureId,
-        categoryId,
-        parentTaskId: '',
-        tagIds: [],
-        sourceGameExceptionId: '',
-    }
-}
-
-function upsertBodyParentId(d: TaskDraft): string | null {
-    const p = d.parentTaskId.trim()
-    return p.length > 0 ? p : null
-}
-
-function parentTaskPickerOptions(tasks: Task[], draftFeatureId: string, editingTaskId: string | null): Task[] {
-    return tasks
-        .filter((t) => {
-            const tf = String(t.feature?.id ?? t.featureId ?? '')
-            if (tf !== draftFeatureId) return false
-            if (editingTaskId && t.id === editingTaskId) return false
-            if (editingTaskId && isUnderAncestor(editingTaskId, t.id, tasks)) return false
-            return true
-        })
-        .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
-}
-
-function IconTrash() {
-    return (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            <line x1="10" y1="11" x2="10" y2="17" />
-            <line x1="14" y1="11" x2="14" y2="17" />
-        </svg>
-    )
-}
-
-function IconClose() {
-    return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-    )
-}
-
-function IconCheck() {
-    return (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    )
-}
-
-function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
-    return (
-        <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-            style={{
-                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                flexShrink: 0,
-                transition: 'transform 0.12s ease-out',
-            }}
-        >
-            <polyline points="9 18 15 12 9 6" />
-        </svg>
-    )
-}
+// Keep helper visible for type narrowing in some lint configs.
+void _parentTaskPickerOptions
 
 export type TasksPageBodyProps = {
     gameId: string
@@ -206,9 +38,11 @@ export type TasksPageBodyProps = {
     archivedOnly?: boolean
     /** Full page vs right column in Archive layout. */
     layout?: 'page' | 'embedded'
+    /** When set, force tasks list to this feature id (no filter rail). */
+    forcedFeatureId?: string | null
 }
 
-export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }: TasksPageBodyProps) {
+export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', forcedFeatureId }: TasksPageBodyProps) {
     const navigate = useNavigate()
     const location = useLocation()
     const [searchParams, setSearchParams] = useSearchParams()
@@ -229,7 +63,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
     const [listShowSubtasks, setListShowSubtasks] = useState(true)
     const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(() => new Set())
 
-    const [modal, setModal] = useState<TaskModal>({ kind: 'closed' })
+    const [modal, setModal] = useState<TaskModalState>({ kind: 'closed' })
     const [tagBrowseModalTag, setTagBrowseModalTag] = useState<Tag | null>(null)
 
     const skipFilterRefreshOnce = useRef(true)
@@ -272,13 +106,13 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
         categoriesSnapshot?: Category[]
         tagsSnapshot?: Tag[]
     }) => {
-        const featureId = selectedFeatureId !== '__all__' ? selectedFeatureId : undefined
+        const effectiveFeatureId = forcedFeatureId ?? (selectedFeatureId !== '__all__' ? selectedFeatureId : undefined)
         const categoryId = selectedCategoryId !== '__all__' ? selectedCategoryId : undefined
         const status = selectedStatus !== '__all__' ? selectedStatus : undefined
         const tagIds = selectedFilterTagIds.length > 0 ? selectedFilterTagIds : undefined
         try {
             const data = await listTasks(gameId, {
-                featureId,
+                featureId: effectiveFeatureId ?? undefined,
                 status,
                 categoryId,
                 ...(archivedOnly ? { archivedOnly: true } : {}),
@@ -289,6 +123,10 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
                       }
                     : {}),
             })
+            // The list endpoint returns sparse refs (id-only) for feature/category/tags. Re-hydrate from the
+            // already-loaded lookup snapshots so downstream UI (chips, filter pills) has full names/colors
+            // even on the very first paint after bootstrap. `opts` lets the bootstrap pass freshly-fetched
+            // snapshots before component state has caught up.
             const featureMap = new Map((opts?.featuresSnapshot ?? features).map((f) => [f.id, f]))
             const categoryMap = new Map((opts?.categoriesSnapshot ?? categories).map((c) => [c.id, c]))
             const tagMap = new Map((opts?.tagsSnapshot ?? allTags).map((x) => [x.id, x]))
@@ -369,7 +207,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
     useEffect(() => {
         const id = window.setTimeout(() => {
             const f = searchParams.get('feature')
-            if (f) setSelectedFeatureId(f)
+            if (f && forcedFeatureId == null) setSelectedFeatureId(f)
             const t = searchParams.get('task')
             if (f || t) {
                 setSelectedCategoryId('__all__')
@@ -377,7 +215,18 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
             }
         }, 0)
         return () => window.clearTimeout(id)
-    }, [searchParams])
+    }, [searchParams, forcedFeatureId])
+
+    useEffect(() => {
+        if (forcedFeatureId == null) return
+        const t = window.setTimeout(() => {
+            setSelectedFeatureId(forcedFeatureId)
+            setSelectedCategoryId('__all__')
+            setSelectedStatus('__all__')
+            setSelectedFilterTagIds([])
+        }, 0)
+        return () => window.clearTimeout(t)
+    }, [forcedFeatureId])
 
     useEffect(() => {
         const tid = searchParams.get('task')
@@ -541,14 +390,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
     const patchDraft = (patch: Partial<TaskDraft>) => {
         setModal((prev) => {
             if (prev.kind === 'closed') return prev
-            if (prev.kind === 'create') return { ...prev, draft: { ...prev.draft, ...patch } }
-            if (prev.kind === 'task' && prev.surface === 'edit') {
-                return { ...prev, draft: { ...prev.draft, ...patch } }
-            }
-            if (prev.kind === 'task' && prev.surface === 'view') {
-                return { ...prev, draft: { ...prev.draft, ...patch } }
-            }
-            return prev
+            return { ...prev, draft: { ...prev.draft, ...patch } }
         })
     }
 
@@ -686,6 +528,22 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
         }
     }
 
+    const onUnarchiveTask = async () => {
+        if (modal.kind !== 'task') return
+        const ok = window.confirm('Unarchive this task? It will return to the active task list.')
+        if (!ok) return
+        setState({ kind: 'loading', message: 'Unarchiving…' })
+        try {
+            await unarchiveTask(gameId, modal.taskId)
+            closeModal()
+            await refreshTasks()
+            await refreshFeatures()
+            setState({ kind: 'success', message: 'Task unarchived.' })
+        } catch {
+            setState({ kind: 'error', message: 'Failed to unarchive task.' })
+        }
+    }
+
     const featureNameById = (id: string) => features.find((f) => f.id === id)?.name ?? ''
     const categoryNameById = (id: string) => categories.find((c) => c.id === id)?.name ?? ''
 
@@ -752,181 +610,31 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
         selectedStatus,
     ])
 
+    const showFilterPanel = !(archivedOnly && layout === 'embedded') && forcedFeatureId == null
+
     const tasksLayoutBody = (
-        <div className="cardBody tasksLayout">
-            <aside className="tasksFilterPanel" aria-label="Task filters">
-                <div className="tasksFilterPanelTitle">Filter by feature</div>
-                {features.length === 0 && (
-                    <div className="emptyState">
-                        No features yet. Create one on the{' '}
-                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                    </div>
-                )}
-
-                {features.length > 0 && (
-                    <div className="tasksFilterList" role="list">
-                        <button
-                            type="button"
-                            className="filterItem"
-                            data-active={selectedFeatureId === '__all__'}
-                            onClick={() => setSelectedFeatureId('__all__')}
-                        >
-                            <span className="filterItemInner">
-                                <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
-                                <span>All features</span>
-                            </span>
-                        </button>
-                        {features.map((f) => {
-                            const c =
-                                f.color && /^#[0-9A-Fa-f]{6}$/i.test(f.color)
-                                    ? f.color.toLowerCase()
-                                    : FALLBACK_FEATURE_COLOR
-                            return (
-                                <button
-                                    key={f.id}
-                                    type="button"
-                                    className="filterItem"
-                                    data-active={selectedFeatureId === f.id}
-                                    onClick={() => setSelectedFeatureId(f.id)}
-                                >
-                                    <span className="filterItemInner">
-                                        <span className="featureSwatch" style={{ backgroundColor: c }} />
-                                        <span>{f.name}</span>
-                                    </span>
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
-
-                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                    Filter by category
-                </div>
-                {categories.length === 0 && (
-                    <div className="emptyState">
-                        No categories yet. Create one on the{' '}
-                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                    </div>
-                )}
-                {categories.length > 0 && (
-                    <div className="tasksFilterList" role="list">
-                        <button
-                            type="button"
-                            className="filterItem"
-                            data-active={selectedCategoryId === '__all__'}
-                            onClick={() => setSelectedCategoryId('__all__')}
-                        >
-                            <span className="filterItemInner">
-                                <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
-                                <span>All categories</span>
-                            </span>
-                        </button>
-                        {categories.map((cat) => {
-                            const col =
-                                cat.color && /^#[0-9A-Fa-f]{6}$/i.test(cat.color)
-                                    ? cat.color.toLowerCase()
-                                    : FALLBACK_FEATURE_COLOR
-                            return (
-                                <button
-                                    key={cat.id}
-                                    type="button"
-                                    className="filterItem"
-                                    data-active={selectedCategoryId === cat.id}
-                                    onClick={() => setSelectedCategoryId(cat.id)}
-                                >
-                                    <span className="filterItemInner">
-                                        <span className="featureSwatch" style={{ backgroundColor: col }} />
-                                        <span>{cat.name}</span>
-                                    </span>
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
-
-                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                    Status
-                </div>
-                <select
-                    className="intervalSelect"
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | '__all__')}
-                    aria-label="Filter tasks by status"
-                >
-                    <option value="__all__">All statuses</option>
-                    {allStatus.map((s) => (
-                        <option key={s} value={s}>
-                            {statusLabel(s)}
-                        </option>
-                    ))}
-                </select>
-
-                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                    Filter by tag
-                </div>
-                {allTags.length === 0 && (
-                    <div className="emptyState" style={{ fontSize: 13 }}>
-                        No tags yet. Create tags on the{' '}
-                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                    </div>
-                )}
-                {allTags.length >= 2 && selectedFilterTagIds.length >= 2 && (
-                    <div style={{ marginBottom: 8 }}>
-                        <label className="tasksFilterPanelTitle" style={{ marginBottom: 4, display: 'block' }}>
-                            Match
-                        </label>
-                        <select
-                            className="intervalSelect"
-                            value={tagFilterMode}
-                            onChange={(e) => setTagFilterMode(e.target.value as 'ANY' | 'ALL')}
-                            aria-label="Match any or all selected tags"
-                        >
-                            <option value="ANY">Any selected tag</option>
-                            <option value="ALL">All selected tags</option>
-                        </select>
-                    </div>
-                )}
-                {allTags.length > 0 && (
-                    <div className="tasksTagFilterChips" role="group" aria-label="Filter by tags">
-                        {allTags.map((tg) => {
-                            const col =
-                                tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                    ? tg.color.toLowerCase()
-                                    : FALLBACK_FEATURE_COLOR
-                            const selected = selectedFilterTagIds.includes(tg.id)
-                            return (
-                                <button
-                                    key={tg.id}
-                                    type="button"
-                                    className="tagChip tagChipToggle"
-                                    data-selected={selected}
-                                    style={{
-                                        backgroundColor: selected ? col : 'transparent',
-                                        color: selected ? chipTextColor(col) : col,
-                                        borderColor: col,
-                                    }}
-                                    onClick={() => toggleFilterTagId(tg.id)}
-                                >
-                                    #{tg.name}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {!archivedOnly && (
-                    <div className="tasksFilterPanelFooter">
-                        <button
-                            type="button"
-                            className="btn btnPrimary"
-                            disabled={features.length === 0 || state.kind === 'loading'}
-                            onClick={openCreateModal}
-                        >
-                            New task
-                        </button>
-                    </div>
-                )}
-            </aside>
+        <div className={`cardBody tasksLayout ${showFilterPanel ? '' : 'tasksLayoutSingleColumn'}`.trim()}>
+            {showFilterPanel ? (
+                <TasksFilterPanel
+                    gameId={gameId}
+                    archivedOnly={archivedOnly}
+                    state={state}
+                    features={features}
+                    categories={categories}
+                    allTags={allTags}
+                    selectedFeatureId={selectedFeatureId}
+                    setSelectedFeatureId={setSelectedFeatureId}
+                    selectedCategoryId={selectedCategoryId}
+                    setSelectedCategoryId={setSelectedCategoryId}
+                    selectedFilterTagIds={selectedFilterTagIds}
+                    toggleFilterTagId={toggleFilterTagId}
+                    tagFilterMode={tagFilterMode}
+                    setTagFilterMode={setTagFilterMode}
+                    selectedStatus={selectedStatus}
+                    setSelectedStatus={setSelectedStatus}
+                    openCreateModal={openCreateModal}
+                />
+            ) : null}
 
             <div className="tasksContent">
                 {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
@@ -938,212 +646,23 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
                 )}
 
                 {tasks.length > 0 && (
-                    <div className="tableWrap tasksTableWrap">
-                        <div className="tasksListToolbar">
-                            <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
-                                Subtasks
-                            </label>
-                            <select
-                                id="tasks-subtasks-visibility"
-                                className="intervalSelect tasksListToolbarSelect"
-                                value={listShowSubtasks ? 'show' : 'hide'}
-                                onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
-                                aria-label="Show or hide subtasks in the list"
-                            >
-                                <option value="show">Show subtasks</option>
-                                <option value="hide">Hide subtasks</option>
-                            </select>
-                        </div>
-                        <table className="table tableCompact tableTasksList">
-                            <thead>
-                                <tr>
-                                    <th className="tasksListTitleCol">Title</th>
-                                    <th className="tasksListProgressCol">Progress</th>
-                                    <th className="tasksListStatusCol">Status</th>
-                                    <th className="tasksListFeatureCol">Feature</th>
-                                    <th className="tasksListCategoryCol">Category</th>
-                                    <th className="tasksListTagCol">Tag</th>
-                                    <th className="tasksListActionsCol" aria-label="Actions" />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {listRows.map((row, idx) => {
-                                    const t = row.task
-                                    const { name: fn, color: fc } = featureMeta(t, features)
-                                    const { name: cn, color: cc } = categoryMeta(t, categories)
-                                    const atDone = (t.status as TaskStatus) === 'DONE'
-                                    const busyRow = advancingTaskId === t.id
-                                    const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
-                                    const progLabels = formatChildProgressLabel(progDone, progTotal)
-                                    const showFeatureCategory = row.depth === 0
-                                    const rowTags = sortedTaskTags(t)
-                                    const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
-                                    return (
-                                        <tr
-                                            key={t.id}
-                                            className="tasksListRow"
-                                            data-odd={idx % 2 === 1}
-                                            role="button"
-                                            tabIndex={0}
-                                            aria-label={`View task: ${t.title}`}
-                                            onClick={() => openTaskView(t)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' || e.key === ' ') {
-                                                    e.preventDefault()
-                                                    openTaskView(t)
-                                                }
-                                            }}
-                                        >
-                                            <td
-                                                style={{
-                                                    paddingLeft: 10 + row.depth * 14,
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 4,
-                                                        minWidth: 0,
-                                                    }}
-                                                >
-                                                    {row.hasChildren && listShowSubtasks ? (
-                                                        <button
-                                                            type="button"
-                                                            className="iconBtn tasksTaskTreeToggle"
-                                                            title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
-                                                            aria-expanded={rowExpanded}
-                                                            aria-label={
-                                                                rowExpanded
-                                                                    ? `Collapse subtasks for ${t.title}`
-                                                                    : `Expand subtasks for ${t.title}`
-                                                            }
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                toggleTaskRowCollapsed(t.id)
-                                                            }}
-                                                        >
-                                                            <IconChevronTaskTree expanded={rowExpanded} />
-                                                        </button>
-                                                    ) : (
-                                                        <span className="tasksTaskTreeSpacer" aria-hidden />
-                                                    )}
-                                                    <span style={{ minWidth: 0 }}>{t.title}</span>
-                                                </span>
-                                            </td>
-                                            <td className="tasksListProgressCol">
-                                                {progTotal > 0 ? (
-                                                    <span title="Subtasks done / total (status DONE)">
-                                                        <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
-                                                        <span className="muted">{progLabels.ratio}</span>
-                                                    </span>
-                                                ) : null}
-                                            </td>
-                                            <td className="tasksListStatusCol">
-                                                <span
-                                                    className="tasksStatusPill"
-                                                    data-status={(t.status as TaskStatus) ?? 'TODO'}
-                                                >
-                                                    {statusLabel(t.status as TaskStatus)}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {showFeatureCategory ? (
-                                                    <span className="filterItemInner">
-                                                        <span
-                                                            className="featureSwatch"
-                                                            style={{ backgroundColor: fc }}
-                                                        />
-                                                        <span style={{ color: fc }}>{fn}</span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="muted">—</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {showFeatureCategory ? (
-                                                    cn ? (
-                                                        <span className="filterItemInner">
-                                                            <span
-                                                                className="featureSwatch"
-                                                                style={{ backgroundColor: cc }}
-                                                            />
-                                                            <span style={{ color: cc }}>{cn}</span>
-                                                        </span>
-                                                    ) : (
-                                                        <span className="muted">—</span>
-                                                    )
-                                                ) : (
-                                                    <span className="muted">—</span>
-                                                )}
-                                            </td>
-                                            <td className="tasksListTagCol">
-                                                {rowTags.length > 0 ? (
-                                                    <div className="tasksTagCell">
-                                                        {rowTags.map((tg) => {
-                                                            const tc =
-                                                                tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                                                    ? tg.color.toLowerCase()
-                                                                    : FALLBACK_FEATURE_COLOR
-                                                            return (
-                                                                <button
-                                                                    key={tg.id}
-                                                                    type="button"
-                                                                    className="tagChip tagChipInteractive"
-                                                                    style={{
-                                                                        backgroundColor: tc,
-                                                                        color: chipTextColor(tc),
-                                                                    }}
-                                                                    title={`#${tg.name}`}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        setTagBrowseModalTag(tg)
-                                                                    }}
-                                                                >
-                                                                    #{tg.name}
-                                                                </button>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                ) : (
-                                                    <span className="muted">—</span>
-                                                )}
-                                            </td>
-                                            <td onClick={(e) => e.stopPropagation()}>
-                                                <div className="iconBtnRow" style={{ justifyContent: 'flex-end' }}>
-                                                    <button
-                                                        type="button"
-                                                        className="iconBtn"
-                                                        title={atDone ? 'Task is done' : 'Advance to next status'}
-                                                        aria-label="Advance to next status"
-                                                        disabled={atDone || busyRow || state.kind === 'loading'}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            void onAdvanceStatus(t)
-                                                        }}
-                                                    >
-                                                        <IconCheck />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="iconBtn iconBtnDanger"
-                                                        title="Delete task"
-                                                        aria-label="Delete task"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            void onDelete(t)
-                                                        }}
-                                                    >
-                                                        <IconTrash />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <TasksListTable
+                        tasks={tasks}
+                        listRows={listRows}
+                        listShowSubtasks={listShowSubtasks}
+                        setListShowSubtasks={setListShowSubtasks}
+                        features={features}
+                        categories={categories}
+                        collapsedTaskIds={collapsedTaskIds}
+                        toggleTaskRowCollapsed={toggleTaskRowCollapsed}
+                        advancingTaskId={advancingTaskId}
+                        state={state}
+                        openTaskView={openTaskView}
+                        onAdvanceStatus={onAdvanceStatus}
+                        onDelete={onDelete}
+                        onTagChipClick={(tg) => setTagBrowseModalTag(tg)}
+                        mode={archivedOnly && layout === 'embedded' ? 'archiveEmbedded' : 'default'}
+                    />
                 )}
             </div>
         </div>
@@ -1170,515 +689,28 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }:
                 tasksLayoutBody
             )}
 
-            {modalOpen &&
-                createPortal(
-                    <div className="modalBackdrop" onClick={closeModal} role="presentation">
-                        <div
-                            className="modalCard modalCardTask"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-labelledby="task-modal-title"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="modalTaskHeader">
-                                <h3 className="modalTitle" id="task-modal-title">
-                                    {modalTitleText}
-                                </h3>
-                                <div className="modalHeaderTrailing">
-                                    {modal.kind === 'task' && (
-                                        <button type="button" className="btn" onClick={toggleTaskSurface}>
-                                            {modal.surface === 'view' ? 'Edit' : 'View'}
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className="modalCloseBtn"
-                                        onClick={closeModal}
-                                        title="Close"
-                                        aria-label="Close dialog"
-                                    >
-                                        <IconClose />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {modal.kind === 'create' && (
-                                <>
-                                    <div className="modalTaskScroll">
-                                        <div className="modalFormGrid">
-                                            <label className="modalFieldLabel" htmlFor="task-modal-title-input">
-                                                Title
-                                            </label>
-                                            <input
-                                                id="task-modal-title-input"
-                                                className="textInput"
-                                                value={modal.draft.title}
-                                                placeholder="Title"
-                                                onChange={(e) => patchDraft({ title: e.target.value })}
-                                            />
-                                            <div className="modalMetaRow">
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-modal-feature">
-                                                        Feature
-                                                    </label>
-                                                    <select
-                                                        id="task-modal-feature"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.featureId}
-                                                        onChange={(e) =>
-                                                            patchDraft({
-                                                                featureId: e.target.value,
-                                                                parentTaskId: '',
-                                                            })
-                                                        }
-                                                        disabled={features.length === 0}
-                                                    >
-                                                        {features.map((f) => (
-                                                            <option key={f.id} value={f.id}>
-                                                                {f.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-modal-category">
-                                                        Category
-                                                    </label>
-                                                    <select
-                                                        id="task-modal-category"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.categoryId}
-                                                        onChange={(e) => patchDraft({ categoryId: e.target.value })}
-                                                    >
-                                                        <option value="">None</option>
-                                                        {categories.map((c) => (
-                                                            <option key={c.id} value={c.id}>
-                                                                {c.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-modal-status">
-                                                        Status
-                                                    </label>
-                                                    <select
-                                                        id="task-modal-status"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.status}
-                                                        onChange={(e) =>
-                                                            patchDraft({ status: e.target.value as TaskStatus })
-                                                        }
-                                                    >
-                                                        {allStatus.map((s) => (
-                                                            <option key={s} value={s}>
-                                                                {statusLabel(s)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <label className="modalFieldLabel" htmlFor="task-modal-parent">
-                                                Parent task (optional)
-                                            </label>
-                                            <select
-                                                id="task-modal-parent"
-                                                className="intervalSelect"
-                                                value={modal.draft.parentTaskId}
-                                                onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
-                                                aria-label="Parent task"
-                                            >
-                                                <option value="">None (root task)</option>
-                                                {parentTaskPickerOptions(tasks, modal.draft.featureId, null).map(
-                                                    (pt) => (
-                                                        <option key={pt.id} value={pt.id}>
-                                                            {pt.title}
-                                                        </option>
-                                                    )
-                                                )}
-                                            </select>
-                                            <label className="modalFieldLabel" htmlFor="task-modal-desc">
-                                                Description (markdown)
-                                            </label>
-                                            <textarea
-                                                id="task-modal-desc"
-                                                className="textArea modalTaskDescArea"
-                                                value={modal.draft.description}
-                                                placeholder="Description (optional, markdown)"
-                                                onChange={(e) => patchDraft({ description: e.target.value })}
-                                                rows={4}
-                                            />
-                                            <span className="modalFieldLabel">Tags</span>
-                                            <div className="modalTagPicker" role="group" aria-label="Task tags">
-                                                {allTags.length === 0 ? (
-                                                    <span className="muted" style={{ fontSize: 13 }}>
-                                                        No tags defined — add some in Configuration.
-                                                    </span>
-                                                ) : (
-                                                    allTags.map((tg) => {
-                                                        const col =
-                                                            tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                                                ? tg.color.toLowerCase()
-                                                                : FALLBACK_FEATURE_COLOR
-                                                        const on = modal.draft.tagIds.includes(tg.id)
-                                                        return (
-                                                            <button
-                                                                key={tg.id}
-                                                                type="button"
-                                                                className="tagChip tagChipToggle"
-                                                                data-selected={on}
-                                                                style={{
-                                                                    backgroundColor: on ? col : 'transparent',
-                                                                    color: on ? chipTextColor(col) : col,
-                                                                    borderColor: col,
-                                                                }}
-                                                                onClick={() => toggleDraftTagId(tg.id)}
-                                                            >
-                                                                #{tg.name}
-                                                            </button>
-                                                        )
-                                                    })
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="modalFooter modalFooterTask">
-                                        <div className="modalFooterStart" />
-                                        <div className="modalFooterEnd">
-                                            <button type="button" className="btn btnDanger" onClick={closeModal}>
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn btnPrimary"
-                                                disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
-                                                onClick={() => void onCreate()}
-                                            >
-                                                Create
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {modal.kind === 'task' && modal.surface === 'view' && (
-                                <>
-                                    <div className="modalTaskScroll">
-                                        <div className="modalTaskViewBody">
-                                            <div className="modalReadonlyRow">
-                                                <span className="modalFieldLabel">Title</span>
-                                                <div className="modalReadonlyValue">{modal.draft.title || '—'}</div>
-                                            </div>
-                                            <div className="modalReadonlyRow">
-                                                <span className="modalFieldLabel">Parent task</span>
-                                                <div className="modalReadonlyValue">
-                                                    {modal.draft.parentTaskId.trim().length > 0
-                                                        ? (tasks.find((x) => x.id === modal.draft.parentTaskId)
-                                                              ?.title ?? modal.draft.parentTaskId)
-                                                        : '—'}
-                                                </div>
-                                            </div>
-                                            <div className="modalMetaRow modalMetaRowReadonly">
-                                                <div className="modalMetaCell">
-                                                    <span className="modalFieldLabel">Feature</span>
-                                                    <div className="modalReadonlyValue">
-                                                        {featureNameById(modal.draft.featureId) || '—'}
-                                                    </div>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <span className="modalFieldLabel">Category</span>
-                                                    <div className="modalReadonlyValue">
-                                                        {categoryNameById(modal.draft.categoryId) || '—'}
-                                                    </div>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <span className="modalFieldLabel">Status</span>
-                                                    <div className="modalReadonlyValue">
-                                                        {statusLabel(modal.draft.status)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="modalReadonlyRow">
-                                                <span className="modalFieldLabel">Tags</span>
-                                                <div className="modalReadonlyValue">
-                                                    {modal.draft.tagIds.length === 0 ? (
-                                                        <span className="muted">—</span>
-                                                    ) : (
-                                                        <div className="tasksTagCell">
-                                                            {modal.draft.tagIds.map((id) => {
-                                                                const tg = allTags.find((x) => x.id === id)
-                                                                const name = tg?.name ?? id
-                                                                const tc =
-                                                                    tg?.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                                                        ? tg.color.toLowerCase()
-                                                                        : FALLBACK_FEATURE_COLOR
-                                                                return (
-                                                                    <span
-                                                                        key={id}
-                                                                        className="tagChip"
-                                                                        style={{
-                                                                            backgroundColor: tc,
-                                                                            color: chipTextColor(tc),
-                                                                        }}
-                                                                    >
-                                                                        #{name}
-                                                                    </span>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="modalDescriptionBlock">
-                                                <span className="modalFieldLabel">Description</span>
-                                                {modal.draft.description.trim().length > 0 ? (
-                                                    <div className="modalDescriptionMarkdownWrap">
-                                                        <TaskDescriptionMarkdown markdown={modal.draft.description} />
-                                                    </div>
-                                                ) : (
-                                                    <div className="muted modalReadonlyValue" style={{ marginTop: 6 }}>
-                                                        No description
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="modalFooter modalFooterTask">
-                                        <div
-                                            className="modalFooterStart"
-                                            style={{
-                                                display: 'flex',
-                                                flexWrap: 'wrap',
-                                                gap: 8,
-                                                alignItems: 'center',
-                                            }}
-                                        >
-                                            {!archivedOnly ? (
-                                                <button
-                                                    type="button"
-                                                    className="btn"
-                                                    disabled={state.kind === 'loading'}
-                                                    onClick={() => void onArchiveTask()}
-                                                >
-                                                    Archive
-                                                </button>
-                                            ) : null}
-                                            {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
-                                                <Link
-                                                    className="btn"
-                                                    to={`/g/${encodeURIComponent(gameId)}/dashboard?exception=${encodeURIComponent(modal.draft.sourceGameExceptionId.trim())}`}
-                                                    onClick={closeModal}
-                                                >
-                                                    View exception in dashboard
-                                                </Link>
-                                            ) : null}
-                                        </div>
-                                        <div className="modalFooterEnd">
-                                            <button type="button" className="btn btnDanger" onClick={closeModal}>
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn btnPrimary"
-                                                onClick={toggleTaskSurface}
-                                            >
-                                                Edit
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {modal.kind === 'task' && modal.surface === 'edit' && (
-                                <>
-                                    <div className="modalTaskScroll">
-                                        <div className="modalFormGrid">
-                                            <label className="modalFieldLabel" htmlFor="task-edit-title">
-                                                Title
-                                            </label>
-                                            <input
-                                                id="task-edit-title"
-                                                className="textInput"
-                                                value={modal.draft.title}
-                                                onChange={(e) => patchDraft({ title: e.target.value })}
-                                            />
-                                            <div className="modalMetaRow">
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-edit-feature">
-                                                        Feature
-                                                    </label>
-                                                    <select
-                                                        id="task-edit-feature"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.featureId}
-                                                        onChange={(e) =>
-                                                            patchDraft({
-                                                                featureId: e.target.value,
-                                                                parentTaskId: '',
-                                                            })
-                                                        }
-                                                    >
-                                                        {features.map((f) => (
-                                                            <option key={f.id} value={f.id}>
-                                                                {f.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-edit-category">
-                                                        Category
-                                                    </label>
-                                                    <select
-                                                        id="task-edit-category"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.categoryId}
-                                                        onChange={(e) => patchDraft({ categoryId: e.target.value })}
-                                                    >
-                                                        <option value="">None</option>
-                                                        {categories.map((c) => (
-                                                            <option key={c.id} value={c.id}>
-                                                                {c.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="modalMetaCell">
-                                                    <label className="modalFieldLabel" htmlFor="task-edit-status">
-                                                        Status
-                                                    </label>
-                                                    <select
-                                                        id="task-edit-status"
-                                                        className="intervalSelect"
-                                                        value={modal.draft.status}
-                                                        onChange={(e) =>
-                                                            patchDraft({ status: e.target.value as TaskStatus })
-                                                        }
-                                                    >
-                                                        {allStatus.map((s) => (
-                                                            <option key={s} value={s}>
-                                                                {statusLabel(s)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <label className="modalFieldLabel" htmlFor="task-edit-parent">
-                                                Parent task (optional)
-                                            </label>
-                                            <select
-                                                id="task-edit-parent"
-                                                className="intervalSelect"
-                                                value={modal.draft.parentTaskId}
-                                                onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
-                                                aria-label="Parent task"
-                                            >
-                                                <option value="">None (root task)</option>
-                                                {parentTaskPickerOptions(
-                                                    tasks,
-                                                    modal.draft.featureId,
-                                                    modal.taskId
-                                                ).map((pt) => (
-                                                    <option key={pt.id} value={pt.id}>
-                                                        {pt.title}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <label className="modalFieldLabel" htmlFor="task-edit-desc">
-                                                Description (markdown)
-                                            </label>
-                                            <textarea
-                                                id="task-edit-desc"
-                                                className="textArea modalTaskDescArea"
-                                                value={modal.draft.description}
-                                                placeholder="Description (optional, markdown source)"
-                                                onChange={(e) => patchDraft({ description: e.target.value })}
-                                                rows={4}
-                                            />
-                                            <span className="modalFieldLabel">Tags</span>
-                                            <div className="modalTagPicker" role="group" aria-label="Task tags">
-                                                {allTags.length === 0 ? (
-                                                    <span className="muted" style={{ fontSize: 13 }}>
-                                                        No tags defined — add some in Configuration.
-                                                    </span>
-                                                ) : (
-                                                    allTags.map((tg) => {
-                                                        const col =
-                                                            tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                                                ? tg.color.toLowerCase()
-                                                                : FALLBACK_FEATURE_COLOR
-                                                        const on = modal.draft.tagIds.includes(tg.id)
-                                                        return (
-                                                            <button
-                                                                key={tg.id}
-                                                                type="button"
-                                                                className="tagChip tagChipToggle"
-                                                                data-selected={on}
-                                                                style={{
-                                                                    backgroundColor: on ? col : 'transparent',
-                                                                    color: on ? chipTextColor(col) : col,
-                                                                    borderColor: col,
-                                                                }}
-                                                                onClick={() => toggleDraftTagId(tg.id)}
-                                                            >
-                                                                #{tg.name}
-                                                            </button>
-                                                        )
-                                                    })
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="modalFooter modalFooterTask">
-                                        <div
-                                            className="modalFooterStart"
-                                            style={{
-                                                display: 'flex',
-                                                flexWrap: 'wrap',
-                                                gap: 8,
-                                                alignItems: 'center',
-                                            }}
-                                        >
-                                            {!archivedOnly ? (
-                                                <button
-                                                    type="button"
-                                                    className="btn"
-                                                    disabled={state.kind === 'loading'}
-                                                    onClick={() => void onArchiveTask()}
-                                                >
-                                                    Archive
-                                                </button>
-                                            ) : null}
-                                            {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
-                                                <Link
-                                                    className="btn"
-                                                    to={`/g/${encodeURIComponent(gameId)}/dashboard?exception=${encodeURIComponent(modal.draft.sourceGameExceptionId.trim())}`}
-                                                    onClick={closeModal}
-                                                >
-                                                    View exception in dashboard
-                                                </Link>
-                                            ) : null}
-                                        </div>
-                                        <div className="modalFooterEnd">
-                                            <button type="button" className="btn btnDanger" onClick={cancelEditToView}>
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn btnPrimary"
-                                                disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
-                                                onClick={() => void onSaveTask()}
-                                            >
-                                                Save
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>,
-                    document.body
-                )}
+            <TaskModal
+                modal={modal}
+                state={state}
+                archivedOnly={archivedOnly}
+                gameId={gameId}
+                features={features}
+                categories={categories}
+                allTags={allTags}
+                tasks={tasks}
+                modalTitleText={modalTitleText}
+                canSubmitDraft={canSubmitDraft}
+                closeModal={closeModal}
+                toggleTaskSurface={toggleTaskSurface}
+                cancelEditToView={cancelEditToView}
+                patchDraft={patchDraft}
+                toggleDraftTagId={toggleDraftTagId}
+                onCreate={onCreate}
+                onSaveTask={onSaveTask}
+                onArchiveTask={archivedOnly ? onUnarchiveTask : onArchiveTask}
+                featureNameById={featureNameById}
+                categoryNameById={categoryNameById}
+            />
 
             <TagTasksModal
                 open={tagBrowseModalTag !== null}

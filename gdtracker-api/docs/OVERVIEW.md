@@ -16,7 +16,7 @@ All application code lives under `src/main/java/com/example/api/`:
 | `repository/` | Spring Data JPA interfaces |
 | `model/` | JPA entities and enums (`TaskStatus`, etc.) — Lombok for getters/setters/no-args constructors where applicable |
 | `service/` | Cross-cutting helpers (e.g. `GameAccessService` for ownership checks) |
-| `util/` | Stateless helpers (formatting, parsing, pure functions)—not domain workflow; use `service/` for shared business rules |
+| `util/` | Stateless helpers (formatting, parsing, pure functions)—not domain workflow; use `service/` for shared business rules. Includes `SqlResources` for loading externalized native SQL from `src/main/resources/sql/`. |
 | `security/` | Spring Security (`SecurityConfig`, `AppUserPrincipal`, plaintext dev `PasswordEncoder` for user passwords, separate **BCrypt** `ingestTokenPasswordEncoder` for per-game ingest tokens) |
 
 Controllers use repositories directly for persistence; `GameAccessService` centralizes resolving the current user and verifying game ownership.
@@ -70,7 +70,7 @@ Base path **`/api`**. Domain routes are scoped under **`/api/games/{gameId}/...`
 | Tags | `GET/POST /api/games/{gameId}/tags`, `PUT/DELETE /api/games/{gameId}/tags/{id}` |
 | Game players (ingest) | `POST /api/games/{gameId}/game-players` — register session (**Bearer ingest token** only); returns `playerId` for `X-Player-Id` |
 | Integration ping | `POST /api/games/{gameId}/integration` — validate **Bearer ingest token** only (body `{"validation":"ok"}`; no `X-Player-Id`); `GET /api/games/{gameId}/integration/status` (session, owner) — last ping time for the dashboard |
-| Game exceptions | `GET/POST /api/games/{gameId}/game-exceptions` (session), `POST .../game-exceptions/ingest` (**Bearer + X-Player-Id**), `GET .../game-exceptions/interval?fromMs=&toMs=` |
+| Game exceptions | `GET/POST /api/games/{gameId}/game-exceptions` (session), `POST .../game-exceptions/ingest` (**Bearer + X-Player-Id**), `GET .../game-exceptions/interval?fromMs=&toMs=`, `GET .../game-exceptions/search?q=&page=&size=` (case-insensitive substring on `id`/`shortErrorMessage`/`errorMessage`/`stackTrace`; size clamped 1..100, default 10; returns Spring `Page<GameException>`) |
 | Trace heatmap | `GET /api/games/{gameId}/game-trace` (session, owner) — list trace points; `POST /api/games/{gameId}/game-trace/ingest` — create trace point (**Bearer + X-Player-Id**); body may include optional `gameEventId` |
 | Game event definitions | `GET/POST /api/games/{gameId}/game-event-definitions`, `PUT/DELETE /api/games/{gameId}/game-event-definitions/{id}` (session, owner) — each definition includes optional **`color`** (`#RRGGBB`, default `#818cf8`) |
 | Game events | `GET /api/games/{gameId}/game-events` (session, owner) — list occurrences; optional query **`q`**, **`code`**, **`limit`**. `POST /api/games/{gameId}/game-events/ingest` — create occurrence (**Bearer + X-Player-Id**) |
@@ -85,6 +85,10 @@ Base path **`/api`**. Domain routes are scoped under **`/api/games/{gameId}/...`
 
 - Changelog root: [`src/main/resources/db/changelog/db.changelog-master.xml`](../src/main/resources/db/changelog/db.changelog-master.xml)
 - SQL increments: [`src/main/resources/db/changelog/migrations/`](../src/main/resources/db/changelog/migrations/)
+
+## Externalized native SQL
+
+Native (non-JPQL) queries live in [`src/main/resources/sql/`](../src/main/resources/sql/), grouped by domain (e.g. `sql/tasks/`). They are loaded at runtime via `com.example.api.util.SqlResources` and executed from custom Spring Data fragment implementations (e.g. `TaskAggregationRepositoryImpl`). Inline JPQL `@Query` strings on repository methods are still allowed; raw native SQL must live in a `.sql` file.
 
 Liquibase `0006_users_games_multitenancy.sql` introduces `users` and `games`, assigns existing rows to a bootstrap **legacy** user/game for migration (plaintext password in DB is for **local/testing only** — replace via normal registration flow for real accounts).
 

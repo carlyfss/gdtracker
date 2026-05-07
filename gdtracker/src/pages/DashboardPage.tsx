@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
 import { FeatureTasksModal } from '../components/FeatureTasksModal'
 import type { Feature } from '../api/features'
-import { archiveFeature, listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
+import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
 import { getConfiguration } from '../api/configuration'
 import {
     getGameException,
@@ -17,6 +17,9 @@ import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
 import { flattenFeaturesForList } from '../util/featureTree'
 import { applyExceptionTaskDescriptionTemplate, applyExceptionTaskTitleTemplate } from '../util/exceptionTaskTemplate'
+import { ExceptionDetailPanel } from './dashboard/components/ExceptionDetailPanel'
+import { ExceptionSearchPanel } from './dashboard/components/ExceptionSearchPanel'
+import { exceptionTimeFor, subtitleForException, titleForException } from './dashboard/dashboardPageUtils'
 
 type TimeBucket = 'minute' | 'halfHour' | 'hour' | 'day'
 
@@ -65,14 +68,6 @@ function bucketLabelFor(start: Date, bucket: TimeBucket) {
     return `${formatDateYmd(start)} ${formatTimeHm(start)}`
 }
 
-function exceptionTimeFor(item: GameException): Date | null {
-    const raw = item.timestamp ?? item.createdAt
-    if (raw == null) return null
-    const date = new Date(raw)
-    if (Number.isNaN(date.getTime())) return null
-    return date
-}
-
 function bucketLabel(bucket: TimeBucket) {
     switch (bucket) {
         case 'minute':
@@ -88,26 +83,6 @@ function bucketLabel(bucket: TimeBucket) {
     }
 }
 
-function titleForException(ex: GameException) {
-    const short =
-        typeof ex.shortErrorMessage === 'string' && ex.shortErrorMessage.trim().length > 0
-            ? ex.shortErrorMessage.trim()
-            : null
-    if (short) return short
-    const msg =
-        typeof ex.errorMessage === 'string' && ex.errorMessage.trim().length > 0 ? ex.errorMessage : 'Unknown error'
-    return msg
-}
-
-function subtitleForException(ex: GameException) {
-    const parts: string[] = []
-    const t = exceptionTimeFor(ex)
-    if (t) parts.push(t.toLocaleString())
-    if (typeof ex.map === 'string' && ex.map) parts.push(ex.map)
-    if (typeof ex.location === 'string' && ex.location) parts.push(ex.location)
-    return parts.join(' • ')
-}
-
 export function DashboardPage() {
     const gameId = useGameId()
     const navigate = useNavigate()
@@ -118,7 +93,7 @@ export function DashboardPage() {
     const [selectedBucketStartMs, setSelectedBucketStartMs] = useState<number | null>(null)
     const [selectedIntervalExceptions, setSelectedIntervalExceptions] = useState<GameException[]>([])
     const [selectedIntervalLoading, setSelectedIntervalLoading] = useState(false)
-    const [selectedExceptionId, setSelectedExceptionId] = useState<string | null>(null)
+    const [pickedException, setPickedException] = useState<GameException | null>(null)
 
     const [features, setFeatures] = useState<Feature[]>([])
     const [featureProgress, setFeatureProgress] = useState<FeatureTaskProgressRow[]>([])
@@ -145,15 +120,12 @@ export function DashboardPage() {
                 try {
                     const ex = await getGameException(gameId, exceptionQueryId)
                     if (cancelled) return
-                    const id = String(ex.id ?? '')
                     const t = exceptionTimeFor(ex)
                     if (t) {
                         const start = bucketStartFor(t, exceptionBucket)
                         setSelectedBucketStartMs(start.getTime())
                     }
-                    if (id.length > 0) {
-                        setSelectedExceptionId(id)
-                    }
+                    setPickedException(ex)
                     setSearchParams(
                         (prev) => {
                             const next = new URLSearchParams(prev)
@@ -273,7 +245,7 @@ export function DashboardPage() {
             if (effectiveBucketStartMs != null && bucketStartMs === effectiveBucketStartMs) return
 
             setSelectedBucketStartMs(bucketStartMs)
-            setSelectedExceptionId(null)
+            setPickedException(null)
             setSelectedIntervalLoading(true)
             setSelectedIntervalExceptions([])
         },
@@ -303,27 +275,20 @@ export function DashboardPage() {
             .finally(() => setSelectedIntervalLoading(false))
     }, [selectedBucketRange, gameId])
 
-    const effectiveSelectedExceptionId = useMemo(() => {
-        if (selectedIntervalExceptions.length === 0) return null
-        if (selectedExceptionId && selectedIntervalExceptions.some((ex) => String(ex.id ?? '') === selectedExceptionId))
-            return selectedExceptionId
-        const first = selectedIntervalExceptions[0]
-        return first?.id ? String(first.id) : null
-    }, [selectedIntervalExceptions, selectedExceptionId])
+    const selectedException = useMemo<GameException | null>(() => {
+        if (pickedException) return pickedException
+        return selectedIntervalExceptions[0] ?? null
+    }, [pickedException, selectedIntervalExceptions])
 
-    const selectedException = useMemo(() => {
-        if (!effectiveSelectedExceptionId) return null
-        return selectedIntervalExceptions.find((ex) => String(ex.id ?? '') === effectiveSelectedExceptionId) ?? null
-    }, [selectedIntervalExceptions, effectiveSelectedExceptionId])
+    const selectedExceptionId = selectedException?.id ? String(selectedException.id) : null
 
     useEffect(() => {
-        const exId = selectedException?.id ? String(selectedException.id) : null
-        if (!exId) {
+        if (!selectedExceptionId) {
             const clearTimer = window.setTimeout(() => setLinkedExceptionTaskId(null), 0)
             return () => window.clearTimeout(clearTimer)
         }
         let cancelled = false
-        void listTasks(gameId, { sourceGameExceptionId: exId })
+        void listTasks(gameId, { sourceGameExceptionId: selectedExceptionId })
             .then((tasks: Task[]) => {
                 if (cancelled) return
                 const sorted = [...tasks].sort((a, b) => {
@@ -343,7 +308,7 @@ export function DashboardPage() {
         return () => {
             cancelled = true
         }
-    }, [gameId, selectedException?.id])
+    }, [gameId, selectedExceptionId])
 
     const selectedBucketLabel = useMemo(() => {
         if (!selectedBucketRange) return null
@@ -413,41 +378,29 @@ export function DashboardPage() {
         navigate(`/g/${encodeURIComponent(gameId)}/tasks?task=${encodeURIComponent(linkedExceptionTaskId)}`)
     }, [gameId, navigate, linkedExceptionTaskId])
 
-    const onArchiveDashboardFeature = useCallback(
-        async (f: Feature) => {
-            const ok = window.confirm(
-                `Archive feature "${f.name}" and all of its subfeatures? They will only appear on the Archive page.`
-            )
-            if (!ok) return
-            try {
-                await archiveFeature(gameId, f.id)
-                setFeatureModal(null)
-                setFeaturesPanelLoading(true)
-                setFeaturesError(null)
-                try {
-                    setFeatures(await listFeatures(gameId))
-                } catch {
-                    setFeatures([])
-                    setFeaturesError('Failed to load features.')
-                } finally {
-                    setFeaturesPanelLoading(false)
-                }
-                setProgressLoading(true)
-                setProgressError(null)
-                try {
-                    setFeatureProgress(await listFeatureTaskProgress(gameId))
-                } catch {
-                    setFeatureProgress([])
-                    setProgressError('Could not load task progress. Stats may be incomplete.')
-                } finally {
-                    setProgressLoading(false)
-                }
-            } catch {
-                window.alert('Could not archive feature.')
-            }
-        },
-        [gameId]
-    )
+    const refreshFeaturePanels = useCallback(async () => {
+        setFeaturesPanelLoading(true)
+        setFeaturesError(null)
+        try {
+            setFeatures(await listFeatures(gameId))
+        } catch {
+            setFeatures([])
+            setFeaturesError('Failed to load features.')
+        } finally {
+            setFeaturesPanelLoading(false)
+        }
+
+        setProgressLoading(true)
+        setProgressError(null)
+        try {
+            setFeatureProgress(await listFeatureTaskProgress(gameId))
+        } catch {
+            setFeatureProgress([])
+            setProgressError('Could not load task progress. Stats may be incomplete.')
+        } finally {
+            setProgressLoading(false)
+        }
+    }, [gameId])
 
     return (
         <div className="gamePageStack">
@@ -471,7 +424,6 @@ export function DashboardPage() {
                         collapsedFeatureIds={collapsedFeatureIds}
                         onToggleFeatureCollapsed={toggleFeatureRowCollapsed}
                         onOpenFeature={setFeatureModal}
-                        onArchiveFeature={onArchiveDashboardFeature}
                     />
 
                     <div className="dashboardExceptionsStack">
@@ -495,8 +447,8 @@ export function DashboardPage() {
                             </select>
                         </div>
 
-                        <div className="dashboardExceptionsInnerSplit">
-                            <div className="splitLeft chartWrap">
+                        <div className="dashboardExceptionsRightStack">
+                            <div className="chartWrap">
                                 <ResponsiveContainer width="100%" height={280}>
                                     <LineChart
                                         data={exceptionSeries}
@@ -566,7 +518,7 @@ export function DashboardPage() {
                                 </ResponsiveContainer>
                             </div>
 
-                            <div className="splitRight dashboardExceptionBucketList">
+                            <div className="dashboardExceptionBucketList">
                                 <div className="splitPanelHeader">
                                     <div className="splitPanelTitle">
                                         At selected point ({bucketLabel(exceptionBucket)})
@@ -589,16 +541,14 @@ export function DashboardPage() {
                                         !selectedIntervalLoading &&
                                         selectedIntervalExceptions.map((ex) => {
                                             const id = String(ex.id ?? '')
-                                            const active =
-                                                effectiveSelectedExceptionId != null &&
-                                                id === effectiveSelectedExceptionId
+                                            const active = selectedExceptionId != null && id === selectedExceptionId
                                             return (
                                                 <button
                                                     key={id || subtitleForException(ex)}
                                                     type="button"
                                                     className="exceptionListItem"
                                                     data-active={active}
-                                                    onClick={() => setSelectedExceptionId(id || null)}
+                                                    onClick={() => setPickedException(ex)}
                                                 >
                                                     <div className="exceptionItemTitle">{titleForException(ex)}</div>
                                                     <div className="exceptionItemSubtitle">
@@ -610,52 +560,24 @@ export function DashboardPage() {
                                 </div>
                             </div>
                         </div>
-
-                        <div className="dashboardExceptionDetail cardLikeInset">
-                            <div className="splitPanelHeader" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-                                <div className="splitPanelTitle">Exception detail</div>
-                            </div>
-                            {!selectedException && (
-                                <div className="emptyState" style={{ padding: '8px 4px' }}>
-                                    Select a chart point and an exception to view details.
-                                </div>
-                            )}
-                            {selectedException && (
-                                <div className="exceptionDetail">
-                                    <div className="exceptionDetailTitle">{titleForException(selectedException)}</div>
-                                    <div className="exceptionDetailSubtitle">
-                                        {subtitleForException(selectedException)}
-                                    </div>
-                                    <pre className="stackTrace">
-                                        {typeof selectedException.stackTrace === 'string' &&
-                                        selectedException.stackTrace.trim().length > 0
-                                            ? selectedException.stackTrace
-                                            : 'No stack trace'}
-                                    </pre>
-                                    {linkedExceptionTaskId ? (
-                                        <button
-                                            type="button"
-                                            className="btn btnSuccess"
-                                            style={{ marginTop: 12 }}
-                                            onClick={onGoToExceptionTask}
-                                        >
-                                            Go to Exception Task
-                                        </button>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="btn btnPrimary"
-                                            style={{ marginTop: 12 }}
-                                            disabled={createTaskFromExceptionBusy}
-                                            onClick={() => void onCreateTaskForException()}
-                                        >
-                                            Create Task for Exception
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
                     </div>
+                </div>
+            </section>
+
+            <section className="gamePageSection">
+                <div className="cardBody dashboardExceptionSearchSection">
+                    <ExceptionSearchPanel
+                        gameId={gameId}
+                        selectedExceptionId={selectedExceptionId}
+                        onSelect={setPickedException}
+                    />
+                    <ExceptionDetailPanel
+                        selectedException={selectedException}
+                        linkedTaskId={linkedExceptionTaskId}
+                        createTaskBusy={createTaskFromExceptionBusy}
+                        onCreateTask={() => void onCreateTaskForException()}
+                        onGoToTask={onGoToExceptionTask}
+                    />
                 </div>
             </section>
 
@@ -665,6 +587,7 @@ export function DashboardPage() {
                 gameId={gameId}
                 feature={featureModal}
                 progress={modalProgress}
+                onAfterArchiveOrUnarchive={refreshFeaturePanels}
             />
         </div>
     )

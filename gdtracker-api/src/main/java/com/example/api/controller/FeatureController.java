@@ -3,6 +3,7 @@ package com.example.api.controller;
 import com.example.api.dto.FeatureTaskProgressRow;
 import com.example.api.dto.FeatureUpsertRequest;
 import com.example.api.model.Feature;
+import com.example.api.service.ArchiveService;
 import com.example.api.service.FeatureService;
 import com.example.api.service.FeatureTaskProgressService;
 import com.example.api.service.GameAccessService;
@@ -30,6 +31,7 @@ public class FeatureController {
     private final FeatureService featureService;
     private final FeatureTaskProgressService featureTaskProgressService;
     private final GameAccessService gameAccessService;
+    private final ArchiveService archiveService;
 
     @GetMapping
     public ResponseEntity<List<Feature>> listFeatures(
@@ -53,7 +55,15 @@ public class FeatureController {
     public ResponseEntity<Void> archiveFeature(
             @PathVariable("gameId") String gameId, @PathVariable("id") String id, Authentication authentication) {
         String userId = gameAccessService.requireUserId(authentication);
-        featureService.archiveFeature(gameId, userId, id);
+        archiveService.archiveFeature(gameId, userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/unarchive")
+    public ResponseEntity<Void> unarchiveFeature(
+            @PathVariable("gameId") String gameId, @PathVariable("id") String id, Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        archiveService.unarchiveFeature(gameId, userId, id);
         return ResponseEntity.noContent().build();
     }
 

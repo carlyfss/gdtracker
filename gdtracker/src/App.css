@@ -604,6 +604,14 @@
     align-items: stretch;
 }
 
+.tasksLayoutSingleColumn {
+    grid-template-columns: 1fr;
+}
+
+.dashboardArchiveTasksPanel .cardBody.tasksLayout {
+    padding: 12px;
+}
+
 .tasksFilterPanel {
     background: var(--panel);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -790,15 +798,96 @@
     flex-wrap: wrap;
 }
 
-.dashboardExceptionsInnerSplit {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
+.dashboardExceptionsRightStack {
+    display: flex;
+    flex-direction: column;
     gap: 14px;
-    align-items: stretch;
+    min-width: 0;
 }
 
-.dashboardExceptionBucketList.splitRight {
-    max-height: 280px;
+.dashboardExceptionBucketList {
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+}
+
+.dashboardExceptionSearchSection {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.exceptionSearchPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 12px;
+}
+
+.exceptionSearchHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.exceptionSearchControls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.exceptionSearchInput {
+    flex: 1;
+    min-width: 220px;
+}
+
+.exceptionSearchSizeLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text);
+}
+
+.exceptionSearchList {
+    max-height: 480px;
+}
+
+.exceptionSearchPagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.exceptionSearchPageInfo {
+    font-size: 12px;
+    color: var(--text);
+}
+
+.exceptionSearchPageControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.exceptionSearchPageIndicator {
+    font-size: 12px;
+    color: var(--text-h);
+    min-width: 110px;
+    text-align: center;
 }
 
 .cardLikeInset {
@@ -2056,11 +2145,25 @@
     .dashboardSplit {
         grid-template-columns: 1fr;
     }
-    .dashboardExceptionsInnerSplit {
+    .dashboardExceptionSearchSection {
         grid-template-columns: 1fr;
     }
     .splitRight {
         max-height: 320px;
+    }
+    .exceptionSearchControls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .exceptionSearchInput {
+        min-width: 0;
+    }
+    .exceptionSearchPagination {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .exceptionSearchPageControls {
+        justify-content: space-between;
     }
 }
 

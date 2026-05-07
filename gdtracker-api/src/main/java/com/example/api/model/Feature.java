@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -47,6 +48,9 @@ public class Feature {
 
     @Column(nullable = false)
     private boolean archived = false;
+
+    @Column(name = "archived_at")
+    private Instant archivedAt;
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

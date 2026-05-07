@@ -5,24 +5,9 @@ import type { Tag } from '../api/tags'
 import type { Task, TaskStatus } from '../api/tasks'
 import { listTasks } from '../api/tasks'
 import { chipTextColor } from '../util/chipTextColor'
+import { normalizeHex6 } from '../util/hexColor'
+import { statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
-
-function statusLabel(s: TaskStatus) {
-    switch (s) {
-        case 'PENDING':
-            return 'Pending'
-        case 'TODO':
-            return 'Todo'
-        case 'IN_PROGRESS':
-            return 'In Progress'
-        case 'COMPLETED':
-            return 'Completed'
-        case 'DONE':
-            return 'Done'
-        default:
-            return s
-    }
-}
 
 function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
     return (
@@ -109,7 +94,7 @@ export function TagTasksModal({ open, onClose, gameId, tag, taskListScope = 'act
 
     if (!open || !tag) return null
 
-    const th = tag.color && /^#[0-9A-Fa-f]{6}$/i.test(tag.color) ? tag.color.toLowerCase() : '#818cf8'
+    const th = normalizeHex6(tag.color, '#818cf8')
 
     const openTaskOnTasksPage = (t: Task) => {
         onClose()

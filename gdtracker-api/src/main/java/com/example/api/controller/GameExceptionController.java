@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.List;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -26,6 +28,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/games/{gameId}/game-exceptions")
 @RequiredArgsConstructor
 public class GameExceptionController {
+
+    private static final int DEFAULT_SEARCH_SIZE = 10;
+    private static final int MAX_SEARCH_SIZE = 100;
 
     private final GameExceptionRepository gameExceptionRepository;
     private final GameExceptionTaskSequenceService gameExceptionTaskSequenceService;
@@ -57,6 +62,24 @@ public class GameExceptionController {
                 gameExceptionRepository.findByGameIdAndTimestampBetweenOrderByTimestampDesc(gameId, from, to));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<Page<GameException>> searchGameExceptions(
+            @PathVariable("gameId") @NonNull String gameId,
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int size,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        gameAccessService.requireOwnedGame(gameId, userId);
+
+        int effectiveSize = size <= 0 ? DEFAULT_SEARCH_SIZE : Math.min(MAX_SEARCH_SIZE, size);
+        int effectivePage = Math.max(0, page);
+        String qParam = q == null || q.isBlank() ? "" : q.trim();
+
+        return ResponseEntity.ok(
+                gameExceptionRepository.searchForGame(gameId, qParam, PageRequest.of(effectivePage, effectiveSize)));
+    }
+
     @GetMapping("/{exceptionId}")
     public ResponseEntity<GameException> getGameException(
             @PathVariable("gameId") @NonNull String gameId,
@@ -80,7 +103,7 @@ public class GameExceptionController {
         gameExceptionRepository
                 .findByIdAndGameId(exceptionId, gameId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "game exception not found"));
-        int index = gameExceptionTaskSequenceService.reserveNextIndex(exceptionId);
+        int index = gameExceptionTaskSequenceService.reserveNextIndexForGame(gameId);
         return ResponseEntity.ok(new ReserveExceptionTaskIndexResponse(index));
     }
 

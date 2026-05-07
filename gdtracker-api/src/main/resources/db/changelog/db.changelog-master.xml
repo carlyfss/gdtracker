@@ -25,5 +25,8 @@
     <include file="db/changelog/migrations/0018_game_last_integration_validation.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/0019_game_exception_task_sequences.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/0020_game_exceptions_short_error_message.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0021_game_exception_task_sequences_per_game.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0022_archive_timebomb_and_archive_tables.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0023_tasks_feature_fk_cascade_delete.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

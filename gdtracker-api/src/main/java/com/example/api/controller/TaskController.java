@@ -12,6 +12,7 @@ import com.example.api.repository.FeatureRepository;
 import com.example.api.repository.GameExceptionRepository;
 import com.example.api.repository.TagRepository;
 import com.example.api.repository.TaskRepository;
+import com.example.api.service.ArchiveService;
 import com.example.api.service.GameAccessService;
 import jakarta.validation.Valid;
 import java.util.LinkedHashSet;
@@ -45,6 +46,7 @@ public class TaskController {
     private final TagRepository tagRepository;
     private final GameExceptionRepository gameExceptionRepository;
     private final GameAccessService gameAccessService;
+    private final ArchiveService archiveService;
 
     @GetMapping
     public ResponseEntity<List<Task>> listTasks(
@@ -93,12 +95,17 @@ public class TaskController {
             @PathVariable("id") @NonNull String id,
             Authentication authentication) {
         String userId = gameAccessService.requireUserId(authentication);
-        gameAccessService.requireOwnedGame(gameId, userId);
-        Task task = taskRepository
-                .findByIdAndFeature_Game_Id(id, gameId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
-        task.setArchived(true);
-        taskRepository.save(task);
+        archiveService.archiveTask(gameId, userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/unarchive")
+    public ResponseEntity<Void> unarchiveTask(
+            @PathVariable("gameId") @NonNull String gameId,
+            @PathVariable("id") @NonNull String id,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        archiveService.unarchiveTask(gameId, userId, id);
         return ResponseEntity.noContent().build();
     }
 

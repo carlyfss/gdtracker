@@ -24,6 +24,10 @@ description: Act as a technical lead to analyze requirements, design Spring Boot
 - Produce a step-by-step plan that is easy to execute and review.
 - Break work into small, independent tasks where possible.
 
+### 2.5) Confirm code review step
+- After finishing the plan (and before implementation starts), ALWAYS ask in chat:
+  - "After the plan is executed, do you want me to run the `code-reviewer` skill to review the generated code?"
+
 ### 3) Delegate
 For each task assignment, provide:
 - Clear requirements and acceptance criteria

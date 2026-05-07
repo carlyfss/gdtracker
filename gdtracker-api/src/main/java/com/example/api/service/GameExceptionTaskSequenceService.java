@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -12,24 +13,21 @@ public class GameExceptionTaskSequenceService {
     private final JdbcTemplate jdbcTemplate;
 
     /**
-     * Atomically reserves the next task index for this exception (per-exception monotonic sequence).
+     * Atomically reserves the next task index for this game (per-game monotonic sequence).
      * First reservation returns 1, then 2, etc. Deletes of tasks do not shrink the sequence.
      */
     @Transactional
-    public int reserveNextIndex(String gameExceptionId) {
+    public int reserveNextIndexForGame(String gameId) {
         Integer assigned = jdbcTemplate.queryForObject(
                 """
-                INSERT INTO game_exception_task_sequences (game_exception_id, next_index)
+                INSERT INTO game_exception_task_sequences_per_game (game_id, next_index)
                 VALUES (?, 2)
-                ON CONFLICT (game_exception_id) DO UPDATE
-                SET next_index = game_exception_task_sequences.next_index + 1
+                ON CONFLICT (game_id) DO UPDATE
+                SET next_index = game_exception_task_sequences_per_game.next_index + 1
                 RETURNING next_index - 1
                 """,
                 Integer.class,
-                gameExceptionId);
-        if (assigned == null) {
-            throw new IllegalStateException("reserve task index returned null");
-        }
-        return assigned;
+                gameId);
+        return Objects.requireNonNull(assigned, "reserve task index returned null");
     }
 }

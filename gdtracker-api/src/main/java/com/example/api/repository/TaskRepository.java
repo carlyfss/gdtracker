@@ -2,15 +2,17 @@ package com.example.api.repository;
 
 import com.example.api.model.Task;
 import com.example.api.model.TaskStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface TaskRepository extends JpaRepository<Task, String> {
+public interface TaskRepository extends JpaRepository<Task, String>, TaskAggregationRepository {
 
     @Query(
             """
@@ -21,8 +23,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
             AND (:categoryId IS NULL OR (t.category IS NOT NULL AND t.category.id = :categoryId))
             AND (:sourceGameExceptionId IS NULL
                 OR (t.sourceGameException IS NOT NULL AND t.sourceGameException.id = :sourceGameExceptionId))
-            AND ((:archivedOnly = false AND t.archived = false AND t.feature.archived = false)
-                OR (:archivedOnly = true AND (t.archived = true OR t.feature.archived = true)))
+            AND ((:archivedOnly = false AND t.archivedAt IS NULL AND t.feature.archivedAt IS NULL)
+                OR (:archivedOnly = true AND (t.archivedAt IS NOT NULL OR t.feature.archivedAt IS NOT NULL)))
             ORDER BY t.createdAt DESC
             """)
     List<Task> findByGameIdFiltered(
@@ -43,8 +45,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
             AND (:sourceGameExceptionId IS NULL
                 OR (t.sourceGameException IS NOT NULL AND t.sourceGameException.id = :sourceGameExceptionId))
             AND g.id IN :tagIds
-            AND ((:archivedOnly = false AND t.archived = false AND t.feature.archived = false)
-                OR (:archivedOnly = true AND (t.archived = true OR t.feature.archived = true)))
+            AND ((:archivedOnly = false AND t.archivedAt IS NULL AND t.feature.archivedAt IS NULL)
+                OR (:archivedOnly = true AND (t.archivedAt IS NOT NULL OR t.feature.archivedAt IS NOT NULL)))
             ORDER BY t.createdAt DESC
             """)
     List<Task> findByGameIdFilteredMatchingAnyTag(
@@ -66,8 +68,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
             AND (:sourceGameExceptionId IS NULL
                 OR (t.sourceGameException IS NOT NULL AND t.sourceGameException.id = :sourceGameExceptionId))
             AND (SELECT COUNT(g2) FROM Task tt JOIN tt.tags g2 WHERE tt.id = t.id AND g2.id IN :tagIds) = :tagCount
-            AND ((:archivedOnly = false AND t.archived = false AND t.feature.archived = false)
-                OR (:archivedOnly = true AND (t.archived = true OR t.feature.archived = true)))
+            AND ((:archivedOnly = false AND t.archivedAt IS NULL AND t.feature.archivedAt IS NULL)
+                OR (:archivedOnly = true AND (t.archivedAt IS NOT NULL OR t.feature.archivedAt IS NOT NULL)))
             ORDER BY t.createdAt DESC
             """)
     List<Task> findByGameIdFilteredMatchingAllTags(
@@ -80,6 +82,12 @@ public interface TaskRepository extends JpaRepository<Task, String> {
             @Param("tagCount") long tagCount,
             @Param("archivedOnly") boolean archivedOnly);
 
+    List<Task> findAllByFeature_IdIn(List<String> featureIds);
+
+    @Modifying
+    @Query("DELETE FROM Task t WHERE t.feature.game.id = :gameId AND t.archivedAt IS NOT NULL AND t.archivedAt < :cutoff")
+    int deleteArchivedByGameIdBefore(@Param("gameId") String gameId, @Param("cutoff") Instant cutoff);
+
     boolean existsByFeatureId(String featureId);
 
     boolean existsByCategoryId(String categoryId);
@@ -91,35 +99,4 @@ public interface TaskRepository extends JpaRepository<Task, String> {
      */
     @Query("SELECT t.parent.id FROM Task t WHERE t.id = :id")
     Optional<String> findParentIdById(@Param("id") String id);
-
-    @Query(
-            value =
-                    """
-                    SELECT CAST(t.feature_id AS varchar) AS fid,
-                           CAST(COUNT(*) AS bigint) AS total_cnt,
-                           CAST(COUNT(*) FILTER (WHERE t.status = 'DONE') AS bigint) AS done_cnt
-                    FROM tasks t
-                    INNER JOIN features f ON f.id = t.feature_id
-                    WHERE f.game_id = :gameId
-                    AND f.archived = false
-                    AND t.archived = false
-                    GROUP BY t.feature_id
-                    """,
-            nativeQuery = true)
-    List<Object[]> aggregateTaskCountsByFeatureForGame(@Param("gameId") String gameId);
-
-    @Query(
-            value =
-                    """
-                    SELECT CAST(t.feature_id AS varchar) AS fid,
-                           CAST(COUNT(*) AS bigint) AS total_cnt,
-                           CAST(COUNT(*) FILTER (WHERE t.status = 'DONE') AS bigint) AS done_cnt
-                    FROM tasks t
-                    INNER JOIN features f ON f.id = t.feature_id
-                    WHERE f.game_id = :gameId
-                    AND (t.archived = true OR f.archived = true)
-                    GROUP BY t.feature_id
-                    """,
-            nativeQuery = true)
-    List<Object[]> aggregateArchivedTaskCountsByFeatureForGame(@Param("gameId") String gameId);
 }

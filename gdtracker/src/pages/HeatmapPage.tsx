@@ -5,6 +5,7 @@ import { listGameEventDefinitions, listGameEvents } from '../api/gameEvents'
 import { getLocationHeatmap } from '../api/trace'
 import { useGameId } from '../context/GameIdContext'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
+import { isHex6, normalizeHex6 } from '../util/hexColor'
 import {
     CartesianGrid,
     Cell,
@@ -77,8 +78,7 @@ const RANGE_DEFAULT_MIN = -100
 const RANGE_DEFAULT_MAX = 100
 
 function validHexColor(c: string | null | undefined): string | null {
-    if (!c) return null
-    return /^#[0-9A-Fa-f]{6}$/i.test(c) ? c.toLowerCase() : null
+    return isHex6(c) ? c.toLowerCase() : null
 }
 
 function tracePointFill(definitionColor: string | null | undefined): string {
@@ -462,10 +462,7 @@ export function HeatmapPage() {
                                 </span>
                             </button>
                             {heatmapEventDefinitionsSorted.map((d) => {
-                                const swatch =
-                                    d.color && /^#[0-9A-Fa-f]{6}$/i.test(d.color)
-                                        ? d.color.toLowerCase()
-                                        : DEFAULT_EVENT_COLOR
+                                const swatch = normalizeHex6(d.color, DEFAULT_EVENT_COLOR)
                                 return (
                                     <button
                                         key={d.id}

@@ -7,14 +7,7 @@ import com.example.api.model.TaskStatus;
 import com.example.api.repository.FeatureRepository;
 import com.example.api.repository.TaskRepository;
 import jakarta.validation.Valid;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +15,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.server.ResponseStatusException;
 
+@Validated
 @Service
 @RequiredArgsConstructor
 public class FeatureService {
@@ -33,6 +28,7 @@ public class FeatureService {
     private final FeatureRepository featureRepository;
     private final TaskRepository taskRepository;
     private final GameAccessService gameAccessService;
+    private final ArchiveService archiveService;
 
     @Transactional(readOnly = true)
     public List<Feature> listFeatures(@NonNull String gameId, @NonNull String userId, boolean archivedOnly) {
@@ -98,36 +94,7 @@ public class FeatureService {
 
     @Transactional
     public void archiveFeature(@NonNull String gameId, @NonNull String userId, @NonNull String featureId) {
-        gameAccessService.requireOwnedGame(gameId, userId);
-        Feature root = featureRepository
-                .findByIdAndGameId(featureId, gameId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "feature not found"));
-        if (root.isArchived()) {
-            return;
-        }
-        List<Feature> allInGame = featureRepository.findAllByGameIdOrderByNameAsc(gameId);
-        Map<String, List<Feature>> childrenByParent = new HashMap<>();
-        for (Feature f : allInGame) {
-            String pk = f.getParent() == null ? null : f.getParent().getId();
-            childrenByParent.computeIfAbsent(pk, k -> new ArrayList<>()).add(f);
-        }
-        Deque<String> queue = new ArrayDeque<>();
-        queue.add(root.getId());
-        Set<String> toArchive = new LinkedHashSet<>();
-        while (!queue.isEmpty()) {
-            String id = queue.removeFirst();
-            if (!toArchive.add(id)) {
-                continue;
-            }
-            for (Feature ch : childrenByParent.getOrDefault(id, List.of())) {
-                queue.add(ch.getId());
-            }
-        }
-        for (String id : toArchive) {
-            Feature f = featureRepository.findByIdAndGameId(id, gameId).orElseThrow();
-            f.setArchived(true);
-            featureRepository.save(f);
-        }
+        archiveService.archiveFeature(gameId, userId, featureId);
     }
 
     @Transactional

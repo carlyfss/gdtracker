@@ -9,6 +9,7 @@ export type Feature = {
     color: string
     parentId?: string | null
     archived?: boolean
+    archivedAt?: string | null
 }
 
 export type FeatureUpsertBody = {
@@ -58,6 +59,10 @@ export async function listFeatureTaskProgress(
 
 export async function archiveFeature(gameId: string, id: string): Promise<void> {
     await api.post(`${base(gameId)}/${encodeURIComponent(id)}/archive`)
+}
+
+export async function unarchiveFeature(gameId: string, id: string): Promise<void> {
+    await api.post(`${base(gameId)}/${encodeURIComponent(id)}/unarchive`)
 }
 
 export async function createFeature(gameId: string, body: FeatureUpsertBody): Promise<Feature> {

@@ -21,6 +21,7 @@ export type Task = {
     createdAt?: string
     updatedAt?: string
     archived?: boolean
+    archivedAt?: string | null
     [key: string]: unknown
 }
 
@@ -91,4 +92,8 @@ export async function deleteTask(gameId: string, id: string): Promise<void> {
 
 export async function archiveTask(gameId: string, id: string): Promise<void> {
     await api.post(`${base(gameId)}/${encodeURIComponent(id)}/archive`)
+}
+
+export async function unarchiveTask(gameId: string, id: string): Promise<void> {
+    await api.post(`${base(gameId)}/${encodeURIComponent(id)}/unarchive`)
 }
