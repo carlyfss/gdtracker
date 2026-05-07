@@ -5,11 +5,12 @@ import archiveNavIcon from '../assets/icons/archive_page.svg'
 import configurationNavIcon from '../assets/icons/configuration_page.svg'
 import feedbackNavIcon from '../assets/icons/feedback_page.svg'
 import integrationNavIcon from '../assets/icons/integration_page.svg'
+import sdkNavIcon from '../assets/icons/sdk_page.svg'
 import { GameIdProvider } from '../context/GameIdContext'
 import { GameThemeProvider } from '../context/GameThemeContext'
 import { useAuth } from '../context/AuthContext'
 
-type DashboardTab = 'dashboard' | 'heatmap' | 'tasks' | 'archive' | 'feedback' | 'integration' | 'configuration'
+type DashboardTab = 'dashboard' | 'heatmap' | 'tasks' | 'archive' | 'feedback' | 'integration' | 'sdk' | 'configuration'
 
 function SidebarIcon({ children }: { children: React.ReactNode }) {
     return (
@@ -47,6 +48,7 @@ export function GameDashboardLayout() {
         if (path.endsWith('/archive')) return 'archive'
         if (path.endsWith('/feedback')) return 'feedback'
         if (path.endsWith('/integration')) return 'integration'
+        if (path.endsWith('/sdk')) return 'sdk'
         if (path.endsWith('/configuration')) return 'configuration'
         return 'dashboard'
     }, [location.pathname])
@@ -217,6 +219,27 @@ export function GameDashboardLayout() {
                                     </SidebarIcon>
                                     <span className="appSidebarTooltip" role="tooltip">
                                         Integration
+                                    </span>
+                                </Link>
+                                <Link
+                                    className="appSidebarLink"
+                                    to={`${base}/sdk`}
+                                    data-active={active === 'sdk'}
+                                    aria-label="SDK Integration"
+                                    aria-current={active === 'sdk' ? 'page' : undefined}
+                                    title="SDK Integration"
+                                >
+                                    <SidebarIcon>
+                                        <img
+                                            src={sdkNavIcon}
+                                            alt=""
+                                            width={20}
+                                            height={20}
+                                            className="appSidebarRasterIcon"
+                                        />
+                                    </SidebarIcon>
+                                    <span className="appSidebarTooltip" role="tooltip">
+                                        SDK Integration
                                     </span>
                                 </Link>
                                 <Link

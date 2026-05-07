@@ -1,0 +1,33 @@
+---
+description: Keep Godot SDK + integration docs in sync with ingest API changes
+globs: "{gdtracker-api/**,gdtracker/**}"
+alwaysApply: false
+---
+
+# SDK and documentation contract sync
+
+When changing GDTracker’s **ingest-facing API** (routes, headers, request/response shapes, auth requirements), keep the **Godot integration surfaces** in sync in the same change.
+
+## Backend (`gdtracker-api/`) responsibilities
+
+If you add/rename/remove an ingest route or change its contract (including required headers like `Authorization` / `X-Player-Id`), you MUST also update:
+
+- `gdtracker-sdk-dotnet/` (C# SDK method(s), payload models, and examples)
+- `godot-addon/gdtracker/` (GDScript addon methods and examples)
+- `gdtracker-gdextension/` docs (and implementation if the extension covers that endpoint)
+
+## Frontend (`gdtracker/`) responsibilities
+
+If you add/rename/remove an ingest route or change its contract, you MUST also update the user-facing documentation pages so they stay copy-paste correct:
+
+- `gdtracker/src/pages/IntegrationPage.tsx`
+- `gdtracker/src/pages/SdkIntegrationPage.tsx`
+- `gdtracker/docs/FEATURES.md` if any routes/pages moved or changed
+
+## Minimum checklist (apply per change)
+
+- **Contract**: `gdtracker-api/docs/openapi.yaml` updated for the affected route(s).
+- **C# SDK**: method names + request payloads updated, and examples compile logically.
+- **GDScript addon**: method names + request payloads updated, and examples match the new contract.
+- **Docs pages**: any mentioned endpoint path/body/headers updated.
+
