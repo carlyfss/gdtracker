@@ -45,6 +45,9 @@ public class Feature {
     @Column(nullable = false, length = 7)
     private String color = DEFAULT_COLOR;
 
+    @Column(nullable = false)
+    private boolean archived = false;
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "game_id", nullable = false)

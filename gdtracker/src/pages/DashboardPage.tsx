@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
 import { FeatureTasksModal } from '../components/FeatureTasksModal'
 import type { Feature } from '../api/features'
-import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
-import { listGameExceptions, listGameExceptionsInterval, type GameException } from '../api/gameExceptions'
+import { archiveFeature, listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
+import { getConfiguration } from '../api/configuration'
+import {
+    getGameException,
+    listGameExceptions,
+    listGameExceptionsInterval,
+    reserveExceptionTaskIndex,
+    type GameException,
+} from '../api/gameExceptions'
+import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
-import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import { flattenFeaturesForList } from '../util/featureTree'
+import { applyExceptionTaskDescriptionTemplate, applyExceptionTaskTitleTemplate } from '../util/exceptionTaskTemplate'
 
 type TimeBucket = 'minute' | 'halfHour' | 'hour' | 'day'
 
@@ -79,6 +89,11 @@ function bucketLabel(bucket: TimeBucket) {
 }
 
 function titleForException(ex: GameException) {
+    const short =
+        typeof ex.shortErrorMessage === 'string' && ex.shortErrorMessage.trim().length > 0
+            ? ex.shortErrorMessage.trim()
+            : null
+    if (short) return short
     const msg =
         typeof ex.errorMessage === 'string' && ex.errorMessage.trim().length > 0 ? ex.errorMessage : 'Unknown error'
     return msg
@@ -93,37 +108,10 @@ function subtitleForException(ex: GameException) {
     return parts.join(' • ')
 }
 
-function featureRowColor(f: Feature) {
-    const c = f.color
-    if (c && /^#[0-9A-Fa-f]{6}$/i.test(c)) return c.toLowerCase()
-    return DEFAULT_ACCENT_HEX
-}
-
-function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
-    return (
-        <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-            style={{
-                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                flexShrink: 0,
-                transition: 'transform 0.12s ease-out',
-            }}
-        >
-            <polyline points="9 18 15 12 9 6" />
-        </svg>
-    )
-}
-
 export function DashboardPage() {
     const gameId = useGameId()
+    const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const [exceptions, setExceptions] = useState<GameException[]>([])
     const [loading, setLoading] = useState(true)
     const [exceptionBucket, setExceptionBucket] = useState<TimeBucket>('minute')
@@ -141,6 +129,59 @@ export function DashboardPage() {
     const [featureModal, setFeatureModal] = useState<Feature | null>(null)
     const [listShowSubfeatures, setListShowSubfeatures] = useState(true)
     const [collapsedFeatureIds, setCollapsedFeatureIds] = useState<Set<string>>(() => new Set())
+    const [exceptionDeepLinkError, setExceptionDeepLinkError] = useState<string | null>(null)
+    const [createTaskFromExceptionBusy, setCreateTaskFromExceptionBusy] = useState(false)
+    const [linkedExceptionTaskId, setLinkedExceptionTaskId] = useState<string | null>(null)
+
+    const exceptionQueryId = searchParams.get('exception')?.trim() ?? ''
+
+    useEffect(() => {
+        if (!exceptionQueryId) return
+        let cancelled = false
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                if (cancelled) return
+                setExceptionDeepLinkError(null)
+                try {
+                    const ex = await getGameException(gameId, exceptionQueryId)
+                    if (cancelled) return
+                    const id = String(ex.id ?? '')
+                    const t = exceptionTimeFor(ex)
+                    if (t) {
+                        const start = bucketStartFor(t, exceptionBucket)
+                        setSelectedBucketStartMs(start.getTime())
+                    }
+                    if (id.length > 0) {
+                        setSelectedExceptionId(id)
+                    }
+                    setSearchParams(
+                        (prev) => {
+                            const next = new URLSearchParams(prev)
+                            next.delete('exception')
+                            return next
+                        },
+                        { replace: true }
+                    )
+                } catch {
+                    if (!cancelled) {
+                        setExceptionDeepLinkError('Could not open that exception. It may have been removed.')
+                        setSearchParams(
+                            (prev) => {
+                                const next = new URLSearchParams(prev)
+                                next.delete('exception')
+                                return next
+                            },
+                            { replace: true }
+                        )
+                    }
+                }
+            })()
+        }, 0)
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
+    }, [exceptionQueryId, gameId, exceptionBucket, setSearchParams])
 
     useEffect(() => {
         listGameExceptions(gameId)
@@ -275,6 +316,35 @@ export function DashboardPage() {
         return selectedIntervalExceptions.find((ex) => String(ex.id ?? '') === effectiveSelectedExceptionId) ?? null
     }, [selectedIntervalExceptions, effectiveSelectedExceptionId])
 
+    useEffect(() => {
+        const exId = selectedException?.id ? String(selectedException.id) : null
+        if (!exId) {
+            const clearTimer = window.setTimeout(() => setLinkedExceptionTaskId(null), 0)
+            return () => window.clearTimeout(clearTimer)
+        }
+        let cancelled = false
+        void listTasks(gameId, { sourceGameExceptionId: exId })
+            .then((tasks: Task[]) => {
+                if (cancelled) return
+                const sorted = [...tasks].sort((a, b) => {
+                    const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY
+                    const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY
+                    return ta - tb
+                })
+                window.setTimeout(() => {
+                    if (!cancelled) setLinkedExceptionTaskId(sorted[0]?.id ?? null)
+                }, 0)
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    window.setTimeout(() => setLinkedExceptionTaskId(null), 0)
+                }
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [gameId, selectedException?.id])
+
     const selectedBucketLabel = useMemo(() => {
         if (!selectedBucketRange) return null
         const startLabel = bucketLabelFor(selectedBucketRange.start, exceptionBucket)
@@ -289,6 +359,96 @@ export function DashboardPage() {
         return { done: p.rolledUpDone, total: p.rolledUpTotal }
     }, [featureModal, progressById])
 
+    const onCreateTaskForException = useCallback(async () => {
+        if (!selectedException?.id) return
+        const exId = String(selectedException.id)
+        setCreateTaskFromExceptionBusy(true)
+        setExceptionDeepLinkError(null)
+        try {
+            const idx = await reserveExceptionTaskIndex(gameId, exId)
+            const cfg = await getConfiguration(gameId)
+            const tpl = cfg.exceptionTaskTemplate
+            const titleTpl = tpl?.titleTemplate ?? 'Fix Exception #<EXCEPTION_INDEX>'
+            const descTpl = tpl?.descriptionTemplate ?? '```\n<EXCEPTION_TRACE>\n```'
+            const trace = typeof selectedException.stackTrace === 'string' ? selectedException.stackTrace : ''
+            const errMsg =
+                typeof selectedException.errorMessage === 'string' && selectedException.errorMessage.trim().length > 0
+                    ? selectedException.errorMessage.trim()
+                    : 'Unknown error'
+            const shortErr =
+                typeof selectedException.shortErrorMessage === 'string'
+                    ? selectedException.shortErrorMessage.trim()
+                    : ''
+            const title = applyExceptionTaskTitleTemplate(titleTpl, {
+                exceptionIndex: idx,
+                exceptionId: exId,
+                errorMessage: errMsg,
+                shortErrorMessage: shortErr,
+            })
+            const description = applyExceptionTaskDescriptionTemplate(descTpl, trace, {
+                exceptionId: exId,
+                errorMessage: errMsg,
+                shortErrorMessage: shortErr,
+            })
+            const categoryId = tpl?.defaultCategoryId ?? undefined
+            navigate(`/g/${encodeURIComponent(gameId)}/tasks`, {
+                state: {
+                    createFromException: {
+                        exceptionId: exId,
+                        title,
+                        description,
+                        ...(categoryId ? { categoryId } : {}),
+                    },
+                },
+            })
+        } catch {
+            setExceptionDeepLinkError('Could not start task creation. Try again.')
+        } finally {
+            setCreateTaskFromExceptionBusy(false)
+        }
+    }, [gameId, navigate, selectedException])
+
+    const onGoToExceptionTask = useCallback(() => {
+        if (!linkedExceptionTaskId) return
+        navigate(`/g/${encodeURIComponent(gameId)}/tasks?task=${encodeURIComponent(linkedExceptionTaskId)}`)
+    }, [gameId, navigate, linkedExceptionTaskId])
+
+    const onArchiveDashboardFeature = useCallback(
+        async (f: Feature) => {
+            const ok = window.confirm(
+                `Archive feature "${f.name}" and all of its subfeatures? They will only appear on the Archive page.`
+            )
+            if (!ok) return
+            try {
+                await archiveFeature(gameId, f.id)
+                setFeatureModal(null)
+                setFeaturesPanelLoading(true)
+                setFeaturesError(null)
+                try {
+                    setFeatures(await listFeatures(gameId))
+                } catch {
+                    setFeatures([])
+                    setFeaturesError('Failed to load features.')
+                } finally {
+                    setFeaturesPanelLoading(false)
+                }
+                setProgressLoading(true)
+                setProgressError(null)
+                try {
+                    setFeatureProgress(await listFeatureTaskProgress(gameId))
+                } catch {
+                    setFeatureProgress([])
+                    setProgressError('Could not load task progress. Stats may be incomplete.')
+                } finally {
+                    setProgressLoading(false)
+                }
+            } catch {
+                window.alert('Could not archive feature.')
+            }
+        },
+        [gameId]
+    )
+
     return (
         <div className="gamePageStack">
             <section className="gamePageSection">
@@ -297,124 +457,29 @@ export function DashboardPage() {
                 </div>
 
                 <div className="cardBody dashboardSplit">
-                    <div className="dashboardFeaturesPanel" aria-label="Features and task progress">
-                        <h3 className="dashboardSubheading">Features</h3>
-                        {featuresError && <div className="banner bannerError">{featuresError}</div>}
-                        {progressError && !featuresError && (
-                            <div className="banner bannerError" role="status">
-                                {progressError}
-                            </div>
-                        )}
-                        {featuresPanelLoading && <div className="emptyState">Loading features…</div>}
-                        {!featuresPanelLoading && features.length === 0 && !featuresError && (
-                            <div className="emptyState">No features yet. Add some under Configuration.</div>
-                        )}
-                        {!featuresPanelLoading && features.length > 0 && (
-                            <>
-                                <div className="tasksListToolbar dashboardFeatureTreeToolbar">
-                                    <label htmlFor="dashboard-subfeatures-visibility" className="tasksListToolbarLabel">
-                                        Subfeatures
-                                    </label>
-                                    <select
-                                        id="dashboard-subfeatures-visibility"
-                                        className="intervalSelect tasksListToolbarSelect"
-                                        value={listShowSubfeatures ? 'show' : 'hide'}
-                                        onChange={(e) => setListShowSubfeatures(e.target.value === 'show')}
-                                        aria-label="Show or hide subfeatures in the feature list"
-                                    >
-                                        <option value="show">Show subfeatures</option>
-                                        <option value="hide">Hide subfeatures</option>
-                                    </select>
-                                </div>
-                                <div className="featureTreeList" role="list">
-                                    {featureListRows.map((row) => {
-                                        const f = row.feature
-                                        const fc = featureRowColor(f)
-                                        const prog = progressById.get(f.id)
-                                        let rolledPctLabel: string
-                                        let directLabel: string
-                                        if (progressLoading) {
-                                            rolledPctLabel = '…'
-                                            directLabel = '…'
-                                        } else if (progressError) {
-                                            rolledPctLabel = '—'
-                                            directLabel = '—'
-                                        } else {
-                                            const rolledPct =
-                                                prog && prog.rolledUpTotal > 0
-                                                    ? Math.round((100 * prog.rolledUpDone) / prog.rolledUpTotal)
-                                                    : 0
-                                            rolledPctLabel = `${rolledPct}%`
-                                            directLabel =
-                                                prog != null ? `${prog.doneDirect}/${prog.totalDirect}` : '0/0'
-                                        }
-                                        const rowExpanded = row.hasChildren && !collapsedFeatureIds.has(f.id)
-                                        return (
-                                            <div key={f.id} className="featureTreeRow">
-                                                <div
-                                                    className="featureTreeRowInner"
-                                                    style={{ paddingLeft: 10 + row.depth * 14 }}
-                                                >
-                                                    {row.hasChildren && listShowSubfeatures ? (
-                                                        <button
-                                                            type="button"
-                                                            className="iconBtn tasksTaskTreeToggle"
-                                                            title={
-                                                                rowExpanded ? 'Hide subfeatures' : 'Show subfeatures'
-                                                            }
-                                                            aria-expanded={rowExpanded}
-                                                            aria-label={
-                                                                rowExpanded
-                                                                    ? `Collapse subfeatures for ${f.name}`
-                                                                    : `Expand subfeatures for ${f.name}`
-                                                            }
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                toggleFeatureRowCollapsed(f.id)
-                                                            }}
-                                                        >
-                                                            <IconChevronTaskTree expanded={rowExpanded} />
-                                                        </button>
-                                                    ) : (
-                                                        <span className="tasksTaskTreeSpacer" aria-hidden />
-                                                    )}
-                                                    <div
-                                                        className="featureTreeRowMain"
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onClick={() => setFeatureModal(f)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                                e.preventDefault()
-                                                                setFeatureModal(f)
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="featureTreeName" style={{ color: fc }}>
-                                                            {f.name}
-                                                        </span>
-                                                        <span className="featureTreeMeta">
-                                                            <span title="Rolled-up completion across this node and descendants">
-                                                                {rolledPctLabel}
-                                                            </span>
-                                                            <span
-                                                                className="muted"
-                                                                title="Tasks directly on this feature (done/total)"
-                                                            >
-                                                                {directLabel}
-                                                            </span>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    <DashboardFeatureTreePanel
+                        heading="Features"
+                        features={features}
+                        featureListRows={featureListRows}
+                        featuresError={featuresError}
+                        featuresPanelLoading={featuresPanelLoading}
+                        progressError={progressError}
+                        progressLoading={progressLoading}
+                        progressById={progressById}
+                        listShowSubfeatures={listShowSubfeatures}
+                        onListShowSubfeaturesChange={setListShowSubfeatures}
+                        collapsedFeatureIds={collapsedFeatureIds}
+                        onToggleFeatureCollapsed={toggleFeatureRowCollapsed}
+                        onOpenFeature={setFeatureModal}
+                        onArchiveFeature={onArchiveDashboardFeature}
+                    />
 
                     <div className="dashboardExceptionsStack">
+                        {exceptionDeepLinkError && (
+                            <div className="banner bannerError" role="status">
+                                {exceptionDeepLinkError}
+                            </div>
+                        )}
                         <div className="dashboardExceptionsToolbar">
                             <h3 className="dashboardSubheading">Exceptions</h3>
                             <select
@@ -567,6 +632,26 @@ export function DashboardPage() {
                                             ? selectedException.stackTrace
                                             : 'No stack trace'}
                                     </pre>
+                                    {linkedExceptionTaskId ? (
+                                        <button
+                                            type="button"
+                                            className="btn btnSuccess"
+                                            style={{ marginTop: 12 }}
+                                            onClick={onGoToExceptionTask}
+                                        >
+                                            Go to Exception Task
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="btn btnPrimary"
+                                            style={{ marginTop: 12 }}
+                                            disabled={createTaskFromExceptionBusy}
+                                            onClick={() => void onCreateTaskForException()}
+                                        >
+                                            Create Task for Exception
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -8,6 +8,9 @@ import { DashboardPage } from './pages/DashboardPage'
 import { GameCreatePage } from './pages/GameCreatePage'
 import { GamesHubPage } from './pages/GamesHubPage'
 import { HeatmapPage } from './pages/HeatmapPage'
+import { ArchivePage } from './pages/ArchivePage'
+import { FeedbackPage } from './pages/FeedbackPage'
+import { IntegrationPage } from './pages/IntegrationPage'
 import { LoginPage } from './pages/LoginPage'
 import { TasksPage } from './pages/TasksPage'
 
@@ -67,6 +70,9 @@ function App() {
                 <Route path="exceptions" element={<Navigate to="dashboard" replace />} />
                 <Route path="heatmap" element={<HeatmapPage />} />
                 <Route path="tasks" element={<TasksPage />} />
+                <Route path="archive" element={<ArchivePage />} />
+                <Route path="feedback" element={<FeedbackPage />} />
+                <Route path="integration" element={<IntegrationPage />} />
                 <Route path="configuration" element={<ConfigurationPage />} />
                 <Route path="features" element={<ConfigurationRedirectFromLegacyFeatures />} />
                 <Route index element={<Navigate to="dashboard" replace />} />

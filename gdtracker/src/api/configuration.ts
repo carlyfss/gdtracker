@@ -6,17 +6,29 @@ export type CategorySummary = {
     color: string
 }
 
+export type ExceptionTaskTemplate = {
+    titleTemplate: string
+    descriptionTemplate: string
+    defaultCategoryId: string | null
+    defaultCategory: CategorySummary | null
+}
+
 export type GameConfiguration = {
     featureFlags: Record<string, boolean>
     settings: Record<string, string | number | boolean>
-    defaultExceptionTaskCategoryId: string | null
-    defaultExceptionTaskCategory: CategorySummary | null
+    exceptionTaskTemplate: ExceptionTaskTemplate
+}
+
+export type ExceptionTaskTemplatePatchBody = {
+    titleTemplate: string
+    descriptionTemplate: string
+    defaultCategoryId: string | null
 }
 
 export type GameConfigurationPatchBody = {
     featureFlags: Record<string, boolean>
     settings: Record<string, string | number | boolean>
-    defaultExceptionTaskCategoryId: string | null
+    exceptionTaskTemplate: ExceptionTaskTemplatePatchBody
 }
 
 function base(gameId: string) {

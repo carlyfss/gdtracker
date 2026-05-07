@@ -7,6 +7,14 @@ import com.example.api.model.TaskStatus;
 import com.example.api.repository.FeatureRepository;
 import com.example.api.repository.TaskRepository;
 import jakarta.validation.Valid;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -27,15 +35,18 @@ public class FeatureService {
     private final GameAccessService gameAccessService;
 
     @Transactional(readOnly = true)
-    public java.util.List<Feature> listFeatures(@NonNull String gameId, @NonNull String userId) {
+    public List<Feature> listFeatures(@NonNull String gameId, @NonNull String userId, boolean archivedOnly) {
         gameAccessService.requireOwnedGame(gameId, userId);
-        return featureRepository.findByGameIdOrderByNameAsc(gameId);
+        return featureRepository.findByGameIdAndArchivedOrderByNameAsc(gameId, archivedOnly);
     }
 
     @Transactional
     public Feature createFeature(@NonNull String gameId, @NonNull String userId, @Valid FeatureUpsertRequest req) {
         Game game = gameAccessService.requireOwnedGame(gameId, userId);
         Feature parent = resolveParent(gameId, req.parentId());
+        if (parent != null && parent.isArchived()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "parent feature is archived");
+        }
         assertNameUnique(gameId, null, parent, req.name());
 
         TaskStatus status = req.status() != null ? req.status() : TaskStatus.TODO;
@@ -61,8 +72,14 @@ public class FeatureService {
         Feature existing = featureRepository
                 .findByIdAndGameId(featureId, gameId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "feature not found"));
+        if (existing.isArchived()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "feature is archived");
+        }
 
         Feature parent = resolveParent(gameId, req.parentId());
+        if (parent != null && parent.isArchived()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "parent feature is archived");
+        }
         assertNoCycle(featureId, parent);
         assertNameUnique(gameId, existing.getId(), parent, req.name());
 
@@ -77,6 +94,40 @@ public class FeatureService {
         existing.setParent(parent);
 
         return featureRepository.save(existing);
+    }
+
+    @Transactional
+    public void archiveFeature(@NonNull String gameId, @NonNull String userId, @NonNull String featureId) {
+        gameAccessService.requireOwnedGame(gameId, userId);
+        Feature root = featureRepository
+                .findByIdAndGameId(featureId, gameId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "feature not found"));
+        if (root.isArchived()) {
+            return;
+        }
+        List<Feature> allInGame = featureRepository.findAllByGameIdOrderByNameAsc(gameId);
+        Map<String, List<Feature>> childrenByParent = new HashMap<>();
+        for (Feature f : allInGame) {
+            String pk = f.getParent() == null ? null : f.getParent().getId();
+            childrenByParent.computeIfAbsent(pk, k -> new ArrayList<>()).add(f);
+        }
+        Deque<String> queue = new ArrayDeque<>();
+        queue.add(root.getId());
+        Set<String> toArchive = new LinkedHashSet<>();
+        while (!queue.isEmpty()) {
+            String id = queue.removeFirst();
+            if (!toArchive.add(id)) {
+                continue;
+            }
+            for (Feature ch : childrenByParent.getOrDefault(id, List.of())) {
+                queue.add(ch.getId());
+            }
+        }
+        for (String id : toArchive) {
+            Feature f = featureRepository.findByIdAndGameId(id, gameId).orElseThrow();
+            f.setArchived(true);
+            featureRepository.save(f);
+        }
     }
 
     @Transactional

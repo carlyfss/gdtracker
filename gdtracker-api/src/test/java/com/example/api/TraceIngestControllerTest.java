@@ -26,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 class TraceIngestControllerTest {
 
     private static final String GAME_ID = "game-test-1";
+    private static final String PLAYER_ID = "player-test-1";
     private static final String VALID_BODY = "{\"location\":\"(35, 22, 17)\",\"map\":\"proto-dungeon\"}";
 
     @Autowired
@@ -64,13 +65,15 @@ class TraceIngestControllerTest {
                 "DEATH",
                 "#ff0000");
 
-        when(traceIngestService.ingest(eq(GAME_ID), eq("plain-token"), any(GameEventTraceCreateRequest.class)))
+        when(traceIngestService.ingest(
+                        eq(GAME_ID), eq("plain-token"), eq(PLAYER_ID), any(GameEventTraceCreateRequest.class)))
                 .thenReturn(response);
 
         String body = "{\"location\":\"(35, 22, 17)\",\"map\":\"proto-dungeon\",\"gameEventId\":\"event-1\"}";
 
         mockMvc.perform(post("/api/games/{gameId}/game-trace/ingest", GAME_ID)
                         .header("Authorization", "Bearer plain-token")
+                        .header("X-Player-Id", PLAYER_ID)
                         .contentType(MediaType.APPLICATION_JSON_VALUE)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -87,7 +90,8 @@ class TraceIngestControllerTest {
     @Test
     @SuppressWarnings("null")
     void ingest_serviceThrowsBadRequest_shouldReturnBadRequest() throws Exception {
-        when(traceIngestService.ingest(eq(GAME_ID), eq("plain-token"), any(GameEventTraceCreateRequest.class)))
+        when(traceIngestService.ingest(
+                        eq(GAME_ID), eq("plain-token"), eq(PLAYER_ID), any(GameEventTraceCreateRequest.class)))
                 .thenThrow(
                         new ResponseStatusException(HttpStatus.BAD_REQUEST, "game event does not belong to this game"));
 
@@ -95,6 +99,7 @@ class TraceIngestControllerTest {
 
         mockMvc.perform(post("/api/games/{gameId}/game-trace/ingest", GAME_ID)
                         .header("Authorization", "Bearer plain-token")
+                        .header("X-Player-Id", PLAYER_ID)
                         .contentType(MediaType.APPLICATION_JSON_VALUE)
                         .content(body))
                 .andExpect(status().isBadRequest());
@@ -103,15 +108,26 @@ class TraceIngestControllerTest {
     @Test
     @SuppressWarnings("null")
     void ingest_serviceThrowsNotFound_shouldReturnNotFound() throws Exception {
-        when(traceIngestService.ingest(eq(GAME_ID), eq("plain-token"), any(GameEventTraceCreateRequest.class)))
+        when(traceIngestService.ingest(
+                        eq(GAME_ID), eq("plain-token"), eq(PLAYER_ID), any(GameEventTraceCreateRequest.class)))
                 .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "game event not found"));
 
         String body = "{\"location\":\"(1, 2, 3)\",\"map\":\"map-a\",\"gameEventId\":\"missing-event\"}";
 
         mockMvc.perform(post("/api/games/{gameId}/game-trace/ingest", GAME_ID)
                         .header("Authorization", "Bearer plain-token")
+                        .header("X-Player-Id", PLAYER_ID)
                         .contentType(MediaType.APPLICATION_JSON_VALUE)
                         .content(body))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void ingest_withoutPlayerId_shouldReturnUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/games/{gameId}/game-trace/ingest", GAME_ID)
+                        .header("Authorization", "Bearer plain-token")
+                        .contentType(MediaType.APPLICATION_JSON_VALUE)
+                        .content(VALID_BODY))
+                .andExpect(status().isUnauthorized());
     }
 }

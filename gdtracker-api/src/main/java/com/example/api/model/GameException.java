@@ -32,6 +32,10 @@ public class GameException {
     private String id;
 
     private String errorMessage;
+
+    @Column(name = "short_error_message")
+    private String shortErrorMessage;
+
     private String location;
     private String map;
 
@@ -42,6 +46,11 @@ public class GameException {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "game_id", nullable = false)
     private Game game;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "game_player_id", nullable = true)
+    private GamePlayer gamePlayer;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonFormat(shape = JsonFormat.Shape.STRING)
@@ -59,5 +68,10 @@ public class GameException {
         if (timestamp == null) {
             timestamp = Instant.now();
         }
+    }
+
+    @JsonProperty(value = "gamePlayerId", access = JsonProperty.Access.READ_ONLY)
+    public String getGamePlayerId() {
+        return gamePlayer == null ? null : gamePlayer.getId();
     }
 }

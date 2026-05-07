@@ -18,7 +18,7 @@ import {
 } from '../api/gameEvents'
 import { useGameId } from '../context/GameIdContext'
 import { useGameTheme } from '../context/GameThemeContext'
-import { DEFAULT_ACCENT_HEX, parseThemeColorHex } from '../theme/defaults'
+import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import type { TaskStatus } from '../api/tasks'
 import { chipTextColor } from '../util/chipTextColor'
 
@@ -105,23 +105,6 @@ function categoryRowColor(c: Category) {
 type FlagRow = { id: string; key: string; on: boolean }
 type SettingRow = { id: string; key: string; value: string }
 
-const THEME_COLOR_KEY = 'THEME_COLOR'
-
-function upsertSettingKey(rows: SettingRow[], key: string, value: string): SettingRow[] {
-    const normalizedKey = key.trim()
-    const idx = rows.findIndex((r) => r.key.trim().toLowerCase() === normalizedKey.toLowerCase())
-    if (!normalizedKey) return rows
-    const trimmed = value.trim()
-    if (trimmed === '') {
-        if (idx === -1) return rows
-        return rows.filter((_, i) => i !== idx)
-    }
-    if (idx === -1) {
-        return [...rows, { id: `s-${Date.now()}-${normalizedKey}`, key: normalizedKey, value: trimmed }]
-    }
-    return rows.map((r, i) => (i === idx ? { ...r, key: normalizedKey, value: trimmed } : r))
-}
-
 function rowsFromFlags(flags: Record<string, boolean>): FlagRow[] {
     return Object.entries(flags).map(([key, on], i) => ({
         id: `f-${i}-${key}`,
@@ -154,7 +137,9 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
     const [categories, setCategories] = useState<Category[]>([])
     const [flagRows, setFlagRows] = useState<FlagRow[]>([])
     const [settingRows, setSettingRows] = useState<SettingRow[]>([])
-    const [defaultCategoryId, setDefaultCategoryId] = useState<string | null>(null)
+    const [exceptionTitleTemplate, setExceptionTitleTemplate] = useState('')
+    const [exceptionDescriptionTemplate, setExceptionDescriptionTemplate] = useState('')
+    const [exceptionTemplateCategoryId, setExceptionTemplateCategoryId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setState({ kind: 'loading', message: 'Loading configuration…' })
@@ -163,7 +148,10 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
             setCategories(cats)
             setFlagRows(rowsFromFlags(cfg.featureFlags ?? {}))
             setSettingRows(rowsFromSettings(cfg.settings ?? {}))
-            setDefaultCategoryId(cfg.defaultExceptionTaskCategoryId ?? null)
+            const et = cfg.exceptionTaskTemplate
+            setExceptionTitleTemplate(et?.titleTemplate ?? 'Fix Exception #<EXCEPTION_INDEX>')
+            setExceptionDescriptionTemplate(et?.descriptionTemplate ?? '```\n<EXCEPTION_TRACE>\n```')
+            setExceptionTemplateCategoryId(et?.defaultCategoryId ?? null)
             setState({ kind: 'idle' })
         } catch {
             setState({ kind: 'error', message: 'Failed to load configuration.' })
@@ -209,12 +197,21 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
             const updated = await patchConfiguration(gameId, {
                 featureFlags,
                 settings,
-                defaultExceptionTaskCategoryId:
-                    defaultCategoryId && defaultCategoryId.length > 0 ? defaultCategoryId : null,
+                exceptionTaskTemplate: {
+                    titleTemplate: exceptionTitleTemplate,
+                    descriptionTemplate: exceptionDescriptionTemplate,
+                    defaultCategoryId:
+                        exceptionTemplateCategoryId && exceptionTemplateCategoryId.length > 0
+                            ? exceptionTemplateCategoryId
+                            : null,
+                },
             })
             setFlagRows(rowsFromFlags(updated.featureFlags ?? {}))
             setSettingRows(rowsFromSettings(updated.settings ?? {}))
-            setDefaultCategoryId(updated.defaultExceptionTaskCategoryId ?? null)
+            const uet = updated.exceptionTaskTemplate
+            setExceptionTitleTemplate(uet?.titleTemplate ?? 'Fix Exception #<EXCEPTION_INDEX>')
+            setExceptionDescriptionTemplate(uet?.descriptionTemplate ?? '```\n<EXCEPTION_TRACE>\n```')
+            setExceptionTemplateCategoryId(uet?.defaultCategoryId ?? null)
             setState({ kind: 'success', message: 'Configuration saved.' })
             refreshTheme()
         } catch {
@@ -297,69 +294,10 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
                     Add flag
                 </button>
 
-                <h3 className="configSubheading">Accent color</h3>
-                <p className="muted" style={{ marginBottom: 12 }}>
-                    Optional UI accent (stored as settings key <code>{THEME_COLOR_KEY}</code>). Use a CSS hex color (
-                    <code>#rgb</code> or <code>#rrggbb</code>). Cleared or invalid values fall back to the default
-                    Godot-style blue. Applies across this game&apos;s dashboard after save.
-                </p>
-                <div
-                    className="themeColorRow"
-                    style={{
-                        display: 'flex',
-                        gap: 12,
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        marginBottom: 24,
-                    }}
-                >
-                    <input
-                        type="color"
-                        aria-label="Theme accent color"
-                        value={
-                            parseThemeColorHex(
-                                settingRows.find((r) => r.key.trim().toUpperCase() === THEME_COLOR_KEY)?.value ?? ''
-                            ) ?? DEFAULT_ACCENT_HEX
-                        }
-                        onChange={(e) => {
-                            const hex = e.target.value
-                            setSettingRows((rows) => upsertSettingKey(rows, THEME_COLOR_KEY, hex))
-                        }}
-                        style={{
-                            width: 44,
-                            height: 36,
-                            padding: 2,
-                            border: '1px solid var(--border)',
-                            borderRadius: 8,
-                            background: 'var(--panel)',
-                            cursor: 'pointer',
-                        }}
-                    />
-                    <input
-                        className="textInput"
-                        style={{ maxWidth: 140 }}
-                        placeholder="#478cbf"
-                        aria-label="Theme color hex value"
-                        value={settingRows.find((r) => r.key.trim().toUpperCase() === THEME_COLOR_KEY)?.value ?? ''}
-                        onChange={(e) =>
-                            setSettingRows((rows) => upsertSettingKey(rows, THEME_COLOR_KEY, e.target.value))
-                        }
-                    />
-                    <button
-                        type="button"
-                        className="btn"
-                        onClick={() =>
-                            setSettingRows((rows) => rows.filter((r) => r.key.trim().toUpperCase() !== THEME_COLOR_KEY))
-                        }
-                    >
-                        Clear accent override
-                    </button>
-                </div>
-
                 <h3 className="configSubheading">Settings</h3>
                 <p className="muted" style={{ marginBottom: 12 }}>
-                    String values, or numbers, or the words true/false for booleans. <code>{THEME_COLOR_KEY}</code> is
-                    controlled above and omitted from the table below.
+                    String values, numbers, or the words <code>true</code>/<code>false</code> for booleans. Empty keys
+                    are ignored on save.
                 </p>
                 <div className="tableWrap" style={{ marginBottom: 20 }}>
                     <table className="table tableCompact">
@@ -371,52 +309,50 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
                             </tr>
                         </thead>
                         <tbody>
-                            {settingRows
-                                .filter((row) => row.key.trim().toUpperCase() !== THEME_COLOR_KEY)
-                                .map((row) => (
-                                    <tr key={row.id}>
-                                        <td>
-                                            <input
-                                                className="textInput"
-                                                value={row.key}
-                                                onChange={(e) => {
-                                                    const v = e.target.value
-                                                    setSettingRows((rows) =>
-                                                        rows.map((x) => (x.id === row.id ? { ...x, key: v } : x))
-                                                    )
-                                                }}
-                                                placeholder="setting_key"
-                                                aria-label="Setting key"
-                                            />
-                                        </td>
-                                        <td>
-                                            <input
-                                                className="textInput"
-                                                value={row.value}
-                                                onChange={(e) => {
-                                                    const v = e.target.value
-                                                    setSettingRows((rows) =>
-                                                        rows.map((x) => (x.id === row.id ? { ...x, value: v } : x))
-                                                    )
-                                                }}
-                                                aria-label="Setting value"
-                                            />
-                                        </td>
-                                        <td>
-                                            <button
-                                                type="button"
-                                                className="iconBtn iconBtnDanger"
-                                                title="Remove row"
-                                                aria-label="Remove setting row"
-                                                onClick={() =>
-                                                    setSettingRows((rows) => rows.filter((x) => x.id !== row.id))
-                                                }
-                                            >
-                                                <IconTrash />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                            {settingRows.map((row) => (
+                                <tr key={row.id}>
+                                    <td>
+                                        <input
+                                            className="textInput"
+                                            value={row.key}
+                                            onChange={(e) => {
+                                                const v = e.target.value
+                                                setSettingRows((rows) =>
+                                                    rows.map((x) => (x.id === row.id ? { ...x, key: v } : x))
+                                                )
+                                            }}
+                                            placeholder="setting_key"
+                                            aria-label="Setting key"
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            className="textInput"
+                                            value={row.value}
+                                            onChange={(e) => {
+                                                const v = e.target.value
+                                                setSettingRows((rows) =>
+                                                    rows.map((x) => (x.id === row.id ? { ...x, value: v } : x))
+                                                )
+                                            }}
+                                            aria-label="Setting value"
+                                        />
+                                    </td>
+                                    <td>
+                                        <button
+                                            type="button"
+                                            className="iconBtn iconBtnDanger"
+                                            title="Remove row"
+                                            aria-label="Remove setting row"
+                                            onClick={() =>
+                                                setSettingRows((rows) => rows.filter((x) => x.id !== row.id))
+                                            }
+                                        >
+                                            <IconTrash />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -424,27 +360,63 @@ function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refre
                     Add setting
                 </button>
 
-                <h3 className="configSubheading">Default category for tasks from game exceptions</h3>
+                <h3 className="configSubheading">Task templates (from game exceptions)</h3>
                 <p className="muted" style={{ marginBottom: 12 }}>
-                    Used when creating tasks from exceptions (upcoming). Clear the selection to leave unset.
+                    Used when creating tasks from the dashboard exception detail. <strong>Title:</strong>{' '}
+                    <code>&lt;EXCEPTION_INDEX&gt;</code> (server-sequenced per exception),{' '}
+                    <code>&lt;EXCEPTION_ID&gt;</code>, <code>&lt;EXCEPTION_SHORT_ID&gt;</code>,{' '}
+                    <code>&lt;SHORT_ERROR_MESSAGE&gt;</code> (from the client/ingest field) —{' '}
+                    <code>&lt;ERROR_MESSAGE&gt;</code> is removed from titles if present. <strong>Description:</strong>{' '}
+                    <code>&lt;EXCEPTION_TRACE&gt;</code> for the stack trace, plus <code>&lt;EXCEPTION_ID&gt;</code>,{' '}
+                    <code>&lt;EXCEPTION_SHORT_ID&gt;</code>, <code>&lt;ERROR_MESSAGE&gt;</code>,{' '}
+                    <code>&lt;SHORT_ERROR_MESSAGE&gt;</code>; <code>&lt;EXCEPTION_INDEX&gt;</code> is stripped in
+                    descriptions. Add your own markdown fences around the trace if you want a code block.
                 </p>
-                <select
-                    className="intervalSelect"
-                    style={{ maxWidth: 360, marginBottom: 16 }}
-                    value={defaultCategoryId ?? ''}
-                    onChange={(e) => {
-                        const v = e.target.value
-                        setDefaultCategoryId(v.length ? v : null)
-                    }}
-                    aria-label="Default exception task category"
-                >
-                    <option value="">None</option>
-                    {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.name}
-                        </option>
-                    ))}
-                </select>
+                <div className="modalFormGrid" style={{ marginBottom: 14, maxWidth: 720 }}>
+                    <label className="tasksListToolbarLabel" htmlFor="exc-task-title-tpl">
+                        Title template
+                    </label>
+                    <input
+                        id="exc-task-title-tpl"
+                        className="textInput"
+                        value={exceptionTitleTemplate}
+                        onChange={(e) => setExceptionTitleTemplate(e.target.value)}
+                        autoComplete="off"
+                        aria-label="Title template for exception tasks"
+                    />
+                    <label className="tasksListToolbarLabel" htmlFor="exc-task-desc-tpl">
+                        Description template
+                    </label>
+                    <textarea
+                        id="exc-task-desc-tpl"
+                        className="textArea modalTaskDescArea"
+                        style={{ minHeight: '6rem' }}
+                        value={exceptionDescriptionTemplate}
+                        onChange={(e) => setExceptionDescriptionTemplate(e.target.value)}
+                        aria-label="Description template for exception tasks"
+                    />
+                    <label className="tasksListToolbarLabel" htmlFor="exc-task-default-cat">
+                        Default category for new exception tasks
+                    </label>
+                    <select
+                        id="exc-task-default-cat"
+                        className="intervalSelect"
+                        style={{ maxWidth: 360 }}
+                        value={exceptionTemplateCategoryId ?? ''}
+                        onChange={(e) => {
+                            const v = e.target.value
+                            setExceptionTemplateCategoryId(v.length ? v : null)
+                        }}
+                        aria-label="Default category for tasks created from exceptions"
+                    >
+                        <option value="">None</option>
+                        {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
 
                 <div>
                     <button

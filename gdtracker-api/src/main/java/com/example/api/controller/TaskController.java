@@ -3,11 +3,13 @@ package com.example.api.controller;
 import com.example.api.dto.TaskUpsertRequest;
 import com.example.api.model.Category;
 import com.example.api.model.Feature;
+import com.example.api.model.GameException;
 import com.example.api.model.Tag;
 import com.example.api.model.Task;
 import com.example.api.model.TaskStatus;
 import com.example.api.repository.CategoryRepository;
 import com.example.api.repository.FeatureRepository;
+import com.example.api.repository.GameExceptionRepository;
 import com.example.api.repository.TagRepository;
 import com.example.api.repository.TaskRepository;
 import com.example.api.service.GameAccessService;
@@ -41,6 +43,7 @@ public class TaskController {
     private final FeatureRepository featureRepository;
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
+    private final GameExceptionRepository gameExceptionRepository;
     private final GameAccessService gameAccessService;
 
     @GetMapping
@@ -51,26 +54,52 @@ public class TaskController {
             @RequestParam(name = "categoryId", required = false) Optional<String> categoryId,
             @RequestParam(name = "tagIds", required = false) List<String> tagIdsParam,
             @RequestParam(name = "tagMode", required = false, defaultValue = "ANY") String tagMode,
+            @RequestParam(name = "sourceGameExceptionId", required = false) Optional<String> sourceGameExceptionId,
+            @RequestParam(name = "archivedOnly", required = false, defaultValue = "false") boolean archivedOnly,
             Authentication authentication) {
         String userId = gameAccessService.requireUserId(authentication);
         gameAccessService.requireOwnedGame(gameId, userId);
         String featureIdParam = featureId.filter(f -> !f.isBlank()).orElse(null);
         TaskStatus statusParam = status.orElse(null);
         String categoryIdParam = categoryId.filter(c -> !c.isBlank()).orElse(null);
+        String sourceExParam = sourceGameExceptionId.filter(s -> !s.isBlank()).orElse(null);
         List<String> tagIdsList = normalizeTagIdsQuery(tagIdsParam);
         boolean matchAll = tagMode != null && "ALL".equalsIgnoreCase(tagMode.trim());
 
         List<Task> tasks;
         if (tagIdsList.isEmpty()) {
-            tasks = taskRepository.findByGameIdFiltered(gameId, featureIdParam, statusParam, categoryIdParam);
+            tasks = taskRepository.findByGameIdFiltered(
+                    gameId, featureIdParam, statusParam, categoryIdParam, sourceExParam, archivedOnly);
         } else if (matchAll) {
             tasks = taskRepository.findByGameIdFilteredMatchingAllTags(
-                    gameId, featureIdParam, statusParam, categoryIdParam, tagIdsList, tagIdsList.size());
+                    gameId,
+                    featureIdParam,
+                    statusParam,
+                    categoryIdParam,
+                    sourceExParam,
+                    tagIdsList,
+                    tagIdsList.size(),
+                    archivedOnly);
         } else {
             tasks = taskRepository.findByGameIdFilteredMatchingAnyTag(
-                    gameId, featureIdParam, statusParam, categoryIdParam, tagIdsList);
+                    gameId, featureIdParam, statusParam, categoryIdParam, sourceExParam, tagIdsList, archivedOnly);
         }
         return ResponseEntity.ok(tasks);
+    }
+
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<Void> archiveTask(
+            @PathVariable("gameId") @NonNull String gameId,
+            @PathVariable("id") @NonNull String id,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        gameAccessService.requireOwnedGame(gameId, userId);
+        Task task = taskRepository
+                .findByIdAndFeature_Game_Id(id, gameId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
+        task.setArchived(true);
+        taskRepository.save(task);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping
@@ -84,6 +113,9 @@ public class TaskController {
         Feature feature = featureRepository
                 .findByIdAndGameId(featureId, gameId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "featureId is invalid"));
+        if (feature.isArchived()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "featureId is invalid");
+        }
 
         Task task = new Task();
         task.setTitle(req.title());
@@ -93,6 +125,7 @@ public class TaskController {
         task.setCategory(resolveCategory(gameId, req.categoryId()));
         task.setParent(resolveParentForUpsert(gameId, featureId, req.parentTaskId(), null));
         task.setTags(resolveTagsForGame(gameId, req.tagIdsOrNull() != null ? req.tagIdsOrNull() : List.of()));
+        applySourceGameExceptionOnCreate(task, gameId, req.sourceGameExceptionId());
 
         Task saved = taskRepository.save(task);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -114,6 +147,10 @@ public class TaskController {
         Feature feature = featureRepository
                 .findByIdAndGameId(featureId, gameId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "featureId is invalid"));
+        if (feature.isArchived()
+                && !feature.getId().equals(existing.getFeature().getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "featureId is invalid");
+        }
 
         existing.setTitle(req.title());
         existing.setDescription(req.description());
@@ -124,6 +161,7 @@ public class TaskController {
         if (req.tagIdsOrNull() != null) {
             existing.setTags(resolveTagsForGame(gameId, req.tagIdsOrNull()));
         }
+        applySourceGameExceptionOnUpdate(existing, gameId, req.sourceGameExceptionId());
 
         Task saved = taskRepository.save(existing);
         return ResponseEntity.ok(saved);
@@ -185,6 +223,33 @@ public class TaskController {
         return categoryRepository
                 .findByIdAndGameId(categoryId, gameId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId is invalid"));
+    }
+
+    private void applySourceGameExceptionOnCreate(Task task, String gameId, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return;
+        }
+        GameException ex = gameExceptionRepository
+                .findByIdAndGameId(raw, gameId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "sourceGameExceptionId must reference a game exception"));
+        task.setSourceGameException(ex);
+    }
+
+    /** {@code raw} null: omit (no change). Blank: clear link. Otherwise validate and set. */
+    private void applySourceGameExceptionOnUpdate(Task existing, String gameId, String raw) {
+        if (raw == null) {
+            return;
+        }
+        if (raw.isBlank()) {
+            existing.setSourceGameException(null);
+            return;
+        }
+        GameException ex = gameExceptionRepository
+                .findByIdAndGameId(raw, gameId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "sourceGameExceptionId must reference a game exception"));
+        existing.setSourceGameException(ex);
     }
 
     /**

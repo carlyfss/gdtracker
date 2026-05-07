@@ -12,12 +12,14 @@ import com.example.api.model.Game;
 import com.example.api.model.GameEvent;
 import com.example.api.model.GameEventDefinition;
 import com.example.api.model.GameEventTrace;
+import com.example.api.model.GamePlayer;
 import com.example.api.repository.GameEventDefinitionRepository;
 import com.example.api.repository.GameEventRepository;
 import com.example.api.repository.GameEventTraceRepository;
 import com.example.api.service.GameEventIngestService;
 import com.example.api.service.GameEventTemplateService;
 import com.example.api.service.GameIngestTokenService;
+import com.example.api.service.GamePlayerService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -36,9 +38,13 @@ class GameEventIngestServiceTest {
     private static final String GAME_ID = "game-1";
     private static final String INGEST_TOKEN = "token";
     private static final String CODE = "player_died";
+    private static final String PLAYER_ID = "player-uuid-1";
 
     @Mock
     private GameIngestTokenService gameIngestTokenService;
+
+    @Mock
+    private GamePlayerService gamePlayerService;
 
     @Mock
     private GameEventDefinitionRepository definitionRepository;
@@ -57,11 +63,15 @@ class GameEventIngestServiceTest {
 
     private Game game;
     private GameEventDefinition definition;
+    private GamePlayer player;
 
     @BeforeEach
     void setUp() {
         game = new Game();
         game.setId(GAME_ID);
+
+        player = new GamePlayer(game);
+        player.setId(PLAYER_ID);
 
         definition = new GameEventDefinition();
         definition.setId("def-1");
@@ -72,6 +82,8 @@ class GameEventIngestServiceTest {
 
         when(gameIngestTokenService.requireGameForIngestToken(eq(GAME_ID), eq(INGEST_TOKEN)))
                 .thenReturn(game);
+        when(gamePlayerService.requirePlayerForIngest(eq(GAME_ID), eq(PLAYER_ID)))
+                .thenReturn(player);
         when(definitionRepository.findByGame_IdAndCodeIgnoreCase(eq(GAME_ID), eq(CODE)))
                 .thenReturn(Optional.of(definition));
         when(gameEventRepository.save(any(GameEvent.class))).thenAnswer(inv -> {
@@ -100,9 +112,10 @@ class GameEventIngestServiceTest {
 
         GameEventIngestRequest request = new GameEventIngestRequest(CODE, rawParams);
 
-        GameEvent saved = service.ingest(GAME_ID, INGEST_TOKEN, request);
+        GameEvent saved = service.ingest(GAME_ID, INGEST_TOKEN, PLAYER_ID, request);
 
         assertThat(saved.getId()).isEqualTo("event-1");
+        assertThat(saved.getGamePlayer()).isSameAs(player);
 
         ArgumentCaptor<GameEventTrace> captor = ArgumentCaptor.forClass(GameEventTrace.class);
         verify(gameEventTraceRepository).save(captor.capture());
@@ -110,6 +123,7 @@ class GameEventIngestServiceTest {
         assertThat(trace.getLocation()).isEqualTo("(35, 22, 17)");
         assertThat(trace.getMap()).isEqualTo("proto-dungeon");
         assertThat(trace.getGame()).isSameAs(game);
+        assertThat(trace.getGamePlayer()).isSameAs(player);
         assertThat(trace.getGameEvent()).isSameAs(saved);
     }
 
@@ -124,7 +138,7 @@ class GameEventIngestServiceTest {
         rawParams.put("player_id", "123");
         GameEventIngestRequest request = new GameEventIngestRequest(CODE, rawParams);
 
-        service.ingest(GAME_ID, INGEST_TOKEN, request);
+        service.ingest(GAME_ID, INGEST_TOKEN, PLAYER_ID, request);
 
         verify(gameEventTraceRepository, never()).save(any(GameEventTrace.class));
     }
@@ -142,7 +156,7 @@ class GameEventIngestServiceTest {
         rawParams.put("map", "proto-dungeon");
         GameEventIngestRequest request = new GameEventIngestRequest(CODE, rawParams);
 
-        service.ingest(GAME_ID, INGEST_TOKEN, request);
+        service.ingest(GAME_ID, INGEST_TOKEN, PLAYER_ID, request);
 
         verify(gameEventTraceRepository, never()).save(any(GameEventTrace.class));
     }

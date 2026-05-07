@@ -17,8 +17,10 @@ export type Task = {
     tags?: Tag[]
     tagIds?: string[]
     parentTaskId?: string | null
+    sourceGameExceptionId?: string | null
     createdAt?: string
     updatedAt?: string
+    archived?: boolean
     [key: string]: unknown
 }
 
@@ -26,8 +28,10 @@ export type ListTasksParams = {
     featureId?: string
     status?: TaskStatus
     categoryId?: string
+    sourceGameExceptionId?: string
     tagIds?: string[]
     tagMode?: 'ANY' | 'ALL'
+    archivedOnly?: boolean
 }
 
 export type UpsertTaskBody = {
@@ -38,6 +42,7 @@ export type UpsertTaskBody = {
     categoryId?: string | null
     tagIds?: string[]
     parentTaskId?: string | null
+    sourceGameExceptionId?: string | null
 }
 
 function base(gameId: string) {
@@ -49,12 +54,16 @@ function buildListTasksQuery(params: ListTasksParams): string {
     if (params.featureId) search.set('featureId', params.featureId)
     if (params.status) search.set('status', params.status)
     if (params.categoryId) search.set('categoryId', params.categoryId)
+    if (params.sourceGameExceptionId) search.set('sourceGameExceptionId', params.sourceGameExceptionId)
     const tagIds = params.tagIds?.filter((id) => id.trim().length > 0) ?? []
     for (const id of tagIds) {
         search.append('tagIds', id)
     }
     if (tagIds.length >= 2 && params.tagMode) {
         search.set('tagMode', params.tagMode)
+    }
+    if (params.archivedOnly === true) {
+        search.set('archivedOnly', 'true')
     }
     const qs = search.toString()
     return qs ? `?${qs}` : ''
@@ -78,4 +87,8 @@ export async function updateTask(gameId: string, id: string, body: UpsertTaskBod
 
 export async function deleteTask(gameId: string, id: string): Promise<void> {
     await api.delete(`${base(gameId)}/${encodeURIComponent(id)}`)
+}
+
+export async function archiveTask(gameId: string, id: string): Promise<void> {
+    await api.post(`${base(gameId)}/${encodeURIComponent(id)}/archive`)
 }

@@ -13,7 +13,8 @@ public record TaskUpsertRequest(
         @NotBlank(message = "featureId is required") String featureId,
         String categoryId,
         List<String> tagIds,
-        String parentTaskId) {
+        String parentTaskId,
+        String sourceGameExceptionId) {
 
     public TaskUpsertRequest {
         title = normalizeWhitespaceTitle(title);
@@ -22,6 +23,9 @@ public record TaskUpsertRequest(
         parentTaskId = normalizeOptionalId(parentTaskId);
         if (tagIds != null) {
             tagIds = normalizeTagIds(tagIds);
+        }
+        if (sourceGameExceptionId != null) {
+            sourceGameExceptionId = sourceGameExceptionId.trim();
         }
     }
 

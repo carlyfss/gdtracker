@@ -1,9 +1,11 @@
 package com.example.api.controller;
 
+import com.example.api.dto.ReserveExceptionTaskIndexResponse;
 import com.example.api.model.Game;
 import com.example.api.model.GameException;
 import com.example.api.repository.GameExceptionRepository;
 import com.example.api.service.GameAccessService;
+import com.example.api.service.GameExceptionTaskSequenceService;
 import java.time.Instant;
 import java.util.List;
 import lombok.NonNull;
@@ -26,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class GameExceptionController {
 
     private final GameExceptionRepository gameExceptionRepository;
+    private final GameExceptionTaskSequenceService gameExceptionTaskSequenceService;
     private final GameAccessService gameAccessService;
 
     @GetMapping
@@ -52,6 +55,33 @@ public class GameExceptionController {
         Instant to = Instant.ofEpochMilli(toMs);
         return ResponseEntity.ok(
                 gameExceptionRepository.findByGameIdAndTimestampBetweenOrderByTimestampDesc(gameId, from, to));
+    }
+
+    @GetMapping("/{exceptionId}")
+    public ResponseEntity<GameException> getGameException(
+            @PathVariable("gameId") @NonNull String gameId,
+            @PathVariable("exceptionId") @NonNull String exceptionId,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        gameAccessService.requireOwnedGame(gameId, userId);
+        GameException ex = gameExceptionRepository
+                .findByIdAndGameId(exceptionId, gameId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "game exception not found"));
+        return ResponseEntity.ok(ex);
+    }
+
+    @PostMapping("/{exceptionId}/reserve-task-index")
+    public ResponseEntity<ReserveExceptionTaskIndexResponse> reserveExceptionTaskIndex(
+            @PathVariable("gameId") @NonNull String gameId,
+            @PathVariable("exceptionId") @NonNull String exceptionId,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        gameAccessService.requireOwnedGame(gameId, userId);
+        gameExceptionRepository
+                .findByIdAndGameId(exceptionId, gameId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "game exception not found"));
+        int index = gameExceptionTaskSequenceService.reserveNextIndex(exceptionId);
+        return ResponseEntity.ok(new ReserveExceptionTaskIndexResponse(index));
     }
 
     @PostMapping

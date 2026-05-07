@@ -5,6 +5,7 @@ import com.example.api.model.Game;
 import com.example.api.model.GameEvent;
 import com.example.api.model.GameEventDefinition;
 import com.example.api.model.GameEventTrace;
+import com.example.api.model.GamePlayer;
 import com.example.api.repository.GameEventDefinitionRepository;
 import com.example.api.repository.GameEventRepository;
 import com.example.api.repository.GameEventTraceRepository;
@@ -30,14 +31,16 @@ public class GameEventIngestService {
     private static final String MAP_KEY = "MAP";
 
     private final GameIngestTokenService gameIngestTokenService;
+    private final GamePlayerService gamePlayerService;
     private final GameEventDefinitionRepository definitionRepository;
     private final GameEventRepository gameEventRepository;
     private final GameEventTraceRepository gameEventTraceRepository;
     private final GameEventTemplateService templateService;
 
     @Transactional
-    public GameEvent ingest(String gameId, String bearerToken, GameEventIngestRequest request) {
+    public GameEvent ingest(String gameId, String bearerToken, String playerId, GameEventIngestRequest request) {
         Game game = gameIngestTokenService.requireGameForIngestToken(gameId, bearerToken);
+        GamePlayer player = gamePlayerService.requirePlayerForIngest(gameId, playerId);
         GameEventDefinition def = definitionRepository
                 .findByGame_IdAndCodeIgnoreCase(gameId, request.definitionCode())
                 .orElseThrow(
@@ -48,17 +51,18 @@ public class GameEventIngestService {
 
         GameEvent event = new GameEvent();
         event.setGame(game);
+        event.setGamePlayer(player);
         event.setDefinition(def);
         event.setRenderedMessage(rendered);
         event.setPayload(new HashMap<>(payload));
         GameEvent saved = gameEventRepository.save(event);
 
-        autoCreateTrace(game, saved, payload);
+        autoCreateTrace(game, saved, player, payload);
 
         return saved;
     }
 
-    private void autoCreateTrace(Game game, GameEvent event, Map<String, String> payload) {
+    private void autoCreateTrace(Game game, GameEvent event, GamePlayer player, Map<String, String> payload) {
         String location = payload.get(LOCATION_KEY);
         String map = payload.get(MAP_KEY);
         if (location == null || location.isBlank() || map == null || map.isBlank()) {
@@ -67,6 +71,7 @@ public class GameEventIngestService {
         try {
             GameEventTrace trace = new GameEventTrace(location, map);
             trace.setGame(game);
+            trace.setGamePlayer(player);
             trace.setGameEvent(event);
             gameEventTraceRepository.save(trace);
         } catch (RuntimeException ex) {

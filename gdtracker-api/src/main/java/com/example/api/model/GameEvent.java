@@ -50,6 +50,11 @@ public class GameEvent {
     @JoinColumn(name = "definition_id", nullable = false)
     private GameEventDefinition definition;
 
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "game_player_id", nullable = true)
+    private GamePlayer gamePlayer;
+
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(nullable = false, updatable = false)

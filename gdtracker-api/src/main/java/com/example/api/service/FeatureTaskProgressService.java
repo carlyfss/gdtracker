@@ -22,10 +22,14 @@ public class FeatureTaskProgressService {
     private final GameAccessService gameAccessService;
 
     @Transactional(readOnly = true)
-    public List<FeatureTaskProgressRow> progressForGame(@NonNull String gameId, @NonNull String userId) {
+    public List<FeatureTaskProgressRow> progressForGame(
+            @NonNull String gameId, @NonNull String userId, boolean archivedOnly) {
         gameAccessService.requireOwnedGame(gameId, userId);
-        List<Feature> features = featureRepository.findByGameIdOrderByNameAsc(gameId);
-        Map<String, long[]> direct = parseAggregates(taskRepository.aggregateTaskCountsByFeatureForGame(gameId));
+        List<Feature> features = featureRepository.findByGameIdAndArchivedOrderByNameAsc(gameId, archivedOnly);
+        Map<String, long[]> direct = parseAggregates(
+                archivedOnly
+                        ? taskRepository.aggregateArchivedTaskCountsByFeatureForGame(gameId)
+                        : taskRepository.aggregateTaskCountsByFeatureForGame(gameId));
 
         Map<String, List<Feature>> childrenByParent = new HashMap<>();
         for (Feature f : features) {

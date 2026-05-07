@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { Link, Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import godotLogo from '../assets/godot_white.svg'
+import archiveNavIcon from '../assets/icons/archive_page.svg'
+import integrationNavIcon from '../assets/icons/integration_page.svg'
 import { GameIdProvider } from '../context/GameIdContext'
 import { GameThemeProvider } from '../context/GameThemeContext'
 import { useAuth } from '../context/AuthContext'
 
-type DashboardTab = 'dashboard' | 'heatmap' | 'tasks' | 'configuration'
+type DashboardTab = 'dashboard' | 'heatmap' | 'tasks' | 'archive' | 'feedback' | 'integration' | 'configuration'
 
 function SidebarIcon({ children }: { children: React.ReactNode }) {
     return (
@@ -40,6 +42,9 @@ export function GameDashboardLayout() {
         const path = location.pathname
         if (path.endsWith('/heatmap')) return 'heatmap'
         if (path.endsWith('/tasks')) return 'tasks'
+        if (path.endsWith('/archive')) return 'archive'
+        if (path.endsWith('/feedback')) return 'feedback'
+        if (path.endsWith('/integration')) return 'integration'
         if (path.endsWith('/configuration')) return 'configuration'
         return 'dashboard'
     }, [location.pathname])
@@ -149,6 +154,73 @@ export function GameDashboardLayout() {
                                         </span>
                                     </Link>
                                 ))}
+                                <Link
+                                    className="appSidebarLink"
+                                    to={`${base}/archive`}
+                                    data-active={active === 'archive'}
+                                    aria-label="Archive"
+                                    aria-current={active === 'archive' ? 'page' : undefined}
+                                    title="Archive"
+                                >
+                                    <SidebarIcon>
+                                        <img
+                                            src={archiveNavIcon}
+                                            alt=""
+                                            width={20}
+                                            height={20}
+                                            className="appSidebarRasterIcon"
+                                        />
+                                    </SidebarIcon>
+                                    <span className="appSidebarTooltip" role="tooltip">
+                                        Archive
+                                    </span>
+                                </Link>
+                                <Link
+                                    className="appSidebarLink"
+                                    to={`${base}/feedback`}
+                                    data-active={active === 'feedback'}
+                                    aria-label="Feedback"
+                                    aria-current={active === 'feedback' ? 'page' : undefined}
+                                    title="Feedback"
+                                >
+                                    <SidebarIcon>
+                                        <svg
+                                            width="20"
+                                            height="20"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        >
+                                            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                                            <path d="M8 10h8M8 14h5" />
+                                        </svg>
+                                    </SidebarIcon>
+                                    <span className="appSidebarTooltip" role="tooltip">
+                                        Feedback
+                                    </span>
+                                </Link>
+                                <Link
+                                    className="appSidebarLink"
+                                    to={`${base}/integration`}
+                                    data-active={active === 'integration'}
+                                    aria-label="Integration"
+                                    aria-current={active === 'integration' ? 'page' : undefined}
+                                    title="Integration"
+                                >
+                                    <SidebarIcon>
+                                        <img
+                                            src={integrationNavIcon}
+                                            alt=""
+                                            width={20}
+                                            height={20}
+                                            className="appSidebarRasterIcon"
+                                        />
+                                    </SidebarIcon>
+                                    <span className="appSidebarTooltip" role="tooltip">
+                                        Integration
+                                    </span>
+                                </Link>
                                 <Link
                                     className="appSidebarLink"
                                     to={`${base}/configuration`}

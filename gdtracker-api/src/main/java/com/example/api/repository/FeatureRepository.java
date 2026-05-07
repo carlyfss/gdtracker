@@ -15,10 +15,20 @@ public interface FeatureRepository extends JpaRepository<Feature, String> {
             """
             SELECT DISTINCT f FROM Feature f
             LEFT JOIN FETCH f.parent
+            WHERE f.game.id = :gameId AND f.archived = :archived
+            ORDER BY f.name ASC
+            """)
+    List<Feature> findByGameIdAndArchivedOrderByNameAsc(
+            @Param("gameId") String gameId, @Param("archived") boolean archived);
+
+    @Query(
+            """
+            SELECT DISTINCT f FROM Feature f
+            LEFT JOIN FETCH f.parent
             WHERE f.game.id = :gameId
             ORDER BY f.name ASC
             """)
-    List<Feature> findByGameIdOrderByNameAsc(@Param("gameId") String gameId);
+    List<Feature> findAllByGameIdOrderByNameAsc(@Param("gameId") String gameId);
 
     Optional<Feature> findByGame_IdAndParentIsNullAndNameIgnoreCase(String gameId, String name);
 

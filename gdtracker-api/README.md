@@ -128,7 +128,8 @@ mvn checkstyle:check     # check style
 | POST | `/api/auth/register`, `/api/auth/login`, `/api/auth/logout` | Auth |
 | GET  | `/api/auth/me` | Current user |
 | GET/POST/PUT/DELETE | `/api/games` | Games CRUD |
-| GET/POST | `/api/games/{gameId}/game-exceptions` | Game exception reports |
+| GET/POST | `/api/games/{gameId}/game-exceptions` | Game exception reports (JSON may include optional `shortErrorMessage`) |
+| POST | `/api/games/{gameId}/game-exceptions/ingest` | Ingest (Bearer + `X-Player-Id`; body may include optional `shortErrorMessage`) |
 | GET/POST | `/api/games/{gameId}/game-trace`, `POST /game-trace/ingest` | Trace points + ingest |
 | GET/POST | `/api/games/{gameId}/game-events`, `POST /game-events/ingest` | Game events + ingest |
 | GET/POST/PUT/DELETE | `/api/games/{gameId}/game-event-definitions` | Event definitions |

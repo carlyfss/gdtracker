@@ -9,9 +9,15 @@ info:
         Mutating requests to authenticated routes require **CSRF**: send header `X-XSRF-TOKEN` with the same value as the
         `XSRF-TOKEN` cookie (double-submit). The SPA typically primes CSRF with a GET before the first POST.
 
-        **Bearer ingest endpoints (CSRF-exempt):** `POST /games/{gameId}/game-events/ingest` and
-        `POST /games/{gameId}/game-trace/ingest` use header `Authorization: Bearer <ingest-token>`
-        (per-game token from Configuration). They do NOT use the session cookie or CSRF token.
+        **Bearer ingest endpoints (CSRF-exempt):** These routes use `Authorization: Bearer <ingest-token>` (per-game token
+        from Configuration) and do NOT use the session cookie or CSRF token.
+
+        - `POST /games/{gameId}/game-players` — **ingest token only**; registers a player session and returns a `playerId` (UUID).
+        - `POST /games/{gameId}/game-events/ingest`, `POST /games/{gameId}/game-trace/ingest`,
+          `POST /games/{gameId}/game-exceptions/ingest`, `POST /games/{gameId}/game-feedback/ingest` — require **both**
+          the ingest token and header **`X-Player-Id`** (value from `game-players`).
+        - `POST /games/{gameId}/integration` — **ingest token only**; body `{"validation":"ok"}`; no `X-Player-Id`.
+          The dashboard can poll `GET /games/{gameId}/integration/status` (session) for the last successful ping time.
 
         Examples use placeholders only—never real passwords or tokens.
 servers:
@@ -42,6 +48,12 @@ tags:
       description: Event type definitions (template, color, optional icon).
     - name: IngestToken
       description: Per-game ingest token status and regenerate.
+    - name: GamePlayers
+      description: Register per-session player ids for ingest correlation (Bearer ingest token).
+    - name: GameFeedback
+      description: In-game feedback (template meters, ingest, list for operators).
+    - name: Integration
+      description: Ingest token connectivity check from the game client; status for the operator dashboard.
 
 security:
     - sessionCookie: []
@@ -229,6 +241,40 @@ paths:
                 "404":
                     description: Game not found or not owned.
 
+    /games/{gameId}/game-exceptions/ingest:
+        post:
+            tags: [GameExceptions]
+            summary: Report an exception from the game client (Bearer ingest + X-Player-Id)
+            security:
+                - bearerIngest: []
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/xPlayerId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/GameExceptionIngestRequest"
+                        examples:
+                            sample:
+                                value:
+                                    errorMessage: "NullPointerException"
+                                    location: "Level1-3"
+                                    map: "DungeonMap"
+                                    stackTrace: "at com.example.Foo.bar(Foo.java:42)\n..."
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameException"
+                "401":
+                    description: Missing or invalid Bearer token, missing X-Player-Id, or invalid player id.
+                "404":
+                    description: Game not found.
+
     /games/{gameId}/game-exceptions/interval:
         get:
             tags: [GameExceptions]
@@ -267,6 +313,59 @@ paths:
                 "404":
                     description: Game not found or not owned.
 
+    /games/{gameId}/game-exceptions/{exceptionId}:
+        get:
+            tags: [GameExceptions]
+            summary: Get one game exception by id
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - name: exceptionId
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameException"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game, exception not found, or not owned.
+
+    /games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index:
+        post:
+            tags: [GameExceptions]
+            summary: Reserve next monotonic task index for this exception
+            description: |
+                Per-exception sequence for exception-linked task titles (e.g. EXCEPTION_INDEX).
+                First call returns 1, then 2, etc. Abandoned reservations after a failed task create still consume the number.
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - name: exceptionId
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ReserveExceptionTaskIndexResponse"
+                            examples:
+                                sample:
+                                    value:
+                                        index: 1
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game, exception not found, or not owned.
+
     /games/{gameId}/game-trace:
         get:
             tags: [Trace]
@@ -299,6 +398,7 @@ paths:
                 - bearerIngest: []
             parameters:
                 - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/xPlayerId"
             requestBody:
                 required: true
                 content:
@@ -327,9 +427,34 @@ paths:
                 "400":
                     description: Game event does not belong to this game.
                 "401":
-                    description: Missing or invalid Bearer token.
+                    description: Missing or invalid Bearer token, missing X-Player-Id, or invalid player id.
                 "404":
                     description: Game or game event not found.
+
+    /games/{gameId}/game-players:
+        post:
+            tags: [GamePlayers]
+            summary: Register a player session (Bearer ingest token only)
+            description: Returns a new UUID to send as `X-Player-Id` on subsequent ingest calls.
+            security:
+                - bearerIngest: []
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GamePlayerRegisterResponse"
+                            examples:
+                                sample:
+                                    value:
+                                        playerId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                "401":
+                    description: Missing or invalid Bearer token.
+                "404":
+                    description: Game not found.
 
     /games/{gameId}/tasks:
         get:
@@ -370,6 +495,21 @@ paths:
                       type: string
                       enum: [ANY, ALL]
                       default: ANY
+                - name: sourceGameExceptionId
+                  in: query
+                  required: false
+                  description: When set, only tasks created from this game exception id are returned.
+                  schema:
+                      type: string
+                - name: archivedOnly
+                  in: query
+                  required: false
+                  description: |
+                    When false (default), returns only tasks that are not archived and whose feature is not archived.
+                    When true, returns tasks where the task is archived or its feature is archived.
+                  schema:
+                      type: boolean
+                      default: false
             responses:
                 "200":
                     description: OK
@@ -404,6 +544,7 @@ paths:
                                     categoryId: null
                                     tagIds: []
                                     parentTaskId: null
+                                    sourceGameExceptionId: null
             responses:
                 "201":
                     description: Created
@@ -412,7 +553,7 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/Task"
                 "400":
-                    description: Invalid featureId, categoryId, or tagIds.
+                    description: Invalid featureId, categoryId, tagIds, or sourceGameExceptionId.
                 "401":
                     description: Not authenticated.
                 "404":
@@ -439,7 +580,7 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/Task"
                 "400":
-                    description: Invalid featureId, categoryId, or tagIds.
+                    description: Invalid featureId, categoryId, tagIds, or sourceGameExceptionId.
                 "401":
                     description: Not authenticated.
                 "404":
@@ -458,12 +599,35 @@ paths:
                 "404":
                     description: Task or game not found.
 
+    /games/{gameId}/tasks/{id}/archive:
+        post:
+            tags: [Tasks]
+            summary: Archive a task
+            description: Marks the task archived. It no longer appears in default task lists.
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/resourceId"
+            responses:
+                "204":
+                    description: No content.
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Task or game not found.
+
     /games/{gameId}/features:
         get:
             tags: [Features]
             summary: List features for a game
             parameters:
                 - $ref: "#/components/parameters/gameId"
+                - name: archived
+                  in: query
+                  required: false
+                  description: When false (default), only features that are not archived. When true, only archived features.
+                  schema:
+                      type: boolean
+                      default: false
             responses:
                 "200":
                     description: OK
@@ -517,6 +681,15 @@ paths:
             summary: Per-feature task counts and rolled-up progress for a game
             parameters:
                 - $ref: "#/components/parameters/gameId"
+                - name: archived
+                  in: query
+                  required: false
+                  description: |
+                    When false (default), counts only non-archived tasks on non-archived features (dashboard).
+                    When true, counts archived-visible tasks (task or feature archived) for archived features only.
+                  schema:
+                      type: boolean
+                      default: false
             responses:
                 "200":
                     description: OK
@@ -574,6 +747,22 @@ paths:
                     description: Feature not found.
                 "409":
                     description: Feature has subfeatures or has tasks.
+
+    /games/{gameId}/features/{id}/archive:
+        post:
+            tags: [Features]
+            summary: Archive a feature and all its subfeatures
+            description: Sets archived on the feature and every descendant feature in the hierarchy.
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/resourceId"
+            responses:
+                "204":
+                    description: No content.
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Feature or game not found.
 
     /games/{gameId}/categories:
         get:
@@ -785,7 +974,7 @@ paths:
                     description: Game not found or not owned.
         patch:
             tags: [Configuration]
-            summary: Patch feature flags, settings, and default exception-task category
+            summary: Patch feature flags, settings, and exception-linked task templates
             parameters:
                 - $ref: "#/components/parameters/gameId"
             requestBody:
@@ -801,7 +990,10 @@ paths:
                                         enableBeta: true
                                     settings:
                                         maxPlayers: 8
-                                    defaultExceptionTaskCategoryId: "dddddddd-dddd-dddd-dddd-dddddddddddd"
+                                    exceptionTaskTemplate:
+                                        titleTemplate: "Fix Exception #<EXCEPTION_INDEX>"
+                                        descriptionTemplate: "```\n<EXCEPTION_TRACE>\n```"
+                                        defaultCategoryId: "dddddddd-dddd-dddd-dddd-dddddddddddd"
             responses:
                 "200":
                     description: OK
@@ -810,7 +1002,7 @@ paths:
                             schema:
                                 $ref: "#/components/schemas/GameConfigurationResponse"
                 "400":
-                    description: Invalid defaultExceptionTaskCategoryId.
+                    description: Invalid exceptionTaskTemplate.defaultCategoryId or template fields.
                 "401":
                     description: Not authenticated.
                 "404":
@@ -864,6 +1056,7 @@ paths:
                 - bearerIngest: []
             parameters:
                 - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/xPlayerId"
             requestBody:
                 required: true
                 content:
@@ -890,9 +1083,175 @@ paths:
                 "400":
                     description: Template/render validation error.
                 "401":
-                    description: Missing or invalid Bearer token.
+                    description: Missing or invalid Bearer token, missing X-Player-Id, or invalid player id.
                 "404":
                     description: Game or definition code not found.
+
+    /games/{gameId}/game-feedback:
+        get:
+            tags: [GameFeedback]
+            summary: List feedback submissions (title and player id)
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/GameFeedbackSummaryResponse"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game not found or not owned.
+
+    /games/{gameId}/game-feedback/{feedbackId}:
+        get:
+            tags: [GameFeedback]
+            summary: Get one feedback with full detail
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - name: feedbackId
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameFeedbackDetailResponse"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game or feedback not found or not owned.
+
+    /games/{gameId}/game-feedback/ingest:
+        post:
+            tags: [GameFeedback]
+            summary: Submit feedback from the game (Bearer ingest + X-Player-Id)
+            security:
+                - bearerIngest: []
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/xPlayerId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/GameFeedbackIngestRequest"
+                        examples:
+                            sample:
+                                value:
+                                    title: "Great session"
+                                    description: "Loved the new level."
+                                    meters:
+                                        game_fun: 8
+                                        balance: 6
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameFeedback"
+                "400":
+                    description: Validation error (meters vs template, range 1–10).
+                "401":
+                    description: Missing or invalid Bearer token, missing X-Player-Id, or invalid player id.
+                "404":
+                    description: Game not found.
+
+    /games/{gameId}/game-feedback-meter-definitions:
+        get:
+            tags: [GameFeedback]
+            summary: List feedback meter definitions (template)
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/GameFeedbackMeterDefinition"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game not found or not owned.
+        post:
+            tags: [GameFeedback]
+            summary: Create a meter definition
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/GameFeedbackMeterDefinitionUpsertRequest"
+            responses:
+                "201":
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameFeedbackMeterDefinition"
+                "400":
+                    description: Validation error.
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game not found or not owned.
+                "409":
+                    description: Field key already exists.
+
+    /games/{gameId}/game-feedback-meter-definitions/{id}:
+        put:
+            tags: [GameFeedback]
+            summary: Update a meter definition
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/resourceId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/GameFeedbackMeterDefinitionUpsertRequest"
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameFeedbackMeterDefinition"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Not found.
+                "409":
+                    description: Field key already exists.
+        delete:
+            tags: [GameFeedback]
+            summary: Delete a meter definition
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - $ref: "#/components/parameters/resourceId"
+            responses:
+                "204":
+                    description: No content.
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Not found.
 
     /games/{gameId}/game-event-definitions:
         get:
@@ -1033,6 +1392,59 @@ paths:
                 "404":
                     description: Game not found or not owned.
 
+    /games/{gameId}/integration:
+        post:
+            tags: [Integration]
+            summary: Validate ingest token connectivity (Bearer only)
+            description: |
+                No `X-Player-Id` header. On success, stores a timestamp on the game for the operator UI
+                (`GET .../integration/status`).
+            security:
+                - bearerIngest: []
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/IntegrationPingRequest"
+                        examples:
+                            ok:
+                                value:
+                                    validation: ok
+            responses:
+                "204":
+                    description: Token valid; validation timestamp updated.
+                "400":
+                    description: Validation error (`validation` must be `ok`).
+                "401":
+                    description: Missing or invalid Bearer token, or ingest token not configured.
+                "404":
+                    description: Game not found.
+
+    /games/{gameId}/integration/status:
+        get:
+            tags: [Integration]
+            summary: Last integration ping time (session, game owner)
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/IntegrationStatusResponse"
+                            examples:
+                                sample:
+                                    value:
+                                        lastValidatedAt: "2026-05-03T16:45:00.000Z"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game not found or not owned.
+
 components:
     securitySchemes:
         sessionCookie:
@@ -1048,9 +1460,18 @@ components:
         bearerIngest:
             type: http
             scheme: bearer
-            description: Per-game ingest token (Configuration). Used only for `POST .../game-events/ingest`.
+            description: |
+                Per-game ingest token (Configuration). Used for `POST .../game-players` (token only), for `POST .../integration`
+                (token only), and for ingest routes that also require header `X-Player-Id`.
 
     parameters:
+        xPlayerId:
+            name: X-Player-Id
+            in: header
+            required: true
+            schema:
+                type: string
+            description: Player id returned from `POST .../game-players` (required on all ingest routes except game-players).
         gameId:
             name: gameId
             in: path
@@ -1103,6 +1524,13 @@ components:
                     type: string
                 name:
                     type: string
+        ReserveExceptionTaskIndexResponse:
+            type: object
+            required: [index]
+            properties:
+                index:
+                    type: integer
+                    description: Value to use for EXCEPTION_INDEX in the task title template.
         GameException:
             type: object
             properties:
@@ -1111,6 +1539,10 @@ components:
                 errorMessage:
                     type: string
                     nullable: true
+                shortErrorMessage:
+                    type: string
+                    nullable: true
+                    description: Optional short label from the client (e.g. Unity) for lists and task templates.
                 location:
                     type: string
                     nullable: true
@@ -1123,10 +1555,17 @@ components:
                 timestamp:
                     type: string
                     format: date-time
-        GameExceptionCreateBody:
+                gamePlayerId:
+                    type: string
+                    nullable: true
+                    description: Set when the exception was reported via ingest with a player id.
+        GameExceptionIngestRequest:
             type: object
             properties:
                 errorMessage:
+                    type: string
+                    nullable: true
+                shortErrorMessage:
                     type: string
                     nullable: true
                 location:
@@ -1138,6 +1577,134 @@ components:
                 stackTrace:
                     type: string
                     nullable: true
+        GameExceptionCreateBody:
+            type: object
+            properties:
+                errorMessage:
+                    type: string
+                    nullable: true
+                shortErrorMessage:
+                    type: string
+                    nullable: true
+                location:
+                    type: string
+                    nullable: true
+                map:
+                    type: string
+                    nullable: true
+                stackTrace:
+                    type: string
+                    nullable: true
+        GamePlayerRegisterResponse:
+            type: object
+            required: [playerId]
+            properties:
+                playerId:
+                    type: string
+                    format: uuid
+        GameFeedback:
+            type: object
+            properties:
+                id:
+                    type: string
+                title:
+                    type: string
+                description:
+                    type: string
+                playerId:
+                    type: string
+                meters:
+                    type: object
+                    additionalProperties:
+                        type: integer
+                        minimum: 1
+                        maximum: 10
+                createdAt:
+                    type: string
+                    format: date-time
+        GameFeedbackIngestRequest:
+            type: object
+            required: [title, description]
+            properties:
+                title:
+                    type: string
+                    maxLength: 500
+                description:
+                    type: string
+                    maxLength: 20000
+                meters:
+                    type: object
+                    additionalProperties:
+                        type: integer
+                        minimum: 1
+                        maximum: 10
+                    description: |
+                        Keys must match configured meter `fieldKey` values (case-insensitive). When template has meters,
+                        every definition must receive a value. When template is empty, send `{}` or omit.
+        GameFeedbackSummaryResponse:
+            type: object
+            properties:
+                id:
+                    type: string
+                title:
+                    type: string
+                playerId:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+        GameFeedbackMeterValueResponse:
+            type: object
+            properties:
+                fieldKey:
+                    type: string
+                question:
+                    type: string
+                value:
+                    type: integer
+                    minimum: 1
+                    maximum: 10
+        GameFeedbackDetailResponse:
+            type: object
+            properties:
+                id:
+                    type: string
+                title:
+                    type: string
+                description:
+                    type: string
+                playerId:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+                meters:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/GameFeedbackMeterValueResponse"
+        GameFeedbackMeterDefinition:
+            type: object
+            properties:
+                id:
+                    type: string
+                fieldKey:
+                    type: string
+                question:
+                    type: string
+                sortOrder:
+                    type: integer
+        GameFeedbackMeterDefinitionUpsertRequest:
+            type: object
+            required: [fieldKey, question]
+            properties:
+                fieldKey:
+                    type: string
+                    maxLength: 64
+                question:
+                    type: string
+                    maxLength: 500
+                sortOrder:
+                    type: integer
         GameEventTraceCreateRequest:
             type: object
             properties:
@@ -1204,6 +1771,12 @@ components:
                     type: string
                     nullable: true
                     description: Parent task id for subtasks; omit or null for root tasks
+                sourceGameExceptionId:
+                    type: string
+                    nullable: true
+                    description: |
+                        Optional link to the game exception this task was created from.
+                        On PUT, omit the property to leave the link unchanged; send null or "" to clear.
         Feature:
             type: object
             properties:
@@ -1223,6 +1796,9 @@ components:
                     type: string
                     nullable: true
                     description: Parent feature id when this is a subfeature
+                archived:
+                    type: boolean
+                    description: When true, the feature is only returned with archived=true list queries.
         FeatureUpsertRequest:
             type: object
             required: [name]
@@ -1313,9 +1889,36 @@ components:
                 settings:
                     type: object
                     additionalProperties: true
-                defaultExceptionTaskCategoryId:
+                exceptionTaskTemplate:
+                    nullable: true
+                    allOf:
+                        - $ref: "#/components/schemas/ExceptionTaskTemplatePatch"
+        ExceptionTaskTemplatePatch:
+            type: object
+            properties:
+                titleTemplate:
+                    type: string
+                    description: Supports placeholders such as <EXCEPTION_INDEX>, <EXCEPTION_ID>, <ERROR_MESSAGE>, <EXCEPTION_SHORT_ID>.
+                descriptionTemplate:
+                    type: string
+                    description: Use <EXCEPTION_TRACE> where the stack trace should appear (markdown fences belong in the template).
+                defaultCategoryId:
                     type: string
                     nullable: true
+        ExceptionTaskTemplateResponse:
+            type: object
+            properties:
+                titleTemplate:
+                    type: string
+                descriptionTemplate:
+                    type: string
+                defaultCategoryId:
+                    type: string
+                    nullable: true
+                defaultCategory:
+                    nullable: true
+                    allOf:
+                        - $ref: "#/components/schemas/CategorySummaryResponse"
         CategorySummaryResponse:
             type: object
             properties:
@@ -1335,13 +1938,8 @@ components:
                 settings:
                     type: object
                     additionalProperties: true
-                defaultExceptionTaskCategoryId:
-                    type: string
-                    nullable: true
-                defaultExceptionTaskCategory:
-                    nullable: true
-                    allOf:
-                        - $ref: "#/components/schemas/CategorySummaryResponse"
+                exceptionTaskTemplate:
+                    $ref: "#/components/schemas/ExceptionTaskTemplateResponse"
         GameEventResponse:
             type: object
             properties:
@@ -1429,6 +2027,22 @@ components:
                     type: string
                     format: date-time
                     nullable: true
+        IntegrationPingRequest:
+            type: object
+            required: [validation]
+            properties:
+                validation:
+                    type: string
+                    enum: [ok]
+                    description: Must be the literal string `ok`.
+        IntegrationStatusResponse:
+            type: object
+            properties:
+                lastValidatedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Time of the last successful `POST .../integration` for this game.
         Task:
             type: object
             properties:
@@ -1460,9 +2074,16 @@ components:
                     type: string
                     nullable: true
                     description: Present when this task is a subtask
+                sourceGameExceptionId:
+                    type: string
+                    nullable: true
+                    description: Set when the task was created from a game exception
                 createdAt:
                     type: string
                     format: date-time
                 updatedAt:
                     type: string
                     format: date-time
+                archived:
+                    type: boolean
+                    description: When true, the task is only returned with archivedOnly=true list queries (unless shown via nested feature).

@@ -38,17 +38,29 @@ public class SecurityConfig {
                 .ignoringRequestMatchers(
                         new AntPathRequestMatcher("/api/auth/login"),
                         new AntPathRequestMatcher("/api/auth/register"),
+                        new AntPathRequestMatcher("/api/games/*/game-players", "POST"),
                         new AntPathRequestMatcher("/api/games/*/game-events/ingest", "POST"),
-                        new AntPathRequestMatcher("/api/games/*/game-trace/ingest", "POST")));
+                        new AntPathRequestMatcher("/api/games/*/game-trace/ingest", "POST"),
+                        new AntPathRequestMatcher("/api/games/*/game-exceptions/ingest", "POST"),
+                        new AntPathRequestMatcher("/api/games/*/game-feedback/ingest", "POST"),
+                        new AntPathRequestMatcher("/api/games/*/integration", "POST")));
 
         http.authorizeHttpRequests(
                 auth -> auth.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me")
                         .permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-players", "POST"))
+                        .permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-events/ingest", "POST"))
                         .permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-trace/ingest", "POST"))
+                        .permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-exceptions/ingest", "POST"))
+                        .permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-feedback/ingest", "POST"))
+                        .permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/integration", "POST"))
                         .permitAll()
                         .requestMatchers("/api/auth/logout")
                         .authenticated()

@@ -8,7 +8,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.util.HashMap;
@@ -43,7 +42,7 @@ public class GameConfiguration {
     @Column(name = "settings", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> settings = new HashMap<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "default_exception_task_category_id")
-    private Category defaultExceptionTaskCategory;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "exception_task_template", nullable = false, columnDefinition = "jsonb")
+    private ExceptionTaskTemplate exceptionTaskTemplate = ExceptionTaskTemplate.withDefaults(null);
 }

@@ -3,6 +3,7 @@ package com.example.api.controller;
 import com.example.api.dto.GameEventTraceCreateRequest;
 import com.example.api.dto.GameEventTraceResponse;
 import com.example.api.service.TraceIngestService;
+import com.example.api.util.IngestHttpSupport;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/games/{gameId}/game-trace")
@@ -26,24 +26,11 @@ public class TraceIngestController {
     public ResponseEntity<GameEventTraceResponse> ingest(
             @PathVariable("gameId") @NonNull String gameId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Player-Id", required = false) String playerId,
             @RequestBody @NonNull GameEventTraceCreateRequest body) {
-        String token = extractBearerToken(authorization);
-        GameEventTraceResponse response = traceIngestService.ingest(gameId, token, body);
+        String token = IngestHttpSupport.extractBearerToken(authorization);
+        String pid = IngestHttpSupport.requirePlayerIdHeader(playerId);
+        GameEventTraceResponse response = traceIngestService.ingest(gameId, token, pid, body);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    private static String extractBearerToken(String authorization) {
-        if (authorization == null || authorization.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing Authorization Bearer token");
-        }
-        String trimmed = authorization.trim();
-        if (!trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization must use Bearer scheme");
-        }
-        String token = trimmed.substring(7).trim();
-        if (token.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing Bearer token");
-        }
-        return token;
     }
 }

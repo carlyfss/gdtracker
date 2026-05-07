@@ -13,8 +13,10 @@ import com.example.api.model.Game;
 import com.example.api.model.GameException;
 import com.example.api.repository.GameExceptionRepository;
 import com.example.api.service.GameAccessService;
+import com.example.api.service.GameExceptionTaskSequenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class GameExceptionControllerTest {
 
     private static final String GAME_ID = "game-test-1";
+    private static final String EXCEPTION_ID = "exception-test-1";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,6 +41,9 @@ class GameExceptionControllerTest {
 
     @MockBean
     private GameAccessService gameAccessService;
+
+    @MockBean
+    private GameExceptionTaskSequenceService gameExceptionTaskSequenceService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -55,6 +61,7 @@ class GameExceptionControllerTest {
     void reportGameException_shouldReturnCreated() throws Exception {
         GameException gameException = new GameException("NullPointerException", "Level1-3", "DungeonMap");
         gameException.setId("test-uuid-123");
+        gameException.setShortErrorMessage("NPE");
 
         when(gameExceptionRepository.save(any(GameException.class))).thenReturn(gameException);
 
@@ -64,6 +71,7 @@ class GameExceptionControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("test-uuid-123"))
                 .andExpect(jsonPath("$.errorMessage").value("NullPointerException"))
+                .andExpect(jsonPath("$.shortErrorMessage").value("NPE"))
                 .andExpect(jsonPath("$.location").value("Level1-3"))
                 .andExpect(jsonPath("$.map").value("DungeonMap"));
     }
@@ -81,6 +89,37 @@ class GameExceptionControllerTest {
                         .content("{}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("uuid-456"));
+    }
+
+    @Test
+    void reserveTaskIndex_returnsIndexFromService() throws Exception {
+        GameException ex = new GameException("E", "L", "M");
+        ex.setId(EXCEPTION_ID);
+        when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID, GAME_ID)).thenReturn(Optional.of(ex));
+        when(gameExceptionTaskSequenceService.reserveNextIndex(EXCEPTION_ID)).thenReturn(3);
+
+        mockMvc.perform(post(
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index").value(3));
+    }
+
+    @Test
+    void reserveTaskIndex_consecutiveCalls_returnIncrementalIndices() throws Exception {
+        GameException ex = new GameException("E", "L", "M");
+        ex.setId(EXCEPTION_ID);
+        when(gameExceptionRepository.findByIdAndGameId(EXCEPTION_ID, GAME_ID)).thenReturn(Optional.of(ex));
+        when(gameExceptionTaskSequenceService.reserveNextIndex(EXCEPTION_ID)).thenReturn(1, 2);
+
+        mockMvc.perform(post(
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index").value(1));
+
+        mockMvc.perform(post(
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index").value(2));
     }
 
     @Test

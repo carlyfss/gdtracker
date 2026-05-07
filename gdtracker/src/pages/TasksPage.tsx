@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { TagTasksModal } from '../components/TagTasksModal'
 import { TaskDescriptionMarkdown } from '../components/TaskDescriptionMarkdown'
 import { useGameId } from '../context/GameIdContext'
@@ -12,7 +12,7 @@ import { getConfiguration } from '../api/configuration'
 import type { Feature } from '../api/features'
 import { listFeatures } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
-import { createTask, deleteTask, listTasks, updateTask } from '../api/tasks'
+import { archiveTask, createTask, deleteTask, listTasks, updateTask } from '../api/tasks'
 import { chipTextColor } from '../util/chipTextColor'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel, isUnderAncestor } from '../util/taskTree'
 
@@ -30,6 +30,14 @@ type TaskDraft = {
     categoryId: string
     parentTaskId: string
     tagIds: string[]
+    sourceGameExceptionId: string
+}
+
+type CreateFromExceptionState = {
+    exceptionId: string
+    title: string
+    description: string
+    categoryId?: string
 }
 
 type TaskModal =
@@ -99,6 +107,7 @@ function tagIdsFromTask(t: Task): string[] {
 
 function draftFromTask(t: Task): TaskDraft {
     const pid = t.parentTaskId
+    const sid = t.sourceGameExceptionId
     return {
         title: t.title ?? '',
         description: typeof t.description === 'string' ? t.description : '',
@@ -107,11 +116,21 @@ function draftFromTask(t: Task): TaskDraft {
         categoryId: String(t.category?.id ?? t.categoryId ?? ''),
         parentTaskId: typeof pid === 'string' && pid.length > 0 ? pid : '',
         tagIds: tagIdsFromTask(t),
+        sourceGameExceptionId: typeof sid === 'string' && sid.length > 0 ? sid : '',
     }
 }
 
 function emptyDraft(featureId: string, categoryId: string): TaskDraft {
-    return { title: '', description: '', status: 'TODO', featureId, categoryId, parentTaskId: '', tagIds: [] }
+    return {
+        title: '',
+        description: '',
+        status: 'TODO',
+        featureId,
+        categoryId,
+        parentTaskId: '',
+        tagIds: [],
+        sourceGameExceptionId: '',
+    }
 }
 
 function upsertBodyParentId(d: TaskDraft): string | null {
@@ -181,8 +200,17 @@ function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
     )
 }
 
-export function TasksPage() {
-    const gameId = useGameId()
+export type TasksPageBodyProps = {
+    gameId: string
+    /** When true, load and show only archive-visible tasks; hide create flow. */
+    archivedOnly?: boolean
+    /** Full page vs right column in Archive layout. */
+    layout?: 'page' | 'embedded'
+}
+
+export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page' }: TasksPageBodyProps) {
+    const navigate = useNavigate()
+    const location = useLocation()
     const [searchParams, setSearchParams] = useSearchParams()
 
     const [features, setFeatures] = useState<Feature[]>([])
@@ -205,6 +233,8 @@ export function TasksPage() {
     const [tagBrowseModalTag, setTagBrowseModalTag] = useState<Tag | null>(null)
 
     const skipFilterRefreshOnce = useRef(true)
+    /** After first bootstrap completes; state (not a ref) so `createFromException` effect re-runs when this flips true. */
+    const [taskPageBootstrapDone, setTaskPageBootstrapDone] = useState(false)
 
     const modalOpen = modal.kind !== 'closed'
 
@@ -228,7 +258,7 @@ export function TasksPage() {
 
     const refreshFeatures = async () => {
         try {
-            const data = await listFeatures(gameId)
+            const data = await listFeatures(gameId, archivedOnly ? { archived: true } : {})
             setFeatures(data)
             return data
         } catch {
@@ -251,6 +281,7 @@ export function TasksPage() {
                 featureId,
                 status,
                 categoryId,
+                ...(archivedOnly ? { archivedOnly: true } : {}),
                 ...(tagIds
                     ? {
                           tagIds,
@@ -294,7 +325,9 @@ export function TasksPage() {
     }
 
     useEffect(() => {
+        let cancelled = false
         const timer = window.setTimeout(() => {
+            setTaskPageBootstrapDone(false)
             void (async () => {
                 setState({ kind: 'loading', message: 'Loading…' })
                 try {
@@ -310,7 +343,7 @@ export function TasksPage() {
                     }
                     try {
                         const cfg = await getConfiguration(gameId)
-                        setGameDefaultCategoryId(cfg.defaultExceptionTaskCategoryId ?? null)
+                        setGameDefaultCategoryId(cfg.exceptionTaskTemplate?.defaultCategoryId ?? null)
                     } catch {
                         setGameDefaultCategoryId(null)
                     }
@@ -318,13 +351,20 @@ export function TasksPage() {
                     setState({ kind: 'idle' })
                 } catch {
                     setState({ kind: 'error', message: 'Failed to load tasks.' })
+                } finally {
+                    if (!cancelled) {
+                        setTaskPageBootstrapDone(true)
+                    }
                 }
             })()
         }, 0)
-        return () => window.clearTimeout(timer)
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
         // refreshFeatures / refreshTasks close over gameId and filter state; include gameId only to avoid redundant loads.
         // eslint-disable-next-line react-hooks/exhaustive-deps -- mount and gameId change
-    }, [gameId])
+    }, [gameId, archivedOnly])
 
     useEffect(() => {
         const id = window.setTimeout(() => {
@@ -369,7 +409,7 @@ export function TasksPage() {
         let cancelled = false
         void (async () => {
             try {
-                const all = await listTasks(gameId, {})
+                const all = await listTasks(gameId, archivedOnly ? { archivedOnly: true } : {})
                 if (cancelled) return
                 const t = all.find((x) => x.id === tid)
                 if (t) openFromTask(t)
@@ -380,7 +420,59 @@ export function TasksPage() {
         return () => {
             cancelled = true
         }
-    }, [tasks, searchParams, setSearchParams, gameId])
+    }, [tasks, searchParams, setSearchParams, gameId, archivedOnly])
+
+    useEffect(() => {
+        if (archivedOnly) return
+        const raw = location.state as { createFromException?: CreateFromExceptionState } | null
+        const c = raw?.createFromException
+        if (!c?.exceptionId) return
+        if (!taskPageBootstrapDone) return
+        if (features.length === 0) return
+
+        const featureId =
+            selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)
+                ? selectedFeatureId
+                : features[0]!.id
+
+        let catId = ''
+        if (c.categoryId && categories.some((x) => x.id === c.categoryId)) {
+            catId = c.categoryId
+        } else if (gameDefaultCategoryId && categories.some((x) => x.id === gameDefaultCategoryId)) {
+            catId = gameDefaultCategoryId
+        } else if (categories.length > 0) {
+            catId = categories[0]!.id
+        }
+
+        const timer = window.setTimeout(() => {
+            setModal({
+                kind: 'create',
+                draft: {
+                    title: c.title,
+                    description: c.description,
+                    status: 'TODO',
+                    featureId,
+                    categoryId: catId,
+                    parentTaskId: '',
+                    tagIds: [],
+                    sourceGameExceptionId: c.exceptionId,
+                },
+            })
+            navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} })
+        }, 0)
+        return () => window.clearTimeout(timer)
+    }, [
+        location.state,
+        location.pathname,
+        location.search,
+        features,
+        categories,
+        gameDefaultCategoryId,
+        selectedFeatureId,
+        navigate,
+        archivedOnly,
+        taskPageBootstrapDone,
+    ])
 
     useEffect(() => {
         if (skipFilterRefreshOnce.current) {
@@ -395,7 +487,15 @@ export function TasksPage() {
             }
         })()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedFeatureId, selectedCategoryId, selectedFilterTagIds, tagFilterMode, selectedStatus, gameId])
+    }, [
+        selectedFeatureId,
+        selectedCategoryId,
+        selectedFilterTagIds,
+        tagFilterMode,
+        selectedStatus,
+        gameId,
+        archivedOnly,
+    ])
 
     useEffect(() => {
         if (!modalOpen) return
@@ -494,6 +594,7 @@ export function TasksPage() {
         if (!title || !modal.draft.featureId) return
         setState({ kind: 'loading', message: 'Creating task…' })
         try {
+            const sid = modal.draft.sourceGameExceptionId.trim()
             await createTask(gameId, {
                 title,
                 description: modal.draft.description.trim().length ? modal.draft.description : null,
@@ -502,6 +603,7 @@ export function TasksPage() {
                 categoryId: modal.draft.categoryId.trim().length > 0 ? modal.draft.categoryId.trim() : null,
                 tagIds: modal.draft.tagIds,
                 parentTaskId: upsertBodyParentId(modal.draft),
+                ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
             })
             closeModal()
             await refreshTasks()
@@ -525,6 +627,7 @@ export function TasksPage() {
                 categoryId: modal.draft.categoryId.trim().length > 0 ? modal.draft.categoryId.trim() : null,
                 tagIds: modal.draft.tagIds,
                 parentTaskId: upsertBodyParentId(modal.draft),
+                sourceGameExceptionId: modal.draft.sourceGameExceptionId.trim(),
             })
             setModal({
                 kind: 'task',
@@ -568,6 +671,21 @@ export function TasksPage() {
         }
     }
 
+    const onArchiveTask = async () => {
+        if (modal.kind !== 'task') return
+        const ok = window.confirm('Archive this task? It will only appear on the Archive page.')
+        if (!ok) return
+        setState({ kind: 'loading', message: 'Archiving…' })
+        try {
+            await archiveTask(gameId, modal.taskId)
+            closeModal()
+            await refreshTasks()
+            setState({ kind: 'success', message: 'Task archived.' })
+        } catch {
+            setState({ kind: 'error', message: 'Failed to archive task.' })
+        }
+    }
+
     const featureNameById = (id: string) => features.find((f) => f.id === id)?.name ?? ''
     const categoryNameById = (id: string) => categories.find((c) => c.id === id)?.name ?? ''
 
@@ -581,6 +699,7 @@ export function TasksPage() {
         try {
             const categoryId = (t.category?.id ?? t.categoryId ?? '').trim()
             const pid = t.parentTaskId
+            const sid = typeof t.sourceGameExceptionId === 'string' ? t.sourceGameExceptionId.trim() : ''
             await updateTask(gameId, t.id, {
                 title: t.title,
                 description: typeof t.description === 'string' ? t.description : null,
@@ -589,6 +708,7 @@ export function TasksPage() {
                 categoryId: categoryId.length > 0 ? categoryId : null,
                 tagIds: tagIdsFromTask(t),
                 parentTaskId: typeof pid === 'string' && pid.length > 0 ? pid : null,
+                sourceGameExceptionId: sid,
             })
             await refreshTasks()
         } catch {
@@ -616,16 +736,13 @@ export function TasksPage() {
         }
         if (selectedStatus !== '__all__') parts.push(`Status: ${statusLabel(selectedStatus)}`)
         if (selectedFilterTagIds.length > 0) {
-            const labels = selectedFilterTagIds
-                .map((id) => allTags.find((x) => x.id === id)?.name ?? id)
-                .join(', ')
-            parts.push(
-                `Tags (${tagFilterMode}): ${labels}`
-            )
+            const labels = selectedFilterTagIds.map((id) => allTags.find((x) => x.id === id)?.name ?? id).join(', ')
+            parts.push(`Tags (${tagFilterMode}): ${labels}`)
         }
-        return parts.length ? parts.join(' • ') : 'All tasks'
+        return parts.length ? parts.join(' • ') : archivedOnly ? 'All archived tasks' : 'All tasks'
     }, [
         allTags,
+        archivedOnly,
         categories,
         features,
         selectedCategoryId,
@@ -635,187 +752,169 @@ export function TasksPage() {
         selectedStatus,
     ])
 
-    return (
-        <section className="gamePageSection">
-            <div className="cardHeader">
-                <h2 className="cardTitle">Tasks</h2>
-                <div className="cardHeaderMetaRow">
-                    <span className="muted" style={{ fontSize: 13 }}>
-                        {filteredCountLabel}
-                    </span>
-                    <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
-                        {tasks.length} shown
-                    </span>
+    const tasksLayoutBody = (
+        <div className="cardBody tasksLayout">
+            <aside className="tasksFilterPanel" aria-label="Task filters">
+                <div className="tasksFilterPanelTitle">Filter by feature</div>
+                {features.length === 0 && (
+                    <div className="emptyState">
+                        No features yet. Create one on the{' '}
+                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
+                    </div>
+                )}
+
+                {features.length > 0 && (
+                    <div className="tasksFilterList" role="list">
+                        <button
+                            type="button"
+                            className="filterItem"
+                            data-active={selectedFeatureId === '__all__'}
+                            onClick={() => setSelectedFeatureId('__all__')}
+                        >
+                            <span className="filterItemInner">
+                                <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
+                                <span>All features</span>
+                            </span>
+                        </button>
+                        {features.map((f) => {
+                            const c =
+                                f.color && /^#[0-9A-Fa-f]{6}$/i.test(f.color)
+                                    ? f.color.toLowerCase()
+                                    : FALLBACK_FEATURE_COLOR
+                            return (
+                                <button
+                                    key={f.id}
+                                    type="button"
+                                    className="filterItem"
+                                    data-active={selectedFeatureId === f.id}
+                                    onClick={() => setSelectedFeatureId(f.id)}
+                                >
+                                    <span className="filterItemInner">
+                                        <span className="featureSwatch" style={{ backgroundColor: c }} />
+                                        <span>{f.name}</span>
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
+
+                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
+                    Filter by category
                 </div>
-            </div>
-
-            <div className="cardBody tasksLayout">
-                <aside className="tasksFilterPanel" aria-label="Task filters">
-                    <div className="tasksFilterPanelTitle">Filter by feature</div>
-                    {features.length === 0 && (
-                        <div className="emptyState">
-                            No features yet. Create one on the{' '}
-                            <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                        </div>
-                    )}
-
-                    {features.length > 0 && (
-                        <div className="tasksFilterList" role="list">
-                            <button
-                                type="button"
-                                className="filterItem"
-                                data-active={selectedFeatureId === '__all__'}
-                                onClick={() => setSelectedFeatureId('__all__')}
-                            >
-                                <span className="filterItemInner">
-                                    <span
-                                        className="featureSwatch"
-                                        style={{ backgroundColor: FALLBACK_FEATURE_COLOR }}
-                                    />
-                                    <span>All features</span>
-                                </span>
-                            </button>
-                            {features.map((f) => {
-                                const c =
-                                    f.color && /^#[0-9A-Fa-f]{6}$/i.test(f.color)
-                                        ? f.color.toLowerCase()
-                                        : FALLBACK_FEATURE_COLOR
-                                return (
-                                    <button
-                                        key={f.id}
-                                        type="button"
-                                        className="filterItem"
-                                        data-active={selectedFeatureId === f.id}
-                                        onClick={() => setSelectedFeatureId(f.id)}
-                                    >
-                                        <span className="filterItemInner">
-                                            <span className="featureSwatch" style={{ backgroundColor: c }} />
-                                            <span>{f.name}</span>
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    )}
-
-                    <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                        Filter by category
+                {categories.length === 0 && (
+                    <div className="emptyState">
+                        No categories yet. Create one on the{' '}
+                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
                     </div>
-                    {categories.length === 0 && (
-                        <div className="emptyState">
-                            No categories yet. Create one on the{' '}
-                            <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                        </div>
-                    )}
-                    {categories.length > 0 && (
-                        <div className="tasksFilterList" role="list">
-                            <button
-                                type="button"
-                                className="filterItem"
-                                data-active={selectedCategoryId === '__all__'}
-                                onClick={() => setSelectedCategoryId('__all__')}
-                            >
-                                <span className="filterItemInner">
-                                    <span
-                                        className="featureSwatch"
-                                        style={{ backgroundColor: FALLBACK_FEATURE_COLOR }}
-                                    />
-                                    <span>All categories</span>
-                                </span>
-                            </button>
-                            {categories.map((cat) => {
-                                const col =
-                                    cat.color && /^#[0-9A-Fa-f]{6}$/i.test(cat.color)
-                                        ? cat.color.toLowerCase()
-                                        : FALLBACK_FEATURE_COLOR
-                                return (
-                                    <button
-                                        key={cat.id}
-                                        type="button"
-                                        className="filterItem"
-                                        data-active={selectedCategoryId === cat.id}
-                                        onClick={() => setSelectedCategoryId(cat.id)}
-                                    >
-                                        <span className="filterItemInner">
-                                            <span className="featureSwatch" style={{ backgroundColor: col }} />
-                                            <span>{cat.name}</span>
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    )}
-
-                    <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                        Status
+                )}
+                {categories.length > 0 && (
+                    <div className="tasksFilterList" role="list">
+                        <button
+                            type="button"
+                            className="filterItem"
+                            data-active={selectedCategoryId === '__all__'}
+                            onClick={() => setSelectedCategoryId('__all__')}
+                        >
+                            <span className="filterItemInner">
+                                <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
+                                <span>All categories</span>
+                            </span>
+                        </button>
+                        {categories.map((cat) => {
+                            const col =
+                                cat.color && /^#[0-9A-Fa-f]{6}$/i.test(cat.color)
+                                    ? cat.color.toLowerCase()
+                                    : FALLBACK_FEATURE_COLOR
+                            return (
+                                <button
+                                    key={cat.id}
+                                    type="button"
+                                    className="filterItem"
+                                    data-active={selectedCategoryId === cat.id}
+                                    onClick={() => setSelectedCategoryId(cat.id)}
+                                >
+                                    <span className="filterItemInner">
+                                        <span className="featureSwatch" style={{ backgroundColor: col }} />
+                                        <span>{cat.name}</span>
+                                    </span>
+                                </button>
+                            )
+                        })}
                     </div>
-                    <select
-                        className="intervalSelect"
-                        value={selectedStatus}
-                        onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | '__all__')}
-                        aria-label="Filter tasks by status"
-                    >
-                        <option value="__all__">All statuses</option>
-                        {allStatus.map((s) => (
-                            <option key={s} value={s}>
-                                {statusLabel(s)}
-                            </option>
-                        ))}
-                    </select>
+                )}
 
-                    <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                        Filter by tag
+                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
+                    Status
+                </div>
+                <select
+                    className="intervalSelect"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | '__all__')}
+                    aria-label="Filter tasks by status"
+                >
+                    <option value="__all__">All statuses</option>
+                    {allStatus.map((s) => (
+                        <option key={s} value={s}>
+                            {statusLabel(s)}
+                        </option>
+                    ))}
+                </select>
+
+                <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
+                    Filter by tag
+                </div>
+                {allTags.length === 0 && (
+                    <div className="emptyState" style={{ fontSize: 13 }}>
+                        No tags yet. Create tags on the{' '}
+                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
                     </div>
-                    {allTags.length === 0 && (
-                        <div className="emptyState" style={{ fontSize: 13 }}>
-                            No tags yet. Create tags on the{' '}
-                            <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                        </div>
-                    )}
-                    {allTags.length >= 2 && selectedFilterTagIds.length >= 2 && (
-                        <div style={{ marginBottom: 8 }}>
-                            <label className="tasksFilterPanelTitle" style={{ marginBottom: 4, display: 'block' }}>
-                                Match
-                            </label>
-                            <select
-                                className="intervalSelect"
-                                value={tagFilterMode}
-                                onChange={(e) => setTagFilterMode(e.target.value as 'ANY' | 'ALL')}
-                                aria-label="Match any or all selected tags"
-                            >
-                                <option value="ANY">Any selected tag</option>
-                                <option value="ALL">All selected tags</option>
-                            </select>
-                        </div>
-                    )}
-                    {allTags.length > 0 && (
-                        <div className="tasksTagFilterChips" role="group" aria-label="Filter by tags">
-                            {allTags.map((tg) => {
-                                const col =
-                                    tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                        ? tg.color.toLowerCase()
-                                        : FALLBACK_FEATURE_COLOR
-                                const selected = selectedFilterTagIds.includes(tg.id)
-                                return (
-                                    <button
-                                        key={tg.id}
-                                        type="button"
-                                        className="tagChip tagChipToggle"
-                                        data-selected={selected}
-                                        style={{
-                                            backgroundColor: selected ? col : 'transparent',
-                                            color: selected ? chipTextColor(col) : col,
-                                            borderColor: col,
-                                        }}
-                                        onClick={() => toggleFilterTagId(tg.id)}
-                                    >
-                                        #{tg.name}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    )}
+                )}
+                {allTags.length >= 2 && selectedFilterTagIds.length >= 2 && (
+                    <div style={{ marginBottom: 8 }}>
+                        <label className="tasksFilterPanelTitle" style={{ marginBottom: 4, display: 'block' }}>
+                            Match
+                        </label>
+                        <select
+                            className="intervalSelect"
+                            value={tagFilterMode}
+                            onChange={(e) => setTagFilterMode(e.target.value as 'ANY' | 'ALL')}
+                            aria-label="Match any or all selected tags"
+                        >
+                            <option value="ANY">Any selected tag</option>
+                            <option value="ALL">All selected tags</option>
+                        </select>
+                    </div>
+                )}
+                {allTags.length > 0 && (
+                    <div className="tasksTagFilterChips" role="group" aria-label="Filter by tags">
+                        {allTags.map((tg) => {
+                            const col =
+                                tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
+                                    ? tg.color.toLowerCase()
+                                    : FALLBACK_FEATURE_COLOR
+                            const selected = selectedFilterTagIds.includes(tg.id)
+                            return (
+                                <button
+                                    key={tg.id}
+                                    type="button"
+                                    className="tagChip tagChipToggle"
+                                    data-selected={selected}
+                                    style={{
+                                        backgroundColor: selected ? col : 'transparent',
+                                        color: selected ? chipTextColor(col) : col,
+                                        borderColor: col,
+                                    }}
+                                    onClick={() => toggleFilterTagId(tg.id)}
+                                >
+                                    #{tg.name}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
 
+                {!archivedOnly && (
                     <div className="tasksFilterPanelFooter">
                         <button
                             type="button"
@@ -826,227 +925,250 @@ export function TasksPage() {
                             New task
                         </button>
                     </div>
-                </aside>
+                )}
+            </aside>
 
-                <div className="tasksContent">
-                    {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
-                    {state.kind === 'success' && <div className="banner bannerSuccess">{state.message}</div>}
-                    {state.kind === 'loading' && <div className="banner">{state.message}</div>}
+            <div className="tasksContent">
+                {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
+                {state.kind === 'success' && <div className="banner bannerSuccess">{state.message}</div>}
+                {state.kind === 'loading' && <div className="banner">{state.message}</div>}
 
-                    {tasks.length === 0 && state.kind !== 'loading' && (
-                        <div className="emptyState">No tasks match your filters.</div>
-                    )}
+                {tasks.length === 0 && state.kind !== 'loading' && (
+                    <div className="emptyState">No tasks match your filters.</div>
+                )}
 
-                    {tasks.length > 0 && (
-                        <div className="tableWrap tasksTableWrap">
-                            <div className="tasksListToolbar">
-                                <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
-                                    Subtasks
-                                </label>
-                                <select
-                                    id="tasks-subtasks-visibility"
-                                    className="intervalSelect tasksListToolbarSelect"
-                                    value={listShowSubtasks ? 'show' : 'hide'}
-                                    onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
-                                    aria-label="Show or hide subtasks in the list"
-                                >
-                                    <option value="show">Show subtasks</option>
-                                    <option value="hide">Hide subtasks</option>
-                                </select>
-                            </div>
-                            <table className="table tableCompact tableTasksList">
-                                <thead>
-                                    <tr>
-                                        <th className="tasksListTitleCol">Title</th>
-                                        <th className="tasksListProgressCol">Progress</th>
-                                        <th className="tasksListStatusCol">Status</th>
-                                        <th className="tasksListFeatureCol">Feature</th>
-                                        <th className="tasksListCategoryCol">Category</th>
-                                        <th className="tasksListTagCol">Tag</th>
-                                        <th className="tasksListActionsCol" aria-label="Actions" />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {listRows.map((row, idx) => {
-                                        const t = row.task
-                                        const { name: fn, color: fc } = featureMeta(t, features)
-                                        const { name: cn, color: cc } = categoryMeta(t, categories)
-                                        const atDone = (t.status as TaskStatus) === 'DONE'
-                                        const busyRow = advancingTaskId === t.id
-                                        const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
-                                        const progLabels = formatChildProgressLabel(progDone, progTotal)
-                                        const showFeatureCategory = row.depth === 0
-                                        const rowTags = sortedTaskTags(t)
-                                        const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
-                                        return (
-                                            <tr
-                                                key={t.id}
-                                                className="tasksListRow"
-                                                data-odd={idx % 2 === 1}
-                                                role="button"
-                                                tabIndex={0}
-                                                aria-label={`View task: ${t.title}`}
-                                                onClick={() => openTaskView(t)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault()
-                                                        openTaskView(t)
-                                                    }
+                {tasks.length > 0 && (
+                    <div className="tableWrap tasksTableWrap">
+                        <div className="tasksListToolbar">
+                            <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
+                                Subtasks
+                            </label>
+                            <select
+                                id="tasks-subtasks-visibility"
+                                className="intervalSelect tasksListToolbarSelect"
+                                value={listShowSubtasks ? 'show' : 'hide'}
+                                onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
+                                aria-label="Show or hide subtasks in the list"
+                            >
+                                <option value="show">Show subtasks</option>
+                                <option value="hide">Hide subtasks</option>
+                            </select>
+                        </div>
+                        <table className="table tableCompact tableTasksList">
+                            <thead>
+                                <tr>
+                                    <th className="tasksListTitleCol">Title</th>
+                                    <th className="tasksListProgressCol">Progress</th>
+                                    <th className="tasksListStatusCol">Status</th>
+                                    <th className="tasksListFeatureCol">Feature</th>
+                                    <th className="tasksListCategoryCol">Category</th>
+                                    <th className="tasksListTagCol">Tag</th>
+                                    <th className="tasksListActionsCol" aria-label="Actions" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {listRows.map((row, idx) => {
+                                    const t = row.task
+                                    const { name: fn, color: fc } = featureMeta(t, features)
+                                    const { name: cn, color: cc } = categoryMeta(t, categories)
+                                    const atDone = (t.status as TaskStatus) === 'DONE'
+                                    const busyRow = advancingTaskId === t.id
+                                    const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
+                                    const progLabels = formatChildProgressLabel(progDone, progTotal)
+                                    const showFeatureCategory = row.depth === 0
+                                    const rowTags = sortedTaskTags(t)
+                                    const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
+                                    return (
+                                        <tr
+                                            key={t.id}
+                                            className="tasksListRow"
+                                            data-odd={idx % 2 === 1}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`View task: ${t.title}`}
+                                            onClick={() => openTaskView(t)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault()
+                                                    openTaskView(t)
+                                                }
+                                            }}
+                                        >
+                                            <td
+                                                style={{
+                                                    paddingLeft: 10 + row.depth * 14,
                                                 }}
                                             >
-                                                <td
+                                                <span
                                                     style={{
-                                                        paddingLeft: 10 + row.depth * 14,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 4,
+                                                        minWidth: 0,
                                                     }}
                                                 >
-                                                    <span
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                            minWidth: 0,
-                                                        }}
-                                                    >
-                                                        {row.hasChildren && listShowSubtasks ? (
-                                                            <button
-                                                                type="button"
-                                                                className="iconBtn tasksTaskTreeToggle"
-                                                                title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
-                                                                aria-expanded={rowExpanded}
-                                                                aria-label={
-                                                                    rowExpanded
-                                                                        ? `Collapse subtasks for ${t.title}`
-                                                                        : `Expand subtasks for ${t.title}`
-                                                                }
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    toggleTaskRowCollapsed(t.id)
-                                                                }}
-                                                            >
-                                                                <IconChevronTaskTree expanded={rowExpanded} />
-                                                            </button>
-                                                        ) : (
-                                                            <span className="tasksTaskTreeSpacer" aria-hidden />
-                                                        )}
-                                                        <span style={{ minWidth: 0 }}>{t.title}</span>
+                                                    {row.hasChildren && listShowSubtasks ? (
+                                                        <button
+                                                            type="button"
+                                                            className="iconBtn tasksTaskTreeToggle"
+                                                            title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
+                                                            aria-expanded={rowExpanded}
+                                                            aria-label={
+                                                                rowExpanded
+                                                                    ? `Collapse subtasks for ${t.title}`
+                                                                    : `Expand subtasks for ${t.title}`
+                                                            }
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                toggleTaskRowCollapsed(t.id)
+                                                            }}
+                                                        >
+                                                            <IconChevronTaskTree expanded={rowExpanded} />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="tasksTaskTreeSpacer" aria-hidden />
+                                                    )}
+                                                    <span style={{ minWidth: 0 }}>{t.title}</span>
+                                                </span>
+                                            </td>
+                                            <td className="tasksListProgressCol">
+                                                {progTotal > 0 ? (
+                                                    <span title="Subtasks done / total (status DONE)">
+                                                        <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
+                                                        <span className="muted">{progLabels.ratio}</span>
                                                     </span>
-                                                </td>
-                                                <td className="tasksListProgressCol">
-                                                    {progTotal > 0 ? (
-                                                        <span title="Subtasks done / total (status DONE)">
-                                                            <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
-                                                            <span className="muted">{progLabels.ratio}</span>
-                                                        </span>
-                                                    ) : null}
-                                                </td>
-                                                <td className="tasksListStatusCol">
-                                                    <span
-                                                        className="tasksStatusPill"
-                                                        data-status={(t.status as TaskStatus) ?? 'TODO'}
-                                                    >
-                                                        {statusLabel(t.status as TaskStatus)}
+                                                ) : null}
+                                            </td>
+                                            <td className="tasksListStatusCol">
+                                                <span
+                                                    className="tasksStatusPill"
+                                                    data-status={(t.status as TaskStatus) ?? 'TODO'}
+                                                >
+                                                    {statusLabel(t.status as TaskStatus)}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {showFeatureCategory ? (
+                                                    <span className="filterItemInner">
+                                                        <span
+                                                            className="featureSwatch"
+                                                            style={{ backgroundColor: fc }}
+                                                        />
+                                                        <span style={{ color: fc }}>{fn}</span>
                                                     </span>
-                                                </td>
-                                                <td>
-                                                    {showFeatureCategory ? (
+                                                ) : (
+                                                    <span className="muted">—</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {showFeatureCategory ? (
+                                                    cn ? (
                                                         <span className="filterItemInner">
                                                             <span
                                                                 className="featureSwatch"
-                                                                style={{ backgroundColor: fc }}
+                                                                style={{ backgroundColor: cc }}
                                                             />
-                                                            <span style={{ color: fc }}>{fn}</span>
+                                                            <span style={{ color: cc }}>{cn}</span>
                                                         </span>
                                                     ) : (
                                                         <span className="muted">—</span>
-                                                    )}
-                                                </td>
-                                                <td>
-                                                    {showFeatureCategory ? (
-                                                        cn ? (
-                                                            <span className="filterItemInner">
-                                                                <span
-                                                                    className="featureSwatch"
-                                                                    style={{ backgroundColor: cc }}
-                                                                />
-                                                                <span style={{ color: cc }}>{cn}</span>
-                                                            </span>
-                                                        ) : (
-                                                            <span className="muted">—</span>
-                                                        )
-                                                    ) : (
-                                                        <span className="muted">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="tasksListTagCol">
-                                                    {rowTags.length > 0 ? (
-                                                        <div className="tasksTagCell">
-                                                            {rowTags.map((tg) => {
-                                                                const tc =
-                                                                    tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
-                                                                        ? tg.color.toLowerCase()
-                                                                        : FALLBACK_FEATURE_COLOR
-                                                                return (
-                                                                    <button
-                                                                        key={tg.id}
-                                                                        type="button"
-                                                                        className="tagChip tagChipInteractive"
-                                                                        style={{
-                                                                            backgroundColor: tc,
-                                                                            color: chipTextColor(tc),
-                                                                        }}
-                                                                        title={`#${tg.name}`}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            setTagBrowseModalTag(tg)
-                                                                        }}
-                                                                    >
-                                                                        #{tg.name}
-                                                                    </button>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="muted">—</span>
-                                                    )}
-                                                </td>
-                                                <td onClick={(e) => e.stopPropagation()}>
-                                                    <div className="iconBtnRow" style={{ justifyContent: 'flex-end' }}>
-                                                        <button
-                                                            type="button"
-                                                            className="iconBtn"
-                                                            title={atDone ? 'Task is done' : 'Advance to next status'}
-                                                            aria-label="Advance to next status"
-                                                            disabled={atDone || busyRow || state.kind === 'loading'}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                void onAdvanceStatus(t)
-                                                            }}
-                                                        >
-                                                            <IconCheck />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            className="iconBtn iconBtnDanger"
-                                                            title="Delete task"
-                                                            aria-label="Delete task"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                void onDelete(t)
-                                                            }}
-                                                        >
-                                                            <IconTrash />
-                                                        </button>
+                                                    )
+                                                ) : (
+                                                    <span className="muted">—</span>
+                                                )}
+                                            </td>
+                                            <td className="tasksListTagCol">
+                                                {rowTags.length > 0 ? (
+                                                    <div className="tasksTagCell">
+                                                        {rowTags.map((tg) => {
+                                                            const tc =
+                                                                tg.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
+                                                                    ? tg.color.toLowerCase()
+                                                                    : FALLBACK_FEATURE_COLOR
+                                                            return (
+                                                                <button
+                                                                    key={tg.id}
+                                                                    type="button"
+                                                                    className="tagChip tagChipInteractive"
+                                                                    style={{
+                                                                        backgroundColor: tc,
+                                                                        color: chipTextColor(tc),
+                                                                    }}
+                                                                    title={`#${tg.name}`}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setTagBrowseModalTag(tg)
+                                                                    }}
+                                                                >
+                                                                    #{tg.name}
+                                                                </button>
+                                                            )
+                                                        })}
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+                                                ) : (
+                                                    <span className="muted">—</span>
+                                                )}
+                                            </td>
+                                            <td onClick={(e) => e.stopPropagation()}>
+                                                <div className="iconBtnRow" style={{ justifyContent: 'flex-end' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="iconBtn"
+                                                        title={atDone ? 'Task is done' : 'Advance to next status'}
+                                                        aria-label="Advance to next status"
+                                                        disabled={atDone || busyRow || state.kind === 'loading'}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            void onAdvanceStatus(t)
+                                                        }}
+                                                    >
+                                                        <IconCheck />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="iconBtn iconBtnDanger"
+                                                        title="Delete task"
+                                                        aria-label="Delete task"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            void onDelete(t)
+                                                        }}
+                                                    >
+                                                        <IconTrash />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
+        </div>
+    )
+
+    return (
+        <>
+            {layout === 'page' ? (
+                <section className="gamePageSection">
+                    <div className="cardHeader">
+                        <h2 className="cardTitle">{archivedOnly ? 'Archived tasks' : 'Tasks'}</h2>
+                        <div className="cardHeaderMetaRow">
+                            <span className="muted" style={{ fontSize: 13 }}>
+                                {filteredCountLabel}
+                            </span>
+                            <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
+                                {tasks.length} shown
+                            </span>
+                        </div>
+                    </div>
+                    {tasksLayoutBody}
+                </section>
+            ) : (
+                tasksLayoutBody
+            )}
 
             {modalOpen &&
                 createPortal(
@@ -1220,18 +1342,21 @@ export function TasksPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="modalFooter">
-                                        <button type="button" className="btn btnDanger" onClick={closeModal}>
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btnPrimary"
-                                            disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
-                                            onClick={() => void onCreate()}
-                                        >
-                                            Create
-                                        </button>
+                                    <div className="modalFooter modalFooterTask">
+                                        <div className="modalFooterStart" />
+                                        <div className="modalFooterEnd">
+                                            <button type="button" className="btn btnDanger" onClick={closeModal}>
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btnPrimary"
+                                                disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
+                                                onClick={() => void onCreate()}
+                                            >
+                                                Create
+                                            </button>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -1284,8 +1409,7 @@ export function TasksPage() {
                                                                 const tg = allTags.find((x) => x.id === id)
                                                                 const name = tg?.name ?? id
                                                                 const tc =
-                                                                    tg?.color &&
-                                                                    /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
+                                                                    tg?.color && /^#[0-9A-Fa-f]{6}$/i.test(tg.color)
                                                                         ? tg.color.toLowerCase()
                                                                         : FALLBACK_FEATURE_COLOR
                                                                 return (
@@ -1319,13 +1443,48 @@ export function TasksPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="modalFooter">
-                                        <button type="button" className="btn btnDanger" onClick={closeModal}>
-                                            Cancel
-                                        </button>
-                                        <button type="button" className="btn btnPrimary" onClick={toggleTaskSurface}>
-                                            Edit
-                                        </button>
+                                    <div className="modalFooter modalFooterTask">
+                                        <div
+                                            className="modalFooterStart"
+                                            style={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: 8,
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            {!archivedOnly ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn"
+                                                    disabled={state.kind === 'loading'}
+                                                    onClick={() => void onArchiveTask()}
+                                                >
+                                                    Archive
+                                                </button>
+                                            ) : null}
+                                            {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
+                                                <Link
+                                                    className="btn"
+                                                    to={`/g/${encodeURIComponent(gameId)}/dashboard?exception=${encodeURIComponent(modal.draft.sourceGameExceptionId.trim())}`}
+                                                    onClick={closeModal}
+                                                >
+                                                    View exception in dashboard
+                                                </Link>
+                                            ) : null}
+                                        </div>
+                                        <div className="modalFooterEnd">
+                                            <button type="button" className="btn btnDanger" onClick={closeModal}>
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btnPrimary"
+                                                onClick={toggleTaskSurface}
+                                            >
+                                                Edit
+                                            </button>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -1470,18 +1629,49 @@ export function TasksPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="modalFooter">
-                                        <button type="button" className="btn btnDanger" onClick={cancelEditToView}>
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btnPrimary"
-                                            disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
-                                            onClick={() => void onSaveTask()}
+                                    <div className="modalFooter modalFooterTask">
+                                        <div
+                                            className="modalFooterStart"
+                                            style={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: 8,
+                                                alignItems: 'center',
+                                            }}
                                         >
-                                            Save
-                                        </button>
+                                            {!archivedOnly ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn"
+                                                    disabled={state.kind === 'loading'}
+                                                    onClick={() => void onArchiveTask()}
+                                                >
+                                                    Archive
+                                                </button>
+                                            ) : null}
+                                            {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
+                                                <Link
+                                                    className="btn"
+                                                    to={`/g/${encodeURIComponent(gameId)}/dashboard?exception=${encodeURIComponent(modal.draft.sourceGameExceptionId.trim())}`}
+                                                    onClick={closeModal}
+                                                >
+                                                    View exception in dashboard
+                                                </Link>
+                                            ) : null}
+                                        </div>
+                                        <div className="modalFooterEnd">
+                                            <button type="button" className="btn btnDanger" onClick={cancelEditToView}>
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btnPrimary"
+                                                disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
+                                                onClick={() => void onSaveTask()}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -1495,7 +1685,13 @@ export function TasksPage() {
                 onClose={() => setTagBrowseModalTag(null)}
                 gameId={gameId}
                 tag={tagBrowseModalTag}
+                taskListScope={archivedOnly ? 'archived' : 'active'}
             />
-        </section>
+        </>
     )
+}
+
+export function TasksPage() {
+    const gameId = useGameId()
+    return <TasksPageBody gameId={gameId} archivedOnly={false} layout="page" />
 }

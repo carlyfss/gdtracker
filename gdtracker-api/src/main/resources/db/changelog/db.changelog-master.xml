@@ -19,5 +19,11 @@
     <include file="db/changelog/migrations/0012_features_parent_subfeatures.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/0013_tasks_parent_subtasks.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/0014_tags_and_task_tags.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0015_exception_task_template_and_task_source_exception.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0016_feature_task_archived.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0017_game_players_feedback_ingest.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0018_game_last_integration_validation.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0019_game_exception_task_sequences.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/0020_game_exceptions_short_error_message.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

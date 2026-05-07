@@ -4,7 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public record GameConfigurationPatchRequest(
-        Map<String, Boolean> featureFlags, Map<String, Object> settings, String defaultExceptionTaskCategoryId) {
+        Map<String, Boolean> featureFlags,
+        Map<String, Object> settings,
+        ExceptionTaskTemplatePatch exceptionTaskTemplate) {
 
     public GameConfigurationPatchRequest {
         if (featureFlags == null) {

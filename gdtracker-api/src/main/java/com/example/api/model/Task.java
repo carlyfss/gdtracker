@@ -60,6 +60,11 @@ public class Task {
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_game_exception_id")
+    private GameException sourceGameException;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_task_id")
     private Task parent;
 
@@ -70,6 +75,9 @@ public class Task {
             inverseJoinColumns = @JoinColumn(name = "tag_id"))
     @OrderBy("name ASC")
     private Set<Tag> tags = new LinkedHashSet<>();
+
+    @Column(nullable = false)
+    private boolean archived = false;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonFormat(shape = JsonFormat.Shape.STRING)
@@ -101,6 +109,11 @@ public class Task {
     @JsonProperty("parentTaskId")
     public String getParentTaskId() {
         return parent == null ? null : parent.getId();
+    }
+
+    @JsonProperty("sourceGameExceptionId")
+    public String getSourceGameExceptionId() {
+        return sourceGameException == null ? null : sourceGameException.getId();
     }
 
     @JsonProperty("tagIds")

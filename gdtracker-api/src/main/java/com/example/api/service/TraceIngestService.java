@@ -5,6 +5,7 @@ import com.example.api.dto.GameEventTraceResponse;
 import com.example.api.model.Game;
 import com.example.api.model.GameEvent;
 import com.example.api.model.GameEventTrace;
+import com.example.api.model.GamePlayer;
 import com.example.api.repository.GameEventRepository;
 import com.example.api.repository.GameEventTraceRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,15 +19,19 @@ import org.springframework.web.server.ResponseStatusException;
 public class TraceIngestService {
 
     private final GameIngestTokenService gameIngestTokenService;
+    private final GamePlayerService gamePlayerService;
     private final GameEventTraceRepository gameEventTraceRepository;
     private final GameEventRepository gameEventRepository;
 
     @Transactional
-    public GameEventTraceResponse ingest(String gameId, String bearerToken, GameEventTraceCreateRequest request) {
+    public GameEventTraceResponse ingest(
+            String gameId, String bearerToken, String playerId, GameEventTraceCreateRequest request) {
         Game game = gameIngestTokenService.requireGameForIngestToken(gameId, bearerToken);
+        GamePlayer player = gamePlayerService.requirePlayerForIngest(gameId, playerId);
 
         GameEventTrace trace = new GameEventTrace(request.location(), request.map());
         trace.setGame(game);
+        trace.setGamePlayer(player);
 
         String eventId = request.gameEventId();
         if (eventId != null) {

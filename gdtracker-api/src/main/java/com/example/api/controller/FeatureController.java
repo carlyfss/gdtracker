@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,16 +33,28 @@ public class FeatureController {
 
     @GetMapping
     public ResponseEntity<List<Feature>> listFeatures(
-            @PathVariable("gameId") String gameId, Authentication authentication) {
+            @PathVariable("gameId") String gameId,
+            @RequestParam(name = "archived", required = false, defaultValue = "false") boolean archived,
+            Authentication authentication) {
         String userId = gameAccessService.requireUserId(authentication);
-        return ResponseEntity.ok(featureService.listFeatures(gameId, userId));
+        return ResponseEntity.ok(featureService.listFeatures(gameId, userId, archived));
     }
 
     @GetMapping("/task-progress")
     public ResponseEntity<List<FeatureTaskProgressRow>> taskProgress(
-            @PathVariable("gameId") String gameId, Authentication authentication) {
+            @PathVariable("gameId") String gameId,
+            @RequestParam(name = "archived", required = false, defaultValue = "false") boolean archived,
+            Authentication authentication) {
         String userId = gameAccessService.requireUserId(authentication);
-        return ResponseEntity.ok(featureTaskProgressService.progressForGame(gameId, userId));
+        return ResponseEntity.ok(featureTaskProgressService.progressForGame(gameId, userId, archived));
+    }
+
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<Void> archiveFeature(
+            @PathVariable("gameId") String gameId, @PathVariable("id") String id, Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        featureService.archiveFeature(gameId, userId, id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping

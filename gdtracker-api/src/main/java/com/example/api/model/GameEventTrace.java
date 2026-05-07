@@ -44,6 +44,11 @@ public class GameEventTrace {
     @JoinColumn(name = "game_event_id", nullable = true)
     private GameEvent gameEvent;
 
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "game_player_id", nullable = true)
+    private GamePlayer gamePlayer;
+
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(nullable = false, updatable = false)

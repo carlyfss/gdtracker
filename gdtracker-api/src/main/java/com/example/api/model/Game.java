@@ -40,6 +40,9 @@ public class Game {
     @Column(name = "ingest_token_created_at")
     private Instant ingestTokenCreatedAt;
 
+    @Column(name = "last_integration_validation_at")
+    private Instant lastIntegrationValidationAt;
+
     public Game(String name, User owner) {
         this.name = name;
         this.owner = owner;

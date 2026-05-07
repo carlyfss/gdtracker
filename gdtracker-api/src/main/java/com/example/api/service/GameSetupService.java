@@ -2,6 +2,7 @@ package com.example.api.service;
 
 import com.example.api.GameConfigDefaults;
 import com.example.api.model.Category;
+import com.example.api.model.ExceptionTaskTemplate;
 import com.example.api.model.Game;
 import com.example.api.model.GameConfiguration;
 import com.example.api.repository.CategoryRepository;
@@ -39,7 +40,7 @@ public class GameSetupService {
         configuration.setGame(game);
         configuration.setFeatureFlags(new HashMap<>());
         configuration.setSettings(new HashMap<>());
-        configuration.setDefaultExceptionTaskCategory(category);
+        configuration.setExceptionTaskTemplate(ExceptionTaskTemplate.withDefaults(category.getId()));
         gameConfigurationRepository.save(configuration);
     }
 }

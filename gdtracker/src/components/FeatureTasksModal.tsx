@@ -62,9 +62,11 @@ type Props = {
     gameId: string
     feature: Feature | null
     progress: { done: number; total: number } | null
+    /** Active lists omit archived tasks; archived scope loads archive-visible tasks and links to /archive. */
+    taskListScope?: 'active' | 'archived'
 }
 
-export function FeatureTasksModal({ open, onClose, gameId, feature, progress }: Props) {
+export function FeatureTasksModal({ open, onClose, gameId, feature, progress, taskListScope = 'active' }: Props) {
     const navigate = useNavigate()
     const [tasks, setTasks] = useState<Task[]>([])
     const [loading, setLoading] = useState(false)
@@ -79,7 +81,10 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress }: 
             setLoading(true)
             setError(null)
             try {
-                const data = await listTasks(gameId, { featureId: feature.id })
+                const data = await listTasks(gameId, {
+                    featureId: feature.id,
+                    ...(taskListScope === 'archived' ? { archivedOnly: true } : {}),
+                })
                 if (!cancelled) setTasks(data)
             } catch {
                 if (!cancelled) {
@@ -93,7 +98,7 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress }: 
         return () => {
             cancelled = true
         }
-    }, [open, feature, gameId])
+    }, [open, feature, gameId, taskListScope])
 
     const listRows = useMemo(
         () =>
@@ -120,8 +125,9 @@ export function FeatureTasksModal({ open, onClose, gameId, feature, progress }: 
 
     const openTaskOnTasksPage = (t: Task) => {
         onClose()
+        const segment = taskListScope === 'archived' ? 'archive' : 'tasks'
         navigate(
-            `/g/${encodeURIComponent(gameId)}/tasks?feature=${encodeURIComponent(feature.id)}&task=${encodeURIComponent(t.id)}`
+            `/g/${encodeURIComponent(gameId)}/${segment}?feature=${encodeURIComponent(feature.id)}&task=${encodeURIComponent(t.id)}`
         )
     }
 

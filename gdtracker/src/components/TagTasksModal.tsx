@@ -52,9 +52,10 @@ type Props = {
     onClose: () => void
     gameId: string
     tag: Tag | null
+    taskListScope?: 'active' | 'archived'
 }
 
-export function TagTasksModal({ open, onClose, gameId, tag }: Props) {
+export function TagTasksModal({ open, onClose, gameId, tag, taskListScope = 'active' }: Props) {
     const navigate = useNavigate()
     const [tasks, setTasks] = useState<Task[]>([])
     const [loading, setLoading] = useState(false)
@@ -69,7 +70,10 @@ export function TagTasksModal({ open, onClose, gameId, tag }: Props) {
             setLoading(true)
             setError(null)
             try {
-                const data = await listTasks(gameId, { tagIds: [tag.id] })
+                const data = await listTasks(gameId, {
+                    tagIds: [tag.id],
+                    ...(taskListScope === 'archived' ? { archivedOnly: true } : {}),
+                })
                 if (!cancelled) setTasks(data)
             } catch {
                 if (!cancelled) {
@@ -83,7 +87,7 @@ export function TagTasksModal({ open, onClose, gameId, tag }: Props) {
         return () => {
             cancelled = true
         }
-    }, [open, tag, gameId])
+    }, [open, tag, gameId, taskListScope])
 
     const listRows = useMemo(
         () =>
@@ -109,7 +113,8 @@ export function TagTasksModal({ open, onClose, gameId, tag }: Props) {
 
     const openTaskOnTasksPage = (t: Task) => {
         onClose()
-        navigate(`/g/${encodeURIComponent(gameId)}/tasks?task=${encodeURIComponent(t.id)}`)
+        const segment = taskListScope === 'archived' ? 'archive' : 'tasks'
+        navigate(`/g/${encodeURIComponent(gameId)}/${segment}?task=${encodeURIComponent(t.id)}`)
     }
 
     return createPortal(
