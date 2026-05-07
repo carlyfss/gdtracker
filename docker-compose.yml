@@ -4,9 +4,9 @@ services:
         container_name: gdtracker-postgres
         restart: unless-stopped
         environment:
-            POSTGRES_USER: ${POSTGRES_USER:-numb_tracker}
+            POSTGRES_USER: ${POSTGRES_USER:-gdtracker}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
-            POSTGRES_DB: ${POSTGRES_DB:-numb_tracker}
+            POSTGRES_DB: ${POSTGRES_DB:-gdtracker}
         ports:
             - "5432:5432"
         volumes:
@@ -30,8 +30,8 @@ services:
             postgres:
                 condition: service_healthy
         environment:
-            DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/numb_tracker}
-            DB_USERNAME: ${DB_USERNAME:-numb_tracker}
+            DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/gdtracker}
+            DB_USERNAME: ${DB_USERNAME:-gdtracker}
             DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
             SERVER_PORT: ${SERVER_PORT:-8080}
         ports:
