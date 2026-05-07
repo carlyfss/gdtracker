@@ -417,6 +417,12 @@ paths:
             summary: List heatmap trace points for a game (session)
             parameters:
                 - $ref: "#/components/parameters/gameId"
+                - name: playerId
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by player id (exact match).
             responses:
                 "200":
                     description: OK
@@ -1127,6 +1133,57 @@ paths:
                 "404":
                     description: Game not found or not owned.
 
+    /games/{gameId}/game-events/search:
+        get:
+            tags: [GameEvents]
+            summary: Search recorded game events (paginated; newest first)
+            parameters:
+                - $ref: "#/components/parameters/gameId"
+                - name: q
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Search rendered message or definition code (case-insensitive).
+                - name: code
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by definition code (case-insensitive exact match).
+                - name: playerId
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by player id (exact match).
+                - name: page
+                  in: query
+                  required: false
+                  schema:
+                      type: integer
+                      minimum: 0
+                  description: Zero-based page index (default 0).
+                - name: size
+                  in: query
+                  required: false
+                  schema:
+                      type: integer
+                      minimum: 1
+                      maximum: 100
+                  description: Page size (default 10, max 100).
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameEventPageResponse"
+                "401":
+                    description: Not authenticated.
+                "404":
+                    description: Game not found or not owned.
+
     /games/{gameId}/game-events/ingest:
         post:
             tags: [GameEvents]
@@ -1829,6 +1886,9 @@ components:
                 map:
                     type: string
                     nullable: true
+                playerId:
+                    type: string
+                    nullable: true
                 timestamp:
                     type: string
                     format: date-time
@@ -2057,6 +2117,9 @@ components:
                     type: string
                 definitionColor:
                     type: string
+                playerId:
+                    type: string
+                    nullable: true
                 renderedMessage:
                     type: string
                 payload:
@@ -2066,6 +2129,22 @@ components:
                 timestamp:
                     type: string
                     format: date-time
+        GameEventPageResponse:
+            type: object
+            properties:
+                content:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/GameEventResponse"
+                totalElements:
+                    type: integer
+                    format: int64
+                totalPages:
+                    type: integer
+                number:
+                    type: integer
+                size:
+                    type: integer
         GameEventIngestRequest:
             type: object
             required: [definitionCode]

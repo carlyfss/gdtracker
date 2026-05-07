@@ -6,6 +6,7 @@ import com.example.api.service.GameAccessService;
 import java.util.List;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,6 +23,9 @@ public class GameEventController {
 
     private static final int DEFAULT_LIMIT = 200;
     private static final int MAX_LIMIT = 500;
+
+    private static final int DEFAULT_SEARCH_SIZE = 10;
+    private static final int MAX_SEARCH_SIZE = 100;
 
     private final GameEventRepository gameEventRepository;
     private final GameAccessService gameAccessService;
@@ -46,5 +50,28 @@ public class GameEventController {
                         .stream()
                         .map(GameEventResponse::fromEntity)
                         .toList());
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<Page<GameEventResponse>> searchGameEvents(
+            @PathVariable("gameId") @NonNull String gameId,
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "code", required = false) String code,
+            @RequestParam(value = "playerId", required = false) String playerId,
+            @RequestParam(value = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") int size,
+            Authentication authentication) {
+        String userId = gameAccessService.requireUserId(authentication);
+        gameAccessService.requireOwnedGame(gameId, userId);
+
+        int effectiveSize = size <= 0 ? DEFAULT_SEARCH_SIZE : Math.min(MAX_SEARCH_SIZE, size);
+        int effectivePage = Math.max(0, page);
+        String codeParam = code == null || code.isBlank() ? "" : code.trim();
+        String qParam = q == null || q.isBlank() ? "" : q.trim();
+        String playerIdParam = playerId == null || playerId.isBlank() ? "" : playerId.trim();
+
+        return ResponseEntity.ok(gameEventRepository
+                .searchForGame(gameId, codeParam, qParam, playerIdParam, PageRequest.of(effectivePage, effectiveSize))
+                .map(GameEventResponse::fromEntity));
     }
 }

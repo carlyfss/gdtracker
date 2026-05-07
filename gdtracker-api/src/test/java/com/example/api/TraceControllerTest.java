@@ -12,6 +12,7 @@ import com.example.api.model.Game;
 import com.example.api.model.GameEvent;
 import com.example.api.model.GameEventDefinition;
 import com.example.api.model.GameEventTrace;
+import com.example.api.model.GamePlayer;
 import com.example.api.repository.GameEventTraceRepository;
 import com.example.api.service.GameAccessService;
 import java.time.Instant;
@@ -57,16 +58,22 @@ class TraceControllerTest {
         definition.setColor("#abcdef");
         definition.setGame(game);
 
+        GamePlayer gp = new GamePlayer();
+        gp.setId("player-1");
+        gp.setGame(game);
+
         GameEvent event = new GameEvent();
         event.setId("event-1");
         event.setGame(game);
         event.setDefinition(definition);
         event.setRenderedMessage("Player picked up Sword");
+        event.setGamePlayer(gp);
 
         GameEventTrace t1 = new GameEventTrace("SpawnPoint", "Map1");
         t1.setId("id-1");
         t1.setGame(game);
         t1.setGameEvent(event);
+        t1.setGamePlayer(gp);
         t1.setTimestamp(Instant.parse("2026-05-03T12:00:00Z"));
 
         GameEventTrace t2 = new GameEventTrace("TreasureRoom", "Map2");
@@ -81,6 +88,7 @@ class TraceControllerTest {
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value("id-1"))
                 .andExpect(jsonPath("$[0].location").value("SpawnPoint"))
+                .andExpect(jsonPath("$[0].playerId").value("player-1"))
                 .andExpect(jsonPath("$[0].gameEventId").value("event-1"))
                 .andExpect(jsonPath("$[0].renderedMessage").value("Player picked up Sword"))
                 .andExpect(jsonPath("$[0].definitionCode").value("PICKUP"))
@@ -95,6 +103,16 @@ class TraceControllerTest {
         when(gameEventTraceRepository.findByGameIdOrderByTimestampDesc(GAME_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/games/{gameId}/game-trace", GAME_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void getTraces_withPlayerId_shouldUseFilteredRepositoryMethod() throws Exception {
+        when(gameEventTraceRepository.findByGameIdAndGamePlayer_IdOrderByTimestampDesc(GAME_ID, "player-1"))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/games/{gameId}/game-trace", GAME_ID).param("playerId", "player-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }

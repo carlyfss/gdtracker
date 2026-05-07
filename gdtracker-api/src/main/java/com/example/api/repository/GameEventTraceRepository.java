@@ -11,4 +11,7 @@ public interface GameEventTraceRepository extends JpaRepository<GameEventTrace, 
 
     @EntityGraph(attributePaths = {"gameEvent", "gameEvent.definition"})
     List<GameEventTrace> findByGameIdOrderByTimestampDesc(String gameId);
+
+    @EntityGraph(attributePaths = {"gameEvent", "gameEvent.definition"})
+    List<GameEventTrace> findByGameIdAndGamePlayer_IdOrderByTimestampDesc(String gameId, String playerId);
 }

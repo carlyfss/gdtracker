@@ -22,15 +22,32 @@ export type GameEvent = {
     definitionId: string
     definitionCode: string
     definitionColor: string
+    playerId?: string | null
     renderedMessage: string
     payload: Record<string, string>
     timestamp: string
+}
+
+export type GameEventPage = {
+    content: GameEvent[]
+    totalElements: number
+    totalPages: number
+    number: number
+    size: number
 }
 
 export type ListGameEventsParams = {
     q?: string
     code?: string
     limit?: number
+}
+
+export type SearchGameEventsParams = {
+    q?: string
+    code?: string
+    playerId?: string
+    page?: number
+    size?: number
 }
 
 export type IngestTokenStatus = {
@@ -94,6 +111,25 @@ export async function listGameEvents(gameId: string, params?: ListGameEventsPara
     }
     const res = await api.get(eventsBase(gameId), { params: Object.keys(query).length > 0 ? query : undefined })
     return Array.isArray(res.data) ? (res.data as GameEvent[]) : []
+}
+
+export async function searchGameEvents(gameId: string, params: SearchGameEventsParams = {}): Promise<GameEventPage> {
+    const query: Record<string, string | number> = {}
+    if (typeof params.q === 'string' && params.q.trim().length > 0) query.q = params.q.trim()
+    if (typeof params.code === 'string' && params.code.trim().length > 0) query.code = params.code.trim()
+    if (typeof params.playerId === 'string' && params.playerId.trim().length > 0) query.playerId = params.playerId.trim()
+    if (typeof params.page === 'number' && Number.isFinite(params.page)) query.page = Math.max(0, Math.floor(params.page))
+    if (typeof params.size === 'number' && Number.isFinite(params.size)) query.size = Math.max(1, Math.floor(params.size))
+
+    const res = await api.get(`${eventsBase(gameId)}/search`, { params: query })
+    const raw = res.data as Partial<GameEventPage> | null
+    return {
+        content: Array.isArray(raw?.content) ? (raw!.content as GameEvent[]) : [],
+        totalElements: typeof raw?.totalElements === 'number' ? raw!.totalElements : 0,
+        totalPages: typeof raw?.totalPages === 'number' ? raw!.totalPages : 0,
+        number: typeof raw?.number === 'number' ? raw!.number : 0,
+        size: typeof raw?.size === 'number' ? raw!.size : 0,
+    }
 }
 
 export async function getIngestTokenStatus(gameId: string): Promise<IngestTokenStatus> {

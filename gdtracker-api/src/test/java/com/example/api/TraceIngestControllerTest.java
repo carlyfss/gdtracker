@@ -59,6 +59,7 @@ class TraceIngestControllerTest {
                 "trace-1",
                 "(35, 22, 17)",
                 "proto-dungeon",
+                PLAYER_ID,
                 Instant.parse("2026-05-03T12:00:00Z"),
                 "event-1",
                 "Player 123 died to Zombie at proto-dungeon:(35, 22, 17)",
@@ -80,6 +81,7 @@ class TraceIngestControllerTest {
                 .andExpect(jsonPath("$.id").value("trace-1"))
                 .andExpect(jsonPath("$.location").value("(35, 22, 17)"))
                 .andExpect(jsonPath("$.map").value("proto-dungeon"))
+                .andExpect(jsonPath("$.playerId").value(PLAYER_ID))
                 .andExpect(jsonPath("$.gameEventId").value("event-1"))
                 .andExpect(
                         jsonPath("$.renderedMessage").value("Player 123 died to Zombie at proto-dungeon:(35, 22, 17)"))

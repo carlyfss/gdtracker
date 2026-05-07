@@ -8,6 +8,7 @@ public record GameEventTraceResponse(
         String id,
         String location,
         String map,
+        String playerId,
         Instant timestamp,
         String gameEventId,
         String renderedMessage,
@@ -24,10 +25,12 @@ public record GameEventTraceResponse(
         String definitionColor = event != null && event.getDefinition() != null
                 ? event.getDefinition().getColor()
                 : null;
+        String playerId = trace.getGamePlayer() != null ? trace.getGamePlayer().getId() : null;
         return new GameEventTraceResponse(
                 trace.getId(),
                 trace.getLocation(),
                 trace.getMap(),
+                playerId,
                 trace.getTimestamp(),
                 eventId,
                 renderedMessage,

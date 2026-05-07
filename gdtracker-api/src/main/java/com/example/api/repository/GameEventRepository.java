@@ -2,6 +2,7 @@ package com.example.api.repository;
 
 import com.example.api.model.GameEvent;
 import java.util.List;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,6 +26,26 @@ public interface GameEventRepository extends JpaRepository<GameEvent, String> {
             """)
     List<GameEvent> findFilteredForGame(
             @Param("gameId") String gameId, @Param("code") String code, @Param("q") String q, Pageable pageable);
+
+    @EntityGraph(attributePaths = "definition")
+    @Query(
+            """
+            SELECT e FROM GameEvent e
+            JOIN e.definition d
+            LEFT JOIN e.gamePlayer gp
+            WHERE e.game.id = :gameId
+            AND (:playerId = '' OR gp.id = :playerId)
+            AND (:code = '' OR LOWER(d.code) = LOWER(:code))
+            AND (:q = '' OR LOWER(e.renderedMessage) LIKE LOWER(CONCAT('%', :q, '%'))
+                 OR LOWER(d.code) LIKE LOWER(CONCAT('%', :q, '%')))
+            ORDER BY e.timestamp DESC
+            """)
+    Page<GameEvent> searchForGame(
+            @Param("gameId") String gameId,
+            @Param("code") String code,
+            @Param("q") String q,
+            @Param("playerId") String playerId,
+            Pageable pageable);
 
     boolean existsByDefinition_Id(String definitionId);
 }

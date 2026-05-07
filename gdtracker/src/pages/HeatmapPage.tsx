@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { GameEvent, GameEventDefinition } from '../api/gameEvents'
-import { listGameEventDefinitions, listGameEvents } from '../api/gameEvents'
-import { getLocationHeatmap } from '../api/trace'
+import type { GameEvent, GameEventDefinition, GameEventPage } from '../api/gameEvents'
+import { listGameEventDefinitions, searchGameEvents } from '../api/gameEvents'
+import { getLocationHeatmap, getLocationHeatmapForPlayer } from '../api/trace'
 import { useGameId } from '../context/GameIdContext'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import { isHex6, normalizeHex6 } from '../util/hexColor'
@@ -20,6 +20,8 @@ import {
 
 import type { GameEventTraceEntry } from '../api/trace'
 
+const EVENTS_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+
 type VecPoint = {
     id: string
     map: string
@@ -27,6 +29,7 @@ type VecPoint = {
     x: number
     z: number
     gameEventId?: string | null
+    playerId?: string | null
     renderedMessage?: string | null
     definitionCode?: string | null
     definitionColor?: string | null
@@ -158,13 +161,24 @@ export function HeatmapPage() {
     const [rangeYMin, setRangeYMin] = useState<number>(RANGE_DEFAULT_MIN)
     const [rangeYMax, setRangeYMax] = useState<number>(RANGE_DEFAULT_MAX)
 
-    const [gameEvents, setGameEvents] = useState<GameEvent[]>([])
+    const [eventsPageData, setEventsPageData] = useState<GameEventPage>({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 10,
+    })
     const [eventsLoading, setEventsLoading] = useState(true)
     const [eventsError, setEventsError] = useState<string | null>(null)
     const [eventSearchInput, setEventSearchInput] = useState('')
     const [eventSearchDebounced, setEventSearchDebounced] = useState('')
     const [eventCodeFilter, setEventCodeFilter] = useState<string>('__all__')
     const [eventDefinitions, setEventDefinitions] = useState<GameEventDefinition[]>([])
+
+    const [playerIdInput, setPlayerIdInput] = useState('')
+    const [playerIdDebounced, setPlayerIdDebounced] = useState('')
+    const [eventsPage, setEventsPage] = useState(0)
+    const [eventsSize, setEventsSize] = useState(10)
 
     const eventDefinitionCodes = useMemo(
         () => eventDefinitions.map((d) => d.code).sort((a, b) => a.localeCompare(b)),
@@ -182,6 +196,18 @@ export function HeatmapPage() {
     }, [eventSearchInput])
 
     useEffect(() => {
+        const t = window.setTimeout(() => {
+            setPlayerIdDebounced(playerIdInput.trim())
+            setEventsPage(0)
+        }, 300)
+        return () => window.clearTimeout(t)
+    }, [playerIdInput])
+
+    useEffect(() => {
+        setEventsPage(0)
+    }, [eventSearchDebounced, eventCodeFilter, eventsSize, gameId])
+
+    useEffect(() => {
         listGameEventDefinitions(gameId)
             .then((defs) => setEventDefinitions(defs))
             .catch(() => setEventDefinitions([]))
@@ -193,15 +219,17 @@ export function HeatmapPage() {
             setEventsLoading(true)
             setEventsError(null)
             try {
-                const rows = await listGameEvents(gameId, {
+                const res = await searchGameEvents(gameId, {
                     q: eventSearchDebounced.length > 0 ? eventSearchDebounced : undefined,
                     code: eventCodeFilter !== '__all__' ? eventCodeFilter : undefined,
-                    limit: 200,
+                    playerId: playerIdDebounced.length > 0 ? playerIdDebounced : undefined,
+                    page: eventsPage,
+                    size: eventsSize,
                 })
-                if (!cancelled) setGameEvents(rows)
+                if (!cancelled) setEventsPageData(res)
             } catch {
                 if (!cancelled) {
-                    setGameEvents([])
+                    setEventsPageData({ content: [], totalElements: 0, totalPages: 0, number: eventsPage, size: eventsSize })
                     setEventsError('Failed to load game events.')
                 }
             } finally {
@@ -211,14 +239,40 @@ export function HeatmapPage() {
         return () => {
             cancelled = true
         }
-    }, [gameId, eventSearchDebounced, eventCodeFilter])
+    }, [gameId, eventSearchDebounced, eventCodeFilter, playerIdDebounced, eventsPage, eventsSize])
 
     useEffect(() => {
-        getLocationHeatmap(gameId)
-            .then((data) => setHeatmapData(data))
-            .catch(() => setHeatmapData([]))
-            .finally(() => setLoading(false))
-    }, [gameId])
+        let cancelled = false
+        void (async () => {
+            setLoading(true)
+            try {
+                const data =
+                    playerIdDebounced.length > 0
+                        ? await getLocationHeatmapForPlayer(gameId, playerIdDebounced)
+                        : await getLocationHeatmap(gameId)
+                if (!cancelled) setHeatmapData(data)
+            } catch {
+                if (!cancelled) setHeatmapData([])
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [gameId, playerIdDebounced])
+
+    const onChangeEventsSize = (next: number) => {
+        setEventsSize(next)
+        setEventsPage(0)
+    }
+
+    const totalEventPages = Math.max(1, eventsPageData.totalPages)
+    const currentEventsPage = Math.min(eventsPage, Math.max(0, totalEventPages - 1))
+    const canPrevEvents = currentEventsPage > 0
+    const canNextEvents = currentEventsPage < totalEventPages - 1
+    const showingEventsFrom = eventsPageData.totalElements === 0 ? 0 : currentEventsPage * eventsSize + 1
+    const showingEventsTo = Math.min(eventsPageData.totalElements, currentEventsPage * eventsSize + eventsPageData.content.length)
 
     const points: VecPoint[] = useMemo(() => {
         const out: VecPoint[] = []
@@ -235,6 +289,7 @@ export function HeatmapPage() {
                 x: parsed.x,
                 z: parsed.z,
                 gameEventId: item.gameEventId ?? null,
+                playerId: item.playerId ?? null,
                 renderedMessage: item.renderedMessage ?? null,
                 definitionCode: item.definitionCode ?? null,
                 definitionColor: item.definitionColor ?? null,
@@ -434,6 +489,15 @@ export function HeatmapPage() {
                 </div>
                 <div className="cardBody tasksLayout">
                     <aside className="tasksFilterPanel" aria-label="Heatmap filters">
+                        <div className="tasksFilterPanelTitle">Filter by player id</div>
+                        <input
+                            type="search"
+                            className="textInput"
+                            placeholder="Exact player id…"
+                            value={playerIdInput}
+                            onChange={(e) => setPlayerIdInput(e.target.value)}
+                            aria-label="Filter heatmap by player id"
+                        />
                         <div className="tasksFilterPanelTitle">Filter by event code</div>
                         <div className="tasksFilterList" role="list">
                             <button
@@ -741,6 +805,15 @@ export function HeatmapPage() {
                             aria-label="Search game events"
                             style={{ minWidth: 200, flex: '1 1 200px' }}
                         />
+                        <input
+                            type="search"
+                            className="textInput"
+                            placeholder="Player id…"
+                            value={playerIdInput}
+                            onChange={(e) => setPlayerIdInput(e.target.value)}
+                            aria-label="Filter game events by player id"
+                            style={{ minWidth: 200, flex: '1 1 200px' }}
+                        />
                         <select
                             className="intervalSelect"
                             value={eventCodeFilter}
@@ -754,74 +827,133 @@ export function HeatmapPage() {
                                 </option>
                             ))}
                         </select>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <span className="muted" style={{ fontSize: 12 }}>
+                                Page size
+                            </span>
+                            <select
+                                className="intervalSelect"
+                                value={eventsSize}
+                                onChange={(e) => onChangeEventsSize(Number(e.target.value))}
+                                aria-label="Game events page size"
+                            >
+                                {EVENTS_PAGE_SIZE_OPTIONS.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                        {opt}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
                     </div>
                     {eventsError && <div className="banner bannerError">{eventsError}</div>}
                     {eventsLoading && <div className="emptyState">Loading events…</div>}
-                    {!eventsLoading && gameEvents.length === 0 && !eventsError && (
+                    {!eventsLoading && eventsPageData.content.length === 0 && !eventsError && (
                         <div className="emptyState">No game events match your filters.</div>
                     )}
-                    {!eventsLoading && gameEvents.length > 0 && (
-                        <div className="tableWrap">
-                            <table className="table tableCompact">
-                                <thead>
-                                    <tr>
-                                        <th style={{ width: 160, fontSize: EVENT_TABLE_FONT_PX }}>Time</th>
-                                        <th style={{ width: 120, fontSize: EVENT_TABLE_FONT_PX }}>Code</th>
-                                        <th style={{ fontSize: EVENT_TABLE_FONT_PX }}>Message</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {gameEvents.map((ev, idx) => {
-                                        const def = eventDefinitions.find((d) => d.id === ev.definitionId)
-                                        const iconSrc =
-                                            typeof def?.imageData === 'string' && def.imageData.length > 0
-                                                ? def.imageData
-                                                : null
-                                        const rowBg = hexToRgba(eventRowColor(ev), EVENT_ROW_BG_ALPHA)
-                                        return (
-                                            <tr
-                                                key={ev.id}
-                                                data-odd={idx % 2 === 1}
-                                                style={{
-                                                    backgroundColor: rowBg,
-                                                    fontSize: EVENT_TABLE_FONT_PX,
-                                                }}
-                                            >
-                                                <td style={{ whiteSpace: 'nowrap' }}>
-                                                    {new Date(ev.timestamp).toLocaleString()}
-                                                </td>
-                                                <td>
-                                                    <code>{ev.definitionCode}</code>
-                                                </td>
-                                                <td title={ev.renderedMessage}>
-                                                    <span
-                                                        style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 8,
-                                                        }}
-                                                    >
-                                                        {iconSrc ? (
-                                                            <img
-                                                                src={iconSrc}
-                                                                alt=""
-                                                                width={16}
-                                                                height={16}
-                                                                style={{
-                                                                    imageRendering: 'pixelated',
-                                                                    flexShrink: 0,
-                                                                }}
-                                                            />
-                                                        ) : null}
-                                                        <span>{ev.renderedMessage}</span>
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                    {!eventsLoading && eventsPageData.content.length > 0 && (
+                        <>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    marginBottom: 12,
+                                }}
+                            >
+                                <div className="muted" style={{ fontSize: 12 }}>
+                                    Showing {showingEventsFrom}–{showingEventsTo} of {eventsPageData.totalElements}
+                                </div>
+                                <div style={{ display: 'inline-flex', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        className="btn"
+                                        disabled={!canPrevEvents}
+                                        onClick={() => setEventsPage((p) => Math.max(0, p - 1))}
+                                    >
+                                        Prev
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn"
+                                        disabled={!canNextEvents}
+                                        onClick={() => setEventsPage((p) => p + 1)}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="tableWrap">
+                                <table className="table tableCompact">
+                                    <thead>
+                                        <tr>
+                                            <th style={{ width: 160, fontSize: EVENT_TABLE_FONT_PX }}>Time</th>
+                                            <th style={{ width: 160, fontSize: EVENT_TABLE_FONT_PX }}>Player</th>
+                                            <th style={{ width: 120, fontSize: EVENT_TABLE_FONT_PX }}>Code</th>
+                                            <th style={{ fontSize: EVENT_TABLE_FONT_PX }}>Message</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {eventsPageData.content.map((ev, idx) => {
+                                            const def = eventDefinitions.find((d) => d.id === ev.definitionId)
+                                            const iconSrc =
+                                                typeof def?.imageData === 'string' && def.imageData.length > 0
+                                                    ? def.imageData
+                                                    : null
+                                            const rowBg = hexToRgba(eventRowColor(ev), EVENT_ROW_BG_ALPHA)
+                                            return (
+                                                <tr
+                                                    key={ev.id}
+                                                    data-odd={idx % 2 === 1}
+                                                    style={{
+                                                        backgroundColor: rowBg,
+                                                        fontSize: EVENT_TABLE_FONT_PX,
+                                                    }}
+                                                >
+                                                    <td style={{ whiteSpace: 'nowrap' }}>
+                                                        {new Date(ev.timestamp).toLocaleString()}
+                                                    </td>
+                                                    <td title={ev.playerId ?? ''}>
+                                                        <code>
+                                                            {typeof ev.playerId === 'string' && ev.playerId.length > 0
+                                                                ? ev.playerId
+                                                                : '—'}
+                                                        </code>
+                                                    </td>
+                                                    <td>
+                                                        <code>{ev.definitionCode}</code>
+                                                    </td>
+                                                    <td title={ev.renderedMessage}>
+                                                        <span
+                                                            style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: 8,
+                                                            }}
+                                                        >
+                                                            {iconSrc ? (
+                                                                <img
+                                                                    src={iconSrc}
+                                                                    alt=""
+                                                                    width={16}
+                                                                    height={16}
+                                                                    style={{
+                                                                        imageRendering: 'pixelated',
+                                                                        flexShrink: 0,
+                                                                    }}
+                                                                />
+                                                            ) : null}
+                                                            <span>{ev.renderedMessage}</span>
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
                     )}
                 </div>
             </section>
