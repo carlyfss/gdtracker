@@ -38,4 +38,3 @@ public class ArchivedFeature {
     @JoinColumn(name = "restored_feature_id")
     private Feature restoredFeature;
 }
-

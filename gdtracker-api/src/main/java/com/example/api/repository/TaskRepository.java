@@ -5,8 +5,8 @@ import com.example.api.model.TaskStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -85,7 +85,8 @@ public interface TaskRepository extends JpaRepository<Task, String>, TaskAggrega
     List<Task> findAllByFeature_IdIn(List<String> featureIds);
 
     @Modifying
-    @Query("DELETE FROM Task t WHERE t.feature.game.id = :gameId AND t.archivedAt IS NOT NULL AND t.archivedAt < :cutoff")
+    @Query("DELETE FROM Task t WHERE t.feature.game.id = :gameId"
+            + " AND t.archivedAt IS NOT NULL AND t.archivedAt < :cutoff")
     int deleteArchivedByGameIdBefore(@Param("gameId") String gameId, @Param("cutoff") Instant cutoff);
 
     boolean existsByFeatureId(String featureId);

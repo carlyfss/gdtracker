@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -36,6 +37,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.csrfTokenRepository(tokenRepository)
                 .csrfTokenRequestHandler(csrfRequestHandler)
                 .ignoringRequestMatchers(
+                        new AntPathRequestMatcher("/api/**", HttpMethod.OPTIONS.name()),
                         new AntPathRequestMatcher("/api/auth/login"),
                         new AntPathRequestMatcher("/api/auth/register"),
                         new AntPathRequestMatcher("/api/games/*/game-players", "POST"),
@@ -45,31 +47,34 @@ public class SecurityConfig {
                         new AntPathRequestMatcher("/api/games/*/game-feedback/ingest", "POST"),
                         new AntPathRequestMatcher("/api/games/*/integration", "POST")));
 
-        http.authorizeHttpRequests(
-                auth -> auth.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/me")
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-players", "POST"))
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-events/ingest", "POST"))
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-trace/ingest", "POST"))
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-exceptions/ingest", "POST"))
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-feedback/ingest", "POST"))
-                        .permitAll()
-                        .requestMatchers(new AntPathRequestMatcher("/api/games/*/integration", "POST"))
-                        .permitAll()
-                        .requestMatchers("/api/auth/logout")
-                        .authenticated()
-                        .requestMatchers("/api/**")
-                        .authenticated()
-                        .requestMatchers("/error")
-                        .permitAll()
-                        .anyRequest()
-                        .denyAll());
+        http.cors(Customizer.withDefaults());
+
+        http.authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/api/**")
+                .permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register")
+                .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/me")
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-players", "POST"))
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-events/ingest", "POST"))
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-trace/ingest", "POST"))
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-exceptions/ingest", "POST"))
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/game-feedback/ingest", "POST"))
+                .permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/games/*/integration", "POST"))
+                .permitAll()
+                .requestMatchers("/api/auth/logout")
+                .authenticated()
+                .requestMatchers("/api/**")
+                .authenticated()
+                .requestMatchers("/error")
+                .permitAll()
+                .anyRequest()
+                .denyAll());
 
         http.exceptionHandling(ex -> ex.authenticationEntryPoint(apiSecurityLoggingHandlers.authenticationEntryPoint())
                 .accessDeniedHandler(apiSecurityLoggingHandlers.accessDeniedHandler()));

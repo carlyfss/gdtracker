@@ -6,4 +6,3 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ArchivedTaskRepository extends JpaRepository<ArchivedTask, String> {}
-

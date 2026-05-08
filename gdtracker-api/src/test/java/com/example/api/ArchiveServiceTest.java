@@ -50,8 +50,12 @@ class ArchiveServiceTest {
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
-        archiveService =
-                new ArchiveService(featureRepository, taskRepository, archivedFeatureRepository, archivedTaskRepository, gameAccessService);
+        archiveService = new ArchiveService(
+                featureRepository,
+                taskRepository,
+                archivedFeatureRepository,
+                archivedTaskRepository,
+                gameAccessService);
         when(gameAccessService.requireOwnedGame(eq(GAME_ID), eq(USER_ID))).thenReturn(new Game());
     }
 
@@ -126,7 +130,8 @@ class ArchiveServiceTest {
         moved.setArchived(false);
         moved.setArchivedAt(null);
 
-        when(archivedFeatureRepository.findByRestoredFeature_Id("feature-restored")).thenReturn(Optional.of(mapping));
+        when(archivedFeatureRepository.findByRestoredFeature_Id("feature-restored"))
+                .thenReturn(Optional.of(mapping));
         when(featureRepository.findByIdAndGameId("feature-restored", GAME_ID)).thenReturn(Optional.of(restored));
         when(featureRepository.findByIdAndGameId("feature-orig", GAME_ID)).thenReturn(Optional.of(originalArchived));
         when(taskRepository.findAllByFeature_IdIn(List.of("feature-restored"))).thenReturn(List.of(moved));
@@ -141,4 +146,3 @@ class ArchiveServiceTest {
         verify(featureRepository).deleteById("feature-restored");
     }
 }
-

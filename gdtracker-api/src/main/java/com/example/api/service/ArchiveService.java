@@ -55,7 +55,8 @@ public class ArchiveService {
         }
 
         Instant now = Instant.now();
-        List<String> toArchiveIds = collectFeatureSubtreeIds(gameId, Objects.requireNonNull(root.getId(), "feature.id"));
+        List<String> toArchiveIds =
+                collectFeatureSubtreeIds(gameId, Objects.requireNonNull(root.getId(), "feature.id"));
         for (String id : toArchiveIds) {
             Feature f = featureRepository.findByIdAndGameId(id, gameId).orElseThrow();
             f.setArchivedAt(now);
@@ -158,7 +159,8 @@ public class ArchiveService {
 
         ArchivedFeature mapping = archivedFeatureRepository
                 .findById(Objects.requireNonNull(feature.getId(), "feature.id"))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "archived feature metadata missing"));
+                .orElseThrow(
+                        () -> new ResponseStatusException(HttpStatus.CONFLICT, "archived feature metadata missing"));
 
         Feature restored = mapping.getRestoredFeature();
         if (restored == null) {
@@ -225,7 +227,9 @@ public class ArchiveService {
     private String uniqueFeatureName(String gameId, Feature parent, String base) {
         String candidate = base;
         int n = 2;
-        while (featureRepository.findByGameIdAndNameIgnoreCaseInParent(candidate, gameId, parent).isPresent()) {
+        while (featureRepository
+                .findByGameIdAndNameIgnoreCaseInParent(candidate, gameId, parent)
+                .isPresent()) {
             candidate = base + " (" + n++ + ")";
         }
         return candidate;
@@ -253,4 +257,3 @@ public class ArchiveService {
         return List.copyOf(ids);
     }
 }
-

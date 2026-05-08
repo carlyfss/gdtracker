@@ -9,4 +9,3 @@ import org.springframework.stereotype.Repository;
 public interface ArchivedFeatureRepository extends JpaRepository<ArchivedFeature, String> {
     Optional<ArchivedFeature> findByRestoredFeature_Id(String restoredFeatureId);
 }
-

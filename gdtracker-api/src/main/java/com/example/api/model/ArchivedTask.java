@@ -38,4 +38,3 @@ public class ArchivedTask {
     @JoinColumn(name = "archived_feature_id")
     private Feature archivedFeature;
 }
-

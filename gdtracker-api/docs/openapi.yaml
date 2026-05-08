@@ -9,6 +9,11 @@ info:
         Mutating requests to authenticated routes require **CSRF**: send header `X-XSRF-TOKEN` with the same value as the
         `XSRF-TOKEN` cookie (double-submit). The SPA typically primes CSRF with a GET before the first POST.
 
+        **CORS (Docker / cross-origin SPA):** When the UI and API use different origins, the server applies
+        `CorsConfiguration#setAllowedOriginPatterns` for `/api/**` using patterns from `GDTRACKER_CORS_ALLOWED_ORIGINS`
+        (comma-separated; forwarded into `gdtracker.cors.allowed-origins`); `*` is not valid with credentials. Browsers treat
+        `http://localhost:PORT` and `http://127.0.0.1:PORT` as distinct origins — include both literals if needed.
+
         **Bearer ingest endpoints (CSRF-exempt):** These routes use `Authorization: Bearer <ingest-token>` (per-game token
         from Configuration) and do NOT use the session cookie or CSRF token.
 

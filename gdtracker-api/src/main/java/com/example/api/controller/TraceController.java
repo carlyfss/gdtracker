@@ -30,14 +30,11 @@ public class TraceController {
         String userId = gameAccessService.requireUserId(authentication);
         gameAccessService.requireOwnedGame(gameId, userId);
         String playerIdParam = playerId == null || playerId.isBlank() ? "" : playerId.trim();
-        List<GameEventTraceResponse> response =
-                (playerIdParam.isEmpty()
-                                ? gameEventTraceRepository.findByGameIdOrderByTimestampDesc(gameId)
-                                : gameEventTraceRepository.findByGameIdAndGamePlayer_IdOrderByTimestampDesc(
-                                        gameId, playerIdParam))
-                        .stream()
-                        .map(GameEventTraceResponse::fromEntity)
-                        .toList();
+        List<GameEventTraceResponse> response = (playerIdParam.isEmpty()
+                        ? gameEventTraceRepository.findByGameIdOrderByTimestampDesc(gameId)
+                        : gameEventTraceRepository.findByGameIdAndGamePlayer_IdOrderByTimestampDesc(
+                                gameId, playerIdParam))
+                .stream().map(GameEventTraceResponse::fromEntity).toList();
         return ResponseEntity.ok(response);
     }
 }

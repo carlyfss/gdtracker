@@ -76,7 +76,8 @@ class GameEventControllerTest {
         PageRequest pr = PageRequest.of(0, 10);
         Page<GameEvent> page = new PageImpl<>(java.util.List.<GameEvent>of(e1), pr, 1);
 
-        when(gameEventRepository.searchForGame(eq(GAME_ID), eq(""), eq(""), eq("player-1"), eq(pr))).thenReturn(page);
+        when(gameEventRepository.searchForGame(eq(GAME_ID), eq(""), eq(""), eq("player-1"), eq(pr)))
+                .thenReturn(page);
 
         mockMvc.perform(get("/api/games/{gameId}/game-events/search", GAME_ID).param("playerId", "player-1"))
                 .andExpect(status().isOk())
@@ -94,11 +95,11 @@ class GameEventControllerTest {
     void searchGameEvents_blankPlayerId_shouldTreatAsUnset() throws Exception {
         PageRequest pr = PageRequest.of(0, 10);
         Page<GameEvent> page = new PageImpl<>(java.util.List.<GameEvent>of(), pr, 0);
-        when(gameEventRepository.searchForGame(eq(GAME_ID), eq(""), eq(""), eq(""), eq(pr))).thenReturn(page);
+        when(gameEventRepository.searchForGame(eq(GAME_ID), eq(""), eq(""), eq(""), eq(pr)))
+                .thenReturn(page);
 
         mockMvc.perform(get("/api/games/{gameId}/game-events/search", GAME_ID).param("playerId", "   "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(0));
     }
 }
-

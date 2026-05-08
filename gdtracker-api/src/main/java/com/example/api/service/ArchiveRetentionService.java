@@ -74,4 +74,3 @@ public class ArchiveRetentionService {
         return DEFAULT_DAYS;
     }
 }
-

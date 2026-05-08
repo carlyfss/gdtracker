@@ -140,7 +140,9 @@ class GameExceptionControllerTest {
                 .andExpect(jsonPath("$.index").value(1));
 
         mockMvc.perform(post(
-                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", GAME_ID, EXCEPTION_ID_2))
+                        "/api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index",
+                        GAME_ID,
+                        EXCEPTION_ID_2))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.index").value(2));
     }
