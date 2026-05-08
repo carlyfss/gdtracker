@@ -2,6 +2,7 @@ package com.example.api.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,9 +29,13 @@ public class SecurityConfig {
     private final ApiSecurityLoggingHandlers apiSecurityLoggingHandlers;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, @Value("${gdtracker.cookie-domain:}") String cookieDomain) throws Exception {
         CookieCsrfTokenRepository tokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         tokenRepository.setCookiePath("/");
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            tokenRepository.setCookieDomain(cookieDomain);
+        }
 
         CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
 
