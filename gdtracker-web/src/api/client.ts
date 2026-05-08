@@ -36,7 +36,7 @@ export const api = axios.create({
     withCredentials: true,
 })
 
-// In cross-subdomain deployments (e.g. gdtracker.* -> api.*), the SPA cannot read the API's XSRF cookie via document.cookie.
+// In cross-subdomain deployments (e.g. dashboard.* -> api.*), the SPA cannot read the API's XSRF cookie via document.cookie.
 // Prime once so subsequent mutating requests can send the header even when the cookie isn't readable on the SPA origin.
 void primeCsrf()
 

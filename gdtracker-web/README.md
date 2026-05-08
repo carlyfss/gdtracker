@@ -1,4 +1,4 @@
-# gdtracker
+# gdtracker-web
 
 Vite + React + TypeScript dashboard that consumes the [gdtracker-api](../gdtracker-api/) Spring Boot backend. Tracks game exceptions, trace heatmaps, game events, tasks, and per-game configuration.
 
@@ -69,13 +69,13 @@ From the project root:
 ```bash
 docker build \
     --build-arg VITE_API_BASE_URL="http://localhost:8080" \
-    -t gdtracker:local .
+    -t gdtracker-web:local .
 ```
 
 ### Run
 
 ```bash
-docker run --rm -p 5173:80 gdtracker:local
+docker run --rm -p 5173:80 gdtracker-web:local
 ```
 
 Open `http://localhost:5173`. nginx is configured with an SPA fallback so React Router deep links work.
@@ -87,7 +87,7 @@ The `docker-compose.yml` at the workspace root spins up Postgres + backend + fro
 ## Project layout
 
 ```
-gdtracker/
+gdtracker-web/
 ├── src/
 │   ├── api/            Axios client + per-resource API modules
 │   ├── components/     Shared UI

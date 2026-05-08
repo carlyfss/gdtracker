@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: GDTracker Go API
+  version: 0.1.0
+  description: Minimal OpenAPI spec for the Go backend (`gdtracker-go-api/`).
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthzResponse"
+              examples:
+                ok:
+                  value:
+                    status: ok
+components:
+  schemas:
+    HealthzResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+      required:
+        - status
+

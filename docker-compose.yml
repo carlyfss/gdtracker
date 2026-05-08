@@ -43,11 +43,11 @@ services:
 
     frontend:
         build:
-            context: ./gdtracker
+            context: ./gdtracker-web
             dockerfile: Dockerfile
             args:
                 VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
-        image: gdtracker:local
+        image: gdtracker-web:local
         container_name: gdtracker-web
         restart: unless-stopped
         depends_on:

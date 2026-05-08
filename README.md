@@ -1,13 +1,14 @@
 # GDTracker
 
-Two projects that together form GDTracker: a per-game error/event/heatmap dashboard backed by a Spring Boot REST API.
+The workspace combines a **Vite/React dashboard** with a **Spring Boot REST API** (primary backend) and an optional **Go HTTP service** (`gdtracker-go-api`).
 
 | Project | Path | Stack |
 |---|---|---|
-| Frontend dashboard | [gdtracker/](./gdtracker/) | Vite + React 19 + TypeScript |
+| Frontend dashboard | [gdtracker-web/](./gdtracker-web/) | Vite + React 19 + TypeScript |
 | REST API | [gdtracker-api/](./gdtracker-api/) | Spring Boot 3.2 + Java 21 + PostgreSQL + Liquibase |
+| Go API (experimental) | [gdtracker-go-api/](./gdtracker-go-api/) | Go 1.22 + net/http |
 
-Each project is self-contained — its own `README.md`, `Dockerfile`, `.env.example`, and `.gitignore` — so you can either keep this directory as a single monorepo or split each subfolder into its own GitHub repo.
+Each app folder is self-contained — its own `README.md` or `docs/`, `Dockerfile` where present, `.env.example`, and `.gitignore` — so you can either keep this directory as a single monorepo or split each subfolder into its own GitHub repo.
 
 ## Quick start (one command)
 
@@ -20,7 +21,7 @@ This starts:
 
 - `postgres` — PostgreSQL 16, persistent volume `gdtracker-pgdata`, exposed on `5432`.
 - `backend` — `gdtracker-api`, exposed on `${SERVER_PORT}` (default `8080`). Liquibase runs migrations on first start.
-- `frontend` — `gdtracker` served by nginx, exposed on `${FRONTEND_PORT}` (default `5173`). Open `http://localhost:5173`.
+- `frontend` — **`gdtracker-web`** (nginx serving the static bundle), exposed on `${FRONTEND_PORT}` (default `5173`). Open `http://localhost:5173`.
 
 If you previously used compose with the old volume name `numb-tracker-pgdata`, either keep using that data by renaming the Docker volume to `gdtracker-pgdata` or run `docker compose down -v` and start fresh (drops DB data).
 
@@ -97,6 +98,7 @@ Contributions: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 Each app keeps its own developer guidance under `docs/`:
 
 - [gdtracker-api/docs/README.md](./gdtracker-api/docs/README.md) — backend overview, REST surface, env vars.
-- [gdtracker/docs/README.md](./gdtracker/docs/README.md) — frontend layout, routing, env vars.
+- [gdtracker-web/docs/README.md](./gdtracker-web/docs/README.md) — frontend layout, routing, env vars.
+- [gdtracker-go-api/docs/README.md](./gdtracker-go-api/docs/README.md) — Go service layout, commands, OpenAPI.
 
 When changing behavior, update the relevant `docs/` in the same change so the feature/directory maps stay accurate.

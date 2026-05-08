@@ -1,4 +1,4 @@
-# GDTracker (gdtracker) — project guidance
+# GDTracker (gdtracker-web) — project guidance
 
 Vite + React SPA for **GDTracker**: dashboard (exceptions + feature progress), trace heatmap, tasks, archive (archived features + tasks), and per-game configuration (feature flags, hierarchical features, categories, tags). Auth, game selection, and game-scoped dashboard routes are defined in [`src/App.tsx`](../src/App.tsx) with supporting modules under `src/context/` and `src/components/`.
 
@@ -53,7 +53,7 @@ The workspace rule **`code-reuse-dry`** applies to all edits here—extract shar
 | ESLint (flat config; Prettier conflicts disabled) | [`eslint.config.js`](../eslint.config.js)     |
 | EditorConfig                                      | [`.editorconfig`](../.editorconfig)           |
 
-From `gdtracker/`: `npm run format` (write), `npm run format:check`, `npm run lint`.
+From `gdtracker-web/`: `npm run format` (write), `npm run format:check`, `npm run lint`.
 
 ## Configuration & secrets
 
@@ -66,7 +66,7 @@ Copy [`.env.example`](../.env.example) to `.env` and edit. `.env` and build outp
 
 ## Run (local)
 
-From `gdtracker/` (with API on 8080 or proxy target adjusted):
+From `gdtracker-web/` (with API on 8080 or proxy target adjusted):
 
 ```bash
 cp .env.example .env       # first time only
@@ -78,11 +78,11 @@ Open the URL Vite prints (typically `http://localhost:5173`). Ensure `gdtracker-
 
 ## Docker
 
-[`Dockerfile`](../Dockerfile) is a multi-stage build (Node build → nginx serving `dist/`). `VITE_API_BASE_URL` is a build arg baked into the bundle. From `gdtracker/`:
+[`Dockerfile`](../Dockerfile) is a multi-stage build (Node build → nginx serving `dist/`). `VITE_API_BASE_URL` is a build arg baked into the bundle. From `gdtracker-web/`:
 
 ```bash
-docker build --build-arg VITE_API_BASE_URL="http://localhost:8080" -t gdtracker:local .
-docker run --rm -p 5173:80 gdtracker:local
+docker build --build-arg VITE_API_BASE_URL="http://localhost:8080" -t gdtracker-web:local .
+docker run --rm -p 5173:80 gdtracker-web:local
 ```
 
 For the orchestrated flow (Postgres + backend + frontend), use the workspace `docker-compose.yml`.
