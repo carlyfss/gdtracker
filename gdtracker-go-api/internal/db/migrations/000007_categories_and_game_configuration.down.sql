@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS game_configurations CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;

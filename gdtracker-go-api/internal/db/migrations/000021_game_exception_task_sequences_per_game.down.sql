@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS game_exception_task_sequences_per_game CASCADE;
