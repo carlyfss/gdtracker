@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+var defaultAllowedHeaders = []string{
+	"Accept",
+	"Accept-Language",
+	"Content-Language",
+	"Content-Type",
+	"Authorization",
+	"X-Requested-With",
+	"X-XSRF-TOKEN",
+	"X-Player-Id",
+}
+
 // CorsMiddleware applies Spring-like CORS for /api/** (allowed origin patterns, credentials, methods).
 func CorsMiddleware(allowedEnv string) func(http.Handler) http.Handler {
 	patterns := parseOriginPatterns(allowedEnv)
@@ -30,7 +41,13 @@ func CorsMiddleware(allowedEnv string) func(http.Handler) http.Handler {
 				w.Header().Add("Vary", "Origin")
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
-			w.Header().Set("Access-Control-Allow-Headers", "*")
+			// Some browsers/proxies do not accept `Access-Control-Allow-Headers: *` reliably.
+			// Prefer echoing the requested preflight headers (case-insensitive) and fall back to a safe explicit list.
+			if req := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")); req != "" {
+				w.Header().Set("Access-Control-Allow-Headers", req)
+			} else {
+				w.Header().Set("Access-Control-Allow-Headers", strings.Join(defaultAllowedHeaders, ", "))
+			}
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)

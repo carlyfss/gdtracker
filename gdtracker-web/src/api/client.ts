@@ -41,8 +41,11 @@ export const api = axios.create({
 void primeCsrf()
 
 api.interceptors.request.use((config) => {
+    const url = config.url ?? ''
+    const isAuthEndpoint = url === '/api/auth/login' || url === '/api/auth/register'
+
     const token = readCookie('XSRF-TOKEN') ?? csrfTokenOverride
-    if (token) {
+    if (token && !isAuthEndpoint) {
         config.headers = config.headers ?? {}
         config.headers['X-XSRF-TOKEN'] = token
     }
