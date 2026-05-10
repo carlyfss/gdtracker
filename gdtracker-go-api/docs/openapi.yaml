@@ -1,13 +1,20 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.1.0
-  description: Minimal OpenAPI spec for the Go backend (`gdtracker-go-api/`).
+  version: 0.2.0
+  description: |
+    Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
 servers:
   - url: http://localhost:8080
+tags:
+  - name: Auth
+    description: Register, login, logout, current user, CSRF priming.
+  - name: Health
+    description: Liveness and readiness.
 paths:
   /healthz:
     get:
+      tags: [Health]
       operationId: getHealthz
       summary: Health check
       responses:
@@ -17,11 +24,118 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthzResponse"
-              examples:
-                ok:
-                  value:
-                    status: ok
+  /readyz:
+    get:
+      tags: [Health]
+      operationId: getReadyz
+      summary: Readiness (Postgres ping when DB configured)
+      responses:
+        "200":
+          description: Database reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthzResponse"
+        "503":
+          description: No database or ping failed
+  /api/csrf:
+    get:
+      tags: [Auth]
+      operationId: getCsrf
+      summary: Return CSRF token JSON and set XSRF-TOKEN cookie
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      operationId: postAuthRegister
+      summary: Register and establish session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRegisterRequest"
+      responses:
+        "201":
+          description: Created; JSESSIONID and XSRF-TOKEN cookies set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Validation error (text/plain)
+        "409":
+          description: Username already exists (text/plain)
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      operationId: postAuthLogin
+      summary: Login and establish session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthLoginRequest"
+      responses:
+        "200":
+          description: OK; cookies set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Validation error
+        "401":
+          description: Invalid credentials
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: postAuthLogout
+      summary: Clear session (requires session + CSRF header on mutating requests)
+      responses:
+        "204":
+          description: No content
+        "401":
+          description: Not authenticated
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getAuthMe
+      summary: Current user (401 if anonymous)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Not authenticated (empty body)
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
   schemas:
     HealthzResponse:
       type: object
@@ -31,4 +145,30 @@ components:
           type: string
       required:
         - status
-
+    AuthLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    AuthRegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    UserResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+      required:
+        - id
+        - username

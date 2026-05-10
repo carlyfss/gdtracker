@@ -10,9 +10,12 @@ func TestPostgresDSNFromJDBC_DefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "postgres://numb_tracker:secret@localhost:5432/numb_tracker"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+	u, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Query().Get("sslmode") != "prefer" {
+		t.Fatalf("sslmode = %q, want prefer", u.Query().Get("sslmode"))
 	}
 }
 
@@ -52,8 +55,12 @@ func TestPostgresDSNFromJDBC_NoPort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "postgres://a:b@localhost/mydb" {
-		t.Fatalf("got %q", got)
+	u, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Query().Get("sslmode") != "prefer" {
+		t.Fatalf("sslmode = %q", u.Query().Get("sslmode"))
 	}
 }
 

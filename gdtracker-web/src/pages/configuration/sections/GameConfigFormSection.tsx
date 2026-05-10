@@ -213,8 +213,8 @@ export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string
                     are ignored on save.
                 </p>
                 <p className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
-                    <strong>{ARCHIVE_TIME_BOMB}</strong>: number of days before archived features/tasks are permanently deleted
-                    (default 30).
+                    <strong>{ARCHIVE_TIME_BOMB}</strong>: number of days before archived features/tasks are permanently
+                    deleted (default 30).
                 </p>
                 <div className="tableWrap" style={{ marginBottom: 20 }}>
                     <table className="table tableCompact">
@@ -285,14 +285,14 @@ export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string
                 <h3 className="configSubheading">Task templates (from game exceptions)</h3>
                 <p className="muted" style={{ marginBottom: 12 }}>
                     Used when creating tasks from the dashboard exception detail. <strong>Title:</strong>{' '}
-                    <code>&lt;EXCEPTION_INDEX&gt;</code> (server-sequenced per game),{' '}
+                    <code>&lt;EXCEPTION_INDEX&gt;</code> (server-sequenced per game), <code>&lt;EXCEPTION_ID&gt;</code>,{' '}
+                    <code>&lt;EXCEPTION_SHORT_ID&gt;</code>, <code>&lt;SHORT_ERROR_MESSAGE&gt;</code> (from the
+                    client/ingest field) — <code>&lt;ERROR_MESSAGE&gt;</code> is removed from titles if present.{' '}
+                    <strong>Description:</strong> <code>&lt;EXCEPTION_TRACE&gt;</code> for the stack trace, plus{' '}
                     <code>&lt;EXCEPTION_ID&gt;</code>, <code>&lt;EXCEPTION_SHORT_ID&gt;</code>,{' '}
-                    <code>&lt;SHORT_ERROR_MESSAGE&gt;</code> (from the client/ingest field) —{' '}
-                    <code>&lt;ERROR_MESSAGE&gt;</code> is removed from titles if present. <strong>Description:</strong>{' '}
-                    <code>&lt;EXCEPTION_TRACE&gt;</code> for the stack trace, plus <code>&lt;EXCEPTION_ID&gt;</code>,{' '}
-                    <code>&lt;EXCEPTION_SHORT_ID&gt;</code>, <code>&lt;ERROR_MESSAGE&gt;</code>,{' '}
-                    <code>&lt;SHORT_ERROR_MESSAGE&gt;</code>; <code>&lt;EXCEPTION_INDEX&gt;</code> is stripped in
-                    descriptions. Add your own markdown fences around the trace if you want a code block.
+                    <code>&lt;ERROR_MESSAGE&gt;</code>, <code>&lt;SHORT_ERROR_MESSAGE&gt;</code>;{' '}
+                    <code>&lt;EXCEPTION_INDEX&gt;</code> is stripped in descriptions. Add your own markdown fences
+                    around the trace if you want a code block.
                 </p>
                 <div className="modalFormGrid" style={{ marginBottom: 14, maxWidth: 720 }}>
                     <label className="tasksListToolbarLabel" htmlFor="exc-task-title-tpl">

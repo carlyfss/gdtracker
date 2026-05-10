@@ -43,6 +43,12 @@ Order matches `db.changelog-master.xml`.
 
 The Go service ships the **same SQL** as 23 sequential `golang-migrate` versions under `internal/db/migrations/` (`*_up.sql` / `*_down.sql`). Strips Liquibase metadata only; SQL bodies match the Java project.
 
+On startup, migrations run on a **separate** Postgres pool opened from the same DSN as the app. That avoids golang-migrate’s `Close()` shutting down the application’s primary `*sql.DB` (which would surface as `sql: database is closed` on the first API query).
+
+**Note:** migrations `000019` and `000021` use `CREATE TABLE IF NOT EXISTS` so a **dirty repair** (force version then `Up` again) can succeed if the table was already created before the earlier failure. Fresh databases behave the same as plain `CREATE TABLE`.
+
+**Note:** With `MultiStatementEnabled`, the driver splits the migration file on **every ASCII semicolon** (including inside `--` comments and string literals). Avoid `;` except as real statement terminators; `COMMENT` strings use a comma instead of a semicolon where the Liquibase original had one.
+
 ## Migration authority (do not double-apply)
 
 - **Liquibase** records changes in `databasechangelog` (default table name).
@@ -53,6 +59,32 @@ The Go service ships the **same SQL** as 23 sequential `golang-migrate` versions
 1. **Database already managed by Spring / Liquibase** — do **not** run Go `migrate up` on that database unless you are doing a deliberate cutover and have a written plan (baseline or fresh DB). Prefer `GDTRACKER_GO_AUTO_MIGRATE=off` (default) so the Go binary does not apply migrations.
 2. **Greenfield / Go-only Postgres** — set `GDTRACKER_GO_AUTO_MIGRATE=on` (or `auto` when `databasechangelog` is absent) so the app applies `internal/db/migrations` on startup, **or** run the migrate CLI against the DSN (see README).
 3. Never run Liquibase and golang-migrate **both** against the same database for the same logical schema without reconciling their version tables.
+
+## Dirty `schema_migrations` (failed migration)
+
+If `migrate.Up` fails mid-file, golang-migrate marks that version **dirty** and refuses further `Up` until you fix it.
+
+1. Fix the migration SQL in the repo (if that was the cause).
+2. Set the version table to the **last known-good** version and clear dirty, then start again. Typical case: migration `000019` failed → force **18**, then `Up` reapplies 19+.
+
+**Option A — env (one restart, only while `dirty` is true):**
+
+The binary calls `migrate.Force` **only** if `schema_migrations.dirty` is true, so you can leave the variable unset after a successful run without resetting the version every boot.
+
+```bash
+export GDTRACKER_GO_MIGRATE_FORCE_VERSION=18
+go run ./cmd/gdtracker-go-api
+unset GDTRACKER_GO_MIGRATE_FORCE_VERSION
+```
+
+**Option B — SQL:**
+
+```sql
+SELECT * FROM schema_migrations;
+UPDATE schema_migrations SET version = 18, dirty = false;
+```
+
+If migration 19 actually created objects before failing, drop them manually or use `migrate` CLI `down` from a clean backup—**dev DB** can be wiped if unsure.
 
 ## Environment variables
 

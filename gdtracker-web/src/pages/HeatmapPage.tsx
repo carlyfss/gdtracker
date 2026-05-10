@@ -229,7 +229,13 @@ export function HeatmapPage() {
                 if (!cancelled) setEventsPageData(res)
             } catch {
                 if (!cancelled) {
-                    setEventsPageData({ content: [], totalElements: 0, totalPages: 0, number: eventsPage, size: eventsSize })
+                    setEventsPageData({
+                        content: [],
+                        totalElements: 0,
+                        totalPages: 0,
+                        number: eventsPage,
+                        size: eventsSize,
+                    })
                     setEventsError('Failed to load game events.')
                 }
             } finally {
@@ -272,7 +278,10 @@ export function HeatmapPage() {
     const canPrevEvents = currentEventsPage > 0
     const canNextEvents = currentEventsPage < totalEventPages - 1
     const showingEventsFrom = eventsPageData.totalElements === 0 ? 0 : currentEventsPage * eventsSize + 1
-    const showingEventsTo = Math.min(eventsPageData.totalElements, currentEventsPage * eventsSize + eventsPageData.content.length)
+    const showingEventsTo = Math.min(
+        eventsPageData.totalElements,
+        currentEventsPage * eventsSize + eventsPageData.content.length
+    )
 
     const points: VecPoint[] = useMemo(() => {
         const out: VecPoint[] = []

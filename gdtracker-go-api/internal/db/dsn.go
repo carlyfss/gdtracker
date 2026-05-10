@@ -53,13 +53,20 @@ func PostgresDSNFromJDBC(jdbcURL, username, password string) (string, error) {
 		Host:   hostPort,
 		Path:   "/" + dbName,
 	}
+	q := url.Values{}
 	if query != "" {
-		q, err := url.ParseQuery(query)
+		parsed, err := url.ParseQuery(query)
 		if err != nil {
 			return "", fmt.Errorf("DB_URL query: %w", err)
 		}
-		u.RawQuery = q.Encode()
+		q = parsed
 	}
+	// lib/pq otherwise behaves like sslmode=require for many setups, which breaks typical
+	// local Postgres (Docker) with SSL disabled. Spring JDBC is more lenient by default.
+	if q.Get("sslmode") == "" {
+		q.Set("sslmode", "prefer")
+	}
+	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
 

@@ -117,9 +117,12 @@ export async function searchGameEvents(gameId: string, params: SearchGameEventsP
     const query: Record<string, string | number> = {}
     if (typeof params.q === 'string' && params.q.trim().length > 0) query.q = params.q.trim()
     if (typeof params.code === 'string' && params.code.trim().length > 0) query.code = params.code.trim()
-    if (typeof params.playerId === 'string' && params.playerId.trim().length > 0) query.playerId = params.playerId.trim()
-    if (typeof params.page === 'number' && Number.isFinite(params.page)) query.page = Math.max(0, Math.floor(params.page))
-    if (typeof params.size === 'number' && Number.isFinite(params.size)) query.size = Math.max(1, Math.floor(params.size))
+    if (typeof params.playerId === 'string' && params.playerId.trim().length > 0)
+        query.playerId = params.playerId.trim()
+    if (typeof params.page === 'number' && Number.isFinite(params.page))
+        query.page = Math.max(0, Math.floor(params.page))
+    if (typeof params.size === 'number' && Number.isFinite(params.size))
+        query.size = Math.max(1, Math.floor(params.size))
 
     const res = await api.get(`${eventsBase(gameId)}/search`, { params: query })
     const raw = res.data as Partial<GameEventPage> | null

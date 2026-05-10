@@ -4,6 +4,7 @@
 
 - **OpenAPI**: `docs/openapi.yaml` (update whenever routes/req/resp/status codes change)
 - **Liquibase parity / migration authority**: `docs/MIGRATIONS.md`
+- **Auth / CSRF / CORS (Spring parity)**: `docs/AUTH.md`
 
 ## Directory map (code)
 
@@ -20,6 +21,12 @@ gdtracker-go-api/
 ├── util/
 └── docs/
 ```
+
+## Auth (Phase 1)
+
+- **Routes**: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/csrf`.
+- **Env**: `GDTRACKER_SESSION_SECRET` (**required** when `DB_URL` is set), `GDTRACKER_CORS_ALLOWED_ORIGINS`, optional `GDTRACKER_COOKIE_DOMAIN`, `GDTRACKER_COOKIE_SECURE`.
+- **Details**: [`AUTH.md`](AUTH.md).
 
 ## Database (Phase 0)
 

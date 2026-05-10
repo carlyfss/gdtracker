@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/db"
+	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpserver"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpx"
 )
 
@@ -62,6 +64,27 @@ func run(ctx context.Context, logger *log.Logger) error {
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	if sqlDB != nil {
+		secret := strings.TrimSpace(os.Getenv("GDTRACKER_SESSION_SECRET"))
+		if secret == "" {
+			return errors.New("GDTRACKER_SESSION_SECRET is required when DB_URL is set")
+		}
+		corsOrigins := os.Getenv("GDTRACKER_CORS_ALLOWED_ORIGINS")
+		cookieDomain := strings.TrimSpace(os.Getenv("GDTRACKER_COOKIE_DOMAIN"))
+		cookieSecure := strings.TrimSpace(os.Getenv("GDTRACKER_COOKIE_SECURE")) == "true"
+		srv, err := httpserver.New(httpserver.Config{
+			DB:            sqlDB,
+			SessionSecret: secret,
+			CookieDomain:  cookieDomain,
+			CookieSecure:  cookieSecure,
+		})
+		if err != nil {
+			return err
+		}
+		mux.Handle("/api/", srv.APIHandler(corsOrigins))
+		logger.Printf("api: /api mounted (CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)")
+	}
 
 	server := &http.Server{
 		Addr:              httpx.AddrFromEnv("PORT", "8080"),

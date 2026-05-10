@@ -302,7 +302,8 @@ func _ready() -> void:
                     <div className="integrationSectionInner">
                         <h2 className="integrationSectionTitle">Quickstart snippets</h2>
                         <p className="integrationProse">
-                            Prefilled with the current <code>gameId</code> and an API base guess (<code>{suggestedBase}</code>).
+                            Prefilled with the current <code>gameId</code> and an API base guess (
+                            <code>{suggestedBase}</code>).
                         </p>
 
                         <div className="integrationCodeBlockWrap">
@@ -399,9 +400,9 @@ func _ready() -> void:
                                 Instantiate <code>GDTrackerClient</code> (or add it as an Autoload).
                             </li>
                             <li>
-                                Call <code>ping_integration()</code>, then <code>register_player()</code>, then the create
-                                methods: <code>create_event</code>, <code>create_trace</code>, <code>create_exception</code>,{' '}
-                                <code>create_feedback</code>.
+                                Call <code>ping_integration()</code>, then <code>register_player()</code>, then the
+                                create methods: <code>create_event</code>, <code>create_trace</code>,{' '}
+                                <code>create_exception</code>, <code>create_feedback</code>.
                             </li>
                         </ol>
 
@@ -429,8 +430,8 @@ func _ready() -> void:
                     <div className="integrationSectionInner">
                         <h2 className="integrationSectionTitle">GDExtension (experimental)</h2>
                         <p className="integrationProse">
-                            This repo includes a native extension skeleton under <code>gdtracker-gdextension/</code>. You
-                            must provide <code>godot-cpp</code> and build per-platform binaries yourself. See{' '}
+                            This repo includes a native extension skeleton under <code>gdtracker-gdextension/</code>.
+                            You must provide <code>godot-cpp</code> and build per-platform binaries yourself. See{' '}
                             <code>gdtracker-gdextension/README.md</code>.
                         </p>
 
@@ -455,4 +456,3 @@ func _ready() -> void:
         </div>
     )
 }
-

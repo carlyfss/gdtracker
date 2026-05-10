@@ -150,7 +150,10 @@ export function TasksListTable({
                                 </td>
                                 {archiveEmbedded ? null : (
                                     <td className="tasksListStatusCol">
-                                        <span className="tasksStatusPill" data-status={(t.status as TaskStatus) ?? 'TODO'}>
+                                        <span
+                                            className="tasksStatusPill"
+                                            data-status={(t.status as TaskStatus) ?? 'TODO'}
+                                        >
                                             {statusLabel(t.status as TaskStatus)}
                                         </span>
                                     </td>

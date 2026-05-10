@@ -122,8 +122,12 @@ export function IntegrationPage() {
                     </p>
                     <ul className="integrationList">
                         <li>
-                            You will call <code>POST {suggestedBase}{integrationPath}</code> with JSON body{' '}
-                            <code>{VALIDATION_BODY_JSON}</code>.
+                            You will call{' '}
+                            <code>
+                                POST {suggestedBase}
+                                {integrationPath}
+                            </code>{' '}
+                            with JSON body <code>{VALIDATION_BODY_JSON}</code>.
                         </li>
                         <li>
                             <strong>Headers:</strong> <code>Content-Type: application/json</code> and{' '}
