@@ -38,7 +38,7 @@ gdtracker-go-api/
 
 - **`GET /healthz`** — process up (no DB required).
 - **`GET /readyz`** — `200` if Postgres is configured and ping succeeds; `503` if DB disabled or ping fails.
-- **Phase 2 (games / categories / tags / tasks / game-exceptions)** — see `openapi.yaml`, `PHASE2_INVENTORY.md`, `PHASE2_DESIGN.md`, and `CODE_REVIEW_PHASE2.md`.
+- **Domain routes (games, categories, tags, tasks, features, configuration, archives, game-exceptions)** — see `openapi.yaml` (source of truth for paths and schemas).
 
 ## Common commands
 

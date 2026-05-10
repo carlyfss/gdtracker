@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
-    Phase 2 routes mirror `gdtracker-api` controllers for games, categories, tags, tasks, and game exceptions.
+    Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, and game exceptions.
 servers:
   - url: http://localhost:8080
 tags:
@@ -20,6 +20,10 @@ tags:
     description: Per-game tags (session).
   - name: Tasks
     description: Per-game tasks (session).
+  - name: Features
+    description: Per-game product features and task progress (session).
+  - name: Configuration
+    description: Per-game feature flags, settings, exception task template (session).
   - name: GameExceptions
     description: Exceptions, search, ingest (Bearer + X-Player-Id for ingest).
 paths:
@@ -499,7 +503,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/GameId"
         - $ref: "#/components/parameters/TaskId"
+        - name: includeSummary
+          in: query
+          description: When true, returns JSON summary instead of 204 (Go extension; default Spring-compatible 204).
+          schema: { type: boolean, default: false }
       responses:
+        "200":
+          description: Optional summary when includeSummary=true
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         "204":
           description: No content
         "401":
@@ -513,7 +528,17 @@ paths:
       parameters:
         - $ref: "#/components/parameters/GameId"
         - $ref: "#/components/parameters/TaskId"
+        - name: includeSummary
+          in: query
+          schema: { type: boolean, default: false }
       responses:
+        "200":
+          description: Optional summary when includeSummary=true
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         "204":
           description: No content
         "401":
@@ -522,6 +547,172 @@ paths:
           description: Task not found
         "409":
           description: Archived feature metadata missing
+  /api/games/{gameId}/features:
+    get:
+      tags: [Features]
+      operationId: listFeatures
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: archived
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Feature" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    post:
+      tags: [Features]
+      operationId: createFeature
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeatureUpsertRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Feature" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+        "409": { description: Duplicate feature name }
+  /api/games/{gameId}/features/task-progress:
+    get:
+      tags: [Features]
+      operationId: listFeatureTaskProgress
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: archived
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FeatureTaskProgressRow" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+  /api/games/{gameId}/features/{id}:
+    put:
+      tags: [Features]
+      operationId: updateFeature
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeatureId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeatureUpsertRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Feature" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Feature not found }
+        "409": { description: Conflict (archived feature or duplicate name) }
+    delete:
+      tags: [Features]
+      operationId: deleteFeature
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeatureId"
+      responses:
+        "204": { description: Deleted }
+        "401": { description: Not authenticated }
+        "404": { description: Feature not found }
+        "409": { description: Has subfeatures or tasks }
+  /api/games/{gameId}/features/{id}/archive:
+    post:
+      tags: [Features]
+      operationId: archiveFeature
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeatureId"
+        - name: includeSummary
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Summary when includeSummary=true
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "204": { description: No content }
+        "401": { description: Not authenticated }
+        "404": { description: Feature not found }
+  /api/games/{gameId}/features/{id}/unarchive:
+    post:
+      tags: [Features]
+      operationId: unarchiveFeature
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeatureId"
+        - name: includeSummary
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Summary when includeSummary=true
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "204": { description: No content }
+        "401": { description: Not authenticated }
+        "404": { description: Feature not found }
+  /api/games/{gameId}/configuration:
+    get:
+      tags: [Configuration]
+      operationId: getGameConfiguration
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK (bootstraps row if missing)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameConfiguration" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    patch:
+      tags: [Configuration]
+      operationId: patchGameConfiguration
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameConfigurationPatchRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameConfiguration" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
   /api/games/{gameId}/game-exceptions:
     get:
       tags: [GameExceptions]
@@ -708,6 +899,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    FeatureId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
     ExceptionId:
       name: exceptionId
       in: path
@@ -824,6 +1020,64 @@ components:
         parentId: { type: string, nullable: true }
         archived: { type: boolean }
         archivedAt: { type: string, nullable: true, format: date-time }
+    FeatureUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        color: { type: string, nullable: true }
+        parentId: { type: string, nullable: true }
+    FeatureTaskProgressRow:
+      type: object
+      required: [featureId, totalDirect, doneDirect, rolledUpTotal, rolledUpDone]
+      properties:
+        featureId: { type: string }
+        totalDirect: { type: integer, format: int64 }
+        doneDirect: { type: integer, format: int64 }
+        rolledUpTotal: { type: integer, format: int64 }
+        rolledUpDone: { type: integer, format: int64 }
+    CategorySummary:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+    ExceptionTaskTemplate:
+      type: object
+      properties:
+        titleTemplate: { type: string }
+        descriptionTemplate: { type: string }
+        defaultCategoryId: { type: string, nullable: true }
+        defaultCategory: { $ref: "#/components/schemas/CategorySummary", nullable: true }
+    GameConfiguration:
+      type: object
+      properties:
+        featureFlags:
+          type: object
+          additionalProperties: { type: boolean }
+        settings:
+          type: object
+          additionalProperties: true
+        exceptionTaskTemplate: { $ref: "#/components/schemas/ExceptionTaskTemplate" }
+    ExceptionTaskTemplatePatch:
+      type: object
+      properties:
+        titleTemplate: { type: string }
+        descriptionTemplate: { type: string }
+        defaultCategoryId: { type: string, nullable: true }
+    GameConfigurationPatchRequest:
+      type: object
+      properties:
+        featureFlags:
+          type: object
+          additionalProperties: { type: boolean }
+        settings:
+          type: object
+          additionalProperties: true
+        exceptionTaskTemplate: { $ref: "#/components/schemas/ExceptionTaskTemplatePatch", nullable: true }
     Task:
       type: object
       description: Task with nested feature, optional category, tags, and derived tagIds.

@@ -288,6 +288,139 @@ func (r *TaskRepository) UpdateFeatureID(ctx context.Context, taskID, featureID 
 }
 
 // LoadTagsForTasks returns tag_id -> tags for each task (ordered by tag name ASC per task).
+// TaskIDWithFeature is a minimal task row for archive operations.
+type TaskIDWithFeature struct {
+	TaskID    string
+	FeatureID string
+}
+
+// FeatureTaskCount holds direct task totals per feature (from aggregate SQL).
+type FeatureTaskCount struct {
+	FeatureID string
+	Total     int64
+	Done      int64
+}
+
+func (r *TaskRepository) ListTaskIDsByFeatureIDs(ctx context.Context, featureIDs []string) ([]TaskIDWithFeature, error) {
+	return r.listTaskIDsByFeatureIDsDB(ctx, r.db, featureIDs)
+}
+
+func (r *TaskRepository) ListTaskIDsByFeatureIDsTx(ctx context.Context, tx *sql.Tx, featureIDs []string) ([]TaskIDWithFeature, error) {
+	return r.listTaskIDsByFeatureIDsDB(ctx, tx, featureIDs)
+}
+
+func (r *TaskRepository) listTaskIDsByFeatureIDsDB(ctx context.Context, db sqlQuerier, featureIDs []string) ([]TaskIDWithFeature, error) {
+	if len(featureIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, feature_id FROM tasks WHERE feature_id = ANY($1::text[])`,
+		pq.Array(featureIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks by features: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []TaskIDWithFeature
+	for rows.Next() {
+		var t TaskIDWithFeature
+		if err := rows.Scan(&t.TaskID, &t.FeatureID); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+type sqlQuerier interface {
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+}
+
+func (r *TaskRepository) SetArchivedWithTime(ctx context.Context, tx *sql.Tx, taskID string, at time.Time) error {
+	_, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET archived = true, archived_at = $2, updated_at = $2 WHERE id = $1`,
+		taskID, at,
+	)
+	return err
+}
+
+func (r *TaskRepository) ClearArchivedTx(ctx context.Context, tx *sql.Tx, taskID string) error {
+	now := time.Now().UTC()
+	_, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET archived = false, archived_at = NULL, updated_at = $2 WHERE id = $1`,
+		taskID, now,
+	)
+	return err
+}
+
+func (r *TaskRepository) UpdateFeatureIDTx(ctx context.Context, tx *sql.Tx, taskID, featureID string) error {
+	_, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET feature_id = $2, updated_at = $3 WHERE id = $1`,
+		taskID, featureID, time.Now().UTC(),
+	)
+	return err
+}
+
+const sqlAggregateTaskCountsByFeature = `
+SELECT CAST(t.feature_id AS varchar) AS fid,
+       CAST(COUNT(*) AS bigint) AS total_cnt,
+       CAST(COUNT(*) FILTER (WHERE t.status = 'DONE') AS bigint) AS done_cnt
+FROM tasks t
+INNER JOIN features f ON f.id = t.feature_id
+WHERE f.game_id = $1
+AND f.archived = false
+AND t.archived = false
+GROUP BY t.feature_id`
+
+const sqlAggregateArchivedTaskCountsByFeature = `
+SELECT CAST(t.feature_id AS varchar) AS fid,
+       CAST(COUNT(*) AS bigint) AS total_cnt,
+       CAST(COUNT(*) FILTER (WHERE t.status = 'DONE') AS bigint) AS done_cnt
+FROM tasks t
+INNER JOIN features f ON f.id = t.feature_id
+WHERE f.game_id = $1
+AND (t.archived = true OR f.archived = true)
+GROUP BY t.feature_id`
+
+func (r *TaskRepository) AggregateTaskCountsByFeatureForGame(ctx context.Context, gameID string) ([]FeatureTaskCount, error) {
+	return r.scanFeatureTaskCounts(ctx, sqlAggregateTaskCountsByFeature, gameID)
+}
+
+func (r *TaskRepository) AggregateArchivedTaskCountsByFeatureForGame(ctx context.Context, gameID string) ([]FeatureTaskCount, error) {
+	return r.scanFeatureTaskCounts(ctx, sqlAggregateArchivedTaskCountsByFeature, gameID)
+}
+
+func (r *TaskRepository) scanFeatureTaskCounts(ctx context.Context, q, gameID string) ([]FeatureTaskCount, error) {
+	rows, err := r.db.QueryContext(ctx, q, gameID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []FeatureTaskCount
+	for rows.Next() {
+		var c FeatureTaskCount
+		if err := rows.Scan(&c.FeatureID, &c.Total, &c.Done); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (r *TaskRepository) LockTaskForUpdate(ctx context.Context, tx *sql.Tx, taskID, gameID string) error {
+	var id string
+	err := tx.QueryRowContext(ctx, `
+SELECT t.id FROM tasks t
+JOIN features f ON f.id = t.feature_id
+WHERE t.id = $1 AND f.game_id = $2 FOR UPDATE`,
+		taskID, gameID,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sql.ErrNoRows
+	}
+	return err
+}
+
 func (r *TaskRepository) LoadTagsForTasks(ctx context.Context, taskIDs []string) (map[string][]Tag, error) {
 	if len(taskIDs) == 0 {
 		return map[string][]Tag{}, nil

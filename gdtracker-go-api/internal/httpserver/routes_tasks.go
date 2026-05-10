@@ -249,8 +249,12 @@ func (s *Server) writeTaskCreate(w http.ResponseWriter, ctx context.Context, gam
 	if title == "" {
 		return httpStatusErr{400, "title is required"}
 	}
-	if strings.TrimSpace(body.Status) == "" {
+	st := strings.TrimSpace(body.Status)
+	if st == "" {
 		return httpStatusErr{400, "status is required"}
+	}
+	if !isValidTaskStatus(st) {
+		return httpStatusErr{400, "status is invalid"}
 	}
 	featureID := strings.TrimSpace(body.FeatureID)
 	if featureID == "" {
@@ -294,7 +298,7 @@ func (s *Server) writeTaskCreate(w http.ResponseWriter, ctx context.Context, gam
 		ID:                    uuid.NewString(),
 		Title:                 title,
 		Description:           sqlStringPtr(body.Description),
-		Status:                body.Status,
+		Status:                st,
 		FeatureID:             featureID,
 		CategoryID:            catID,
 		ParentTaskID:          parentID,
@@ -317,8 +321,12 @@ func (s *Server) writeTaskUpdate(w http.ResponseWriter, ctx context.Context, gam
 	if title == "" {
 		return httpStatusErr{400, "title is required"}
 	}
-	if strings.TrimSpace(body.Status) == "" {
+	st := strings.TrimSpace(body.Status)
+	if st == "" {
 		return httpStatusErr{400, "status is required"}
+	}
+	if !isValidTaskStatus(st) {
+		return httpStatusErr{400, "status is invalid"}
 	}
 	featureID := strings.TrimSpace(body.FeatureID)
 	if featureID == "" {
@@ -368,7 +376,7 @@ func (s *Server) writeTaskUpdate(w http.ResponseWriter, ctx context.Context, gam
 		ID:                    taskID,
 		Title:                 title,
 		Description:           sqlStringPtr(body.Description),
-		Status:                body.Status,
+		Status:                st,
 		FeatureID:             featureID,
 		CategoryID:            catID,
 		ParentTaskID:          parentID,

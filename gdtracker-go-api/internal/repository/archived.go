@@ -23,6 +23,22 @@ func NewArchivedRepository(db *sql.DB) *ArchivedRepository {
 	return &ArchivedRepository{db: db}
 }
 
+// FindArchivedFeatureByRestoredFeatureID finds the archived_features row whose restored_feature_id matches (merge-back path).
+func (r *ArchivedRepository) FindArchivedFeatureByRestoredFeatureID(ctx context.Context, restoredFeatureID string) (*ArchivedFeatureRow, error) {
+	var row ArchivedFeatureRow
+	err := r.db.QueryRowContext(ctx,
+		`SELECT feature_id, restored_feature_id FROM archived_features WHERE restored_feature_id = $1`,
+		restoredFeatureID,
+	).Scan(&row.FeatureID, &row.RestoredFeatureID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *ArchivedRepository) FindArchivedFeatureByFeatureID(ctx context.Context, featureID string) (*ArchivedFeatureRow, error) {
 	var row ArchivedFeatureRow
 	err := r.db.QueryRowContext(ctx,
@@ -61,6 +77,57 @@ VALUES ($1, $2, $3)
 ON CONFLICT (task_id) DO UPDATE SET archived_at = EXCLUDED.archived_at, archived_feature_id = EXCLUDED.archived_feature_id`,
 		taskID, at, archivedFeatureID,
 	)
+	return err
+}
+
+func (r *ArchivedRepository) UpsertArchivedTaskTx(ctx context.Context, tx *sql.Tx, taskID string, at time.Time, archivedFeatureID sql.NullString) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO archived_tasks (task_id, archived_at, archived_feature_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (task_id) DO UPDATE SET archived_at = EXCLUDED.archived_at, archived_feature_id = EXCLUDED.archived_feature_id`,
+		taskID, at, archivedFeatureID,
+	)
+	return err
+}
+
+func (r *ArchivedRepository) UpsertArchivedFeature(ctx context.Context, tx *sql.Tx, featureID string, at time.Time, restoredID sql.NullString) error {
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO archived_features (feature_id, archived_at, restored_feature_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (feature_id) DO UPDATE SET archived_at = EXCLUDED.archived_at, restored_feature_id = EXCLUDED.restored_feature_id`,
+		featureID, at, restoredID,
+	)
+	return err
+}
+
+func (r *ArchivedRepository) DeleteArchivedFeatureTx(ctx context.Context, tx *sql.Tx, featureID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM archived_features WHERE feature_id = $1`, featureID)
+	return err
+}
+
+func (r *ArchivedRepository) DeleteArchivedTaskTx(ctx context.Context, tx *sql.Tx, taskID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM archived_tasks WHERE task_id = $1`, taskID)
+	return err
+}
+
+func (r *ArchivedRepository) ClearRestoredFeatureTx(ctx context.Context, tx *sql.Tx, archivedFeatureID string) error {
+	_, err := tx.ExecContext(ctx,
+		`UPDATE archived_features SET restored_feature_id = NULL WHERE feature_id = $1`,
+		archivedFeatureID,
+	)
+	return err
+}
+
+func (r *ArchivedRepository) UpdateRestoredFeatureTx(ctx context.Context, tx *sql.Tx, archivedFeatureID, restoredID string) error {
+	_, err := tx.ExecContext(ctx,
+		`UPDATE archived_features SET restored_feature_id = $2 WHERE feature_id = $1`,
+		archivedFeatureID, restoredID,
+	)
+	return err
+}
+
+func (r *ArchivedRepository) DeleteFeatureByIDTx(ctx context.Context, tx *sql.Tx, featureID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM features WHERE id = $1`, featureID)
 	return err
 }
 

@@ -31,6 +31,7 @@ type Server struct {
 	gameExceptions *repository.GameExceptionRepository
 	gamePlayers    *repository.GamePlayerRepository
 	archived       *repository.ArchivedRepository
+	gameConfig     *repository.GameConfigurationRepository
 	store          *sessions.CookieStore
 	cookieDomain   string
 	cookieSecure   bool
@@ -64,6 +65,7 @@ func New(cfg Config) (*Server, error) {
 		gameExceptions *repository.GameExceptionRepository
 		gamePlayers    *repository.GamePlayerRepository
 		archived       *repository.ArchivedRepository
+		gameConfig     *repository.GameConfigurationRepository
 	)
 	if cfg.DB != nil {
 		users = repository.NewUserRepository(cfg.DB)
@@ -76,6 +78,7 @@ func New(cfg Config) (*Server, error) {
 		gameExceptions = repository.NewGameExceptionRepository(cfg.DB)
 		gamePlayers = repository.NewGamePlayerRepository(cfg.DB)
 		archived = repository.NewArchivedRepository(cfg.DB)
+		gameConfig = repository.NewGameConfigurationRepository(cfg.DB)
 	}
 	return &Server{
 		db:             cfg.DB,
@@ -89,6 +92,7 @@ func New(cfg Config) (*Server, error) {
 		gameExceptions: gameExceptions,
 		gamePlayers:    gamePlayers,
 		archived:       archived,
+		gameConfig:     gameConfig,
 		store:          st,
 		cookieDomain:   cfg.CookieDomain,
 		cookieSecure:   cfg.CookieSecure,
@@ -108,6 +112,8 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 	s.registerCategoryRoutes(mux)
 	s.registerTagRoutes(mux)
 	s.registerTaskRoutes(mux)
+	s.registerFeatureRoutes(mux)
+	s.registerConfigurationRoutes(mux)
 	s.registerExceptionRoutes(mux)
 
 	strip := http.StripPrefix("/api", mux)

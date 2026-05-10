@@ -1,6 +1,6 @@
 # gdtracker-web
 
-Vite + React + TypeScript dashboard that consumes the HTTP API under `/api/*`. Point the dev proxy at **Spring** ([gdtracker-api](../gdtracker-api/)) or **Go** ([gdtracker-go-api](../gdtracker-go-api/)) — the Phase 2 routes (games, categories, tags, tasks, game-exceptions, ingest token) match the same paths and shapes as Spring when using `gdtracker-go-api`.
+Vite + React + TypeScript dashboard that consumes the HTTP API under `/api/*`. Point the dev proxy at **Spring** ([gdtracker-api](../gdtracker-api/)) or **Go** ([gdtracker-go-api](../gdtracker-go-api/)) — the Go API mirrors Spring for games, categories, tags, tasks, **features**, **configuration** (`GET`/`PATCH`), feature/task **archive** flows, game-exceptions, and ingest token (set `VITE_DEV_PROXY_TARGET` to the Go server port, e.g. `http://localhost:8080`).
 
 ## Stack
 
