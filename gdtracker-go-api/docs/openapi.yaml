@@ -1,9 +1,10 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
+    Phase 2 routes mirror `gdtracker-api` controllers for games, categories, tags, tasks, and game exceptions.
 servers:
   - url: http://localhost:8080
 tags:
@@ -11,6 +12,16 @@ tags:
     description: Register, login, logout, current user, CSRF priming.
   - name: Health
     description: Liveness and readiness.
+  - name: Games
+    description: Game listing, creation, ingest token (session).
+  - name: Categories
+    description: Per-game categories (session).
+  - name: Tags
+    description: Per-game tags (session).
+  - name: Tasks
+    description: Per-game tasks (session).
+  - name: GameExceptions
+    description: Exceptions, search, ingest (Bearer + X-Player-Id for ingest).
 paths:
   /healthz:
     get:
@@ -126,7 +137,582 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "401":
           description: Not authenticated (empty body)
+  /api/games:
+    get:
+      tags: [Games]
+      operationId: listGames
+      summary: List games for the current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameSummary"
+        "401":
+          description: Not authenticated
+    post:
+      tags: [Games]
+      operationId: createGame
+      summary: Create a game (bootstrap configuration + default category)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGameRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSummary"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+  /api/games/{gameId}/ingest-token:
+    get:
+      tags: [Games]
+      operationId: getIngestTokenStatus
+      summary: Ingest token configured flag and created-at
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestTokenStatus"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/ingest-token/regenerate:
+    post:
+      tags: [Games]
+      operationId: regenerateIngestToken
+      summary: Regenerate ingest token (plaintext returned once)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestTokenRegenerateResponse"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/categories:
+    get:
+      tags: [Categories]
+      operationId: listCategories
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+    post:
+      tags: [Categories]
+      operationId: createCategory
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpsertRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+        "409":
+          description: Duplicate category name
+  /api/games/{gameId}/categories/{id}:
+    put:
+      tags: [Categories]
+      operationId: updateCategory
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/CategoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpsertRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Category or game not found
+        "409":
+          description: Duplicate name or category in use
+    delete:
+      tags: [Categories]
+      operationId: deleteCategory
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/CategoryId"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Category not found
+        "409":
+          description: Category has tasks or is in use
+  /api/games/{gameId}/tags:
+    get:
+      tags: [Tags]
+      operationId: listTags
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+    post:
+      tags: [Tags]
+      operationId: createTag
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpsertRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+        "409":
+          description: Duplicate tag name
+  /api/games/{gameId}/tags/{id}:
+    put:
+      tags: [Tags]
+      operationId: updateTag
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TagId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpsertRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Tag not found
+        "409":
+          description: Duplicate name or tag in use
+    delete:
+      tags: [Tags]
+      operationId: deleteTag
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TagId"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Tag not found
+        "409":
+          description: Tag in use
+  /api/games/{gameId}/tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: List tasks with optional filters (Spring parity)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: featureId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: categoryId
+          in: query
+          schema: { type: string }
+        - name: sourceGameExceptionId
+          in: query
+          schema: { type: string }
+        - name: tagIds
+          in: query
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - name: tagMode
+          in: query
+          schema: { type: string, enum: [ANY, ALL], default: ANY }
+        - name: archivedOnly
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpsertRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/tasks/{id}:
+    put:
+      tags: [Tasks]
+      operationId: updateTask
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpsertRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Task not found
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Task not found
+  /api/games/{gameId}/tasks/{id}/archive:
+    post:
+      tags: [Tasks]
+      operationId: archiveTask
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "204":
+          description: No content
+        "401":
+          description: Not authenticated
+        "404":
+          description: Task not found
+  /api/games/{gameId}/tasks/{id}/unarchive:
+    post:
+      tags: [Tasks]
+      operationId: unarchiveTask
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "204":
+          description: No content
+        "401":
+          description: Not authenticated
+        "404":
+          description: Task not found
+        "409":
+          description: Archived feature metadata missing
+  /api/games/{gameId}/game-exceptions:
+    get:
+      tags: [GameExceptions]
+      operationId: listGameExceptions
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameException"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+    post:
+      tags: [GameExceptions]
+      operationId: reportGameException
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameExceptionReportRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameException"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/game-exceptions/interval:
+    get:
+      tags: [GameExceptions]
+      operationId: listGameExceptionsInterval
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: fromMs
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: toMs
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameException"
+        "400":
+          description: fromMs must be less than toMs
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/game-exceptions/search:
+    get:
+      tags: [GameExceptions]
+      operationId: searchGameExceptions
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        "200":
+          description: Spring-style page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameExceptionPage"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/game-exceptions/{exceptionId}:
+    get:
+      tags: [GameExceptions]
+      operationId: getGameException
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/ExceptionId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameException"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Not found
+  /api/games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index:
+    post:
+      tags: [GameExceptions]
+      operationId: reserveExceptionTaskIndex
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/ExceptionId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [index]
+                properties:
+                  index: { type: integer }
+        "401":
+          description: Not authenticated
+        "404":
+          description: Exception or game not found
+  /api/games/{gameId}/game-exceptions/ingest:
+    post:
+      tags: [GameExceptions]
+      operationId: ingestGameException
+      summary: Ingest from Godot (Bearer ingest token + X-Player-Id)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameExceptionIngestRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameException"
+        "400":
+          description: Invalid JSON
+        "401":
+          description: Missing/invalid token or player id
+        "404":
+          description: Game not found
 components:
+  parameters:
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema: { type: string }
+    CategoryId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    TagId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    TaskId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    ExceptionId:
+      name: exceptionId
+      in: path
+      required: true
+      schema: { type: string }
   securitySchemes:
     sessionCookie:
       type: apiKey
@@ -136,6 +722,10 @@ components:
       type: apiKey
       in: header
       name: X-XSRF-TOKEN
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: ingest-token
   schemas:
     HealthzResponse:
       type: object
@@ -172,3 +762,141 @@ components:
       required:
         - id
         - username
+    GameSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    CreateGameRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    IngestTokenStatus:
+      type: object
+      properties:
+        configured: { type: boolean }
+        createdAt: { type: string, nullable: true, format: date-time }
+    IngestTokenRegenerateResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+        createdAt: { type: string, nullable: true, format: date-time }
+    Category:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+    CategoryUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        color: { type: string }
+    Tag:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+        description: { type: string, nullable: true }
+    TagUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        color: { type: string }
+        description: { type: string, nullable: true }
+    Feature:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string }
+        color: { type: string }
+        parentId: { type: string, nullable: true }
+        archived: { type: boolean }
+        archivedAt: { type: string, nullable: true, format: date-time }
+    Task:
+      type: object
+      description: Task with nested feature, optional category, tags, and derived tagIds.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string }
+        feature: { $ref: "#/components/schemas/Feature" }
+        featureId: { type: string }
+        category: { $ref: "#/components/schemas/Category", nullable: true }
+        categoryId: { type: string, nullable: true }
+        tags:
+          type: array
+          items: { $ref: "#/components/schemas/Tag" }
+        tagIds:
+          type: array
+          items: { type: string }
+        parentTaskId: { type: string, nullable: true }
+        sourceGameExceptionId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        archived: { type: boolean }
+        archivedAt: { type: string, nullable: true, format: date-time }
+    TaskUpsertRequest:
+      type: object
+      required: [title, status, featureId]
+      properties:
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string }
+        featureId: { type: string }
+        categoryId: { type: string, nullable: true }
+        tagIds:
+          type: array
+          items: { type: string }
+        parentTaskId: { type: string, nullable: true }
+        sourceGameExceptionId: { type: string, nullable: true }
+    GameException:
+      type: object
+      properties:
+        id: { type: string }
+        errorMessage: { type: string, nullable: true }
+        shortErrorMessage: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        map: { type: string, nullable: true }
+        stackTrace: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
+        gamePlayerId: { type: string, nullable: true }
+    GameExceptionPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/GameException" }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+        number: { type: integer }
+        size: { type: integer }
+    GameExceptionReportRequest:
+      type: object
+      properties:
+        id: { type: string }
+        errorMessage: { type: string, nullable: true }
+        shortErrorMessage: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        map: { type: string, nullable: true }
+        stackTrace: { type: string, nullable: true }
+    GameExceptionIngestRequest:
+      type: object
+      properties:
+        errorMessage: { type: string, nullable: true }
+        shortErrorMessage: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        map: { type: string, nullable: true }
+        stackTrace: { type: string, nullable: true }

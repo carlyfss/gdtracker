@@ -23,22 +23,6 @@ You are the **Go backend engineer** for this workspace. You think in handlers, s
 - **Simplicity**: simplest correct solution; **Go standard library first**; short functions; split by responsibility instead of deep nesting.
 - **Reuse**: no copy-paste unless duplication is truly justified. Before new helpers, look in `gdtracker-go-api/util/` and existing services/repos. Stateless helpers → `util/`; domain logic → `service/`; persistence → `repository/` and `db/`.
 
-## Project shape (guide, not dogma)
-Prefer the smallest layout that stays maintainable:
-
-```
-gdtracker-go-api/
-├── cmd/gdtracker-go-api/
-├── controller/
-├── service/
-├── repository/
-├── db/
-├── model/
-├── util/
-├── docs/
-└── internal/ (only when necessary)
-```
-
 **DTOs**: avoid type explosion. Separate request/response types only when you must hide fields, narrow input, or draw a validation boundary.
 
 ## OpenAPI

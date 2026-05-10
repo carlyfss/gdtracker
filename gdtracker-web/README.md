@@ -1,6 +1,6 @@
 # gdtracker-web
 
-Vite + React + TypeScript dashboard that consumes the [gdtracker-api](../gdtracker-api/) Spring Boot backend. Tracks game exceptions, trace heatmaps, game events, tasks, and per-game configuration.
+Vite + React + TypeScript dashboard that consumes the HTTP API under `/api/*`. Point the dev proxy at **Spring** ([gdtracker-api](../gdtracker-api/)) or **Go** ([gdtracker-go-api](../gdtracker-go-api/)) — the Phase 2 routes (games, categories, tags, tasks, game-exceptions, ingest token) match the same paths and shapes as Spring when using `gdtracker-go-api`.
 
 ## Stack
 

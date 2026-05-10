@@ -20,11 +20,20 @@ const sessionCookieName = "JSESSIONID"
 
 // Server wires auth routes and shared session / CSRF cookie settings.
 type Server struct {
-	db           *sql.DB
-	users        *repository.UserRepository
-	store        *sessions.CookieStore
-	cookieDomain string
-	cookieSecure bool
+	db             *sql.DB
+	users          *repository.UserRepository
+	games          *repository.GameRepository
+	categories     *repository.CategoryRepository
+	tags           *repository.TagRepository
+	features       *repository.FeatureRepository
+	tasks          *repository.TaskRepository
+	taskRefs       *repository.TaskRefsRepository
+	gameExceptions *repository.GameExceptionRepository
+	gamePlayers    *repository.GamePlayerRepository
+	archived       *repository.ArchivedRepository
+	store          *sessions.CookieStore
+	cookieDomain   string
+	cookieSecure   bool
 }
 
 // Config for New.
@@ -44,16 +53,45 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var users *repository.UserRepository
+	var (
+		users          *repository.UserRepository
+		games          *repository.GameRepository
+		categories     *repository.CategoryRepository
+		tags           *repository.TagRepository
+		features       *repository.FeatureRepository
+		tasks          *repository.TaskRepository
+		taskRefs       *repository.TaskRefsRepository
+		gameExceptions *repository.GameExceptionRepository
+		gamePlayers    *repository.GamePlayerRepository
+		archived       *repository.ArchivedRepository
+	)
 	if cfg.DB != nil {
 		users = repository.NewUserRepository(cfg.DB)
+		games = repository.NewGameRepository(cfg.DB)
+		categories = repository.NewCategoryRepository(cfg.DB)
+		tags = repository.NewTagRepository(cfg.DB)
+		features = repository.NewFeatureRepository(cfg.DB)
+		tasks = repository.NewTaskRepository(cfg.DB)
+		taskRefs = repository.NewTaskRefsRepository(cfg.DB)
+		gameExceptions = repository.NewGameExceptionRepository(cfg.DB)
+		gamePlayers = repository.NewGamePlayerRepository(cfg.DB)
+		archived = repository.NewArchivedRepository(cfg.DB)
 	}
 	return &Server{
-		db:           cfg.DB,
-		users:        users,
-		store:        st,
-		cookieDomain: cfg.CookieDomain,
-		cookieSecure: cfg.CookieSecure,
+		db:             cfg.DB,
+		users:          users,
+		games:          games,
+		categories:     categories,
+		tags:           tags,
+		features:       features,
+		tasks:          tasks,
+		taskRefs:       taskRefs,
+		gameExceptions: gameExceptions,
+		gamePlayers:    gamePlayers,
+		archived:       archived,
+		store:          st,
+		cookieDomain:   cfg.CookieDomain,
+		cookieSecure:   cfg.CookieSecure,
 	}, nil
 }
 
@@ -65,6 +103,12 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 	mux.HandleFunc("POST /auth/login", s.postLogin)
 	mux.HandleFunc("POST /auth/logout", s.postLogout)
 	mux.HandleFunc("GET /auth/me", s.getMe)
+
+	s.registerGameRoutes(mux)
+	s.registerCategoryRoutes(mux)
+	s.registerTagRoutes(mux)
+	s.registerTaskRoutes(mux)
+	s.registerExceptionRoutes(mux)
 
 	strip := http.StripPrefix("/api", mux)
 	return CorsMiddleware(corsEnv)(CsrfMiddleware(s.cookieDomain, s.cookieSecure)(strip))
