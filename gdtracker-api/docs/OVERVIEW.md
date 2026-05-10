@@ -1,5 +1,7 @@
 # GDTracker API — overview
 
+> **Deprecated and unsupported** — this Spring Boot service remains in the repo for legacy use only. **Do not** extend it for new product work; implement APIs in **[gdtracker-go-api](../../gdtracker-go-api/)** instead.
+
 ## Purpose
 
 Spring Boot JSON API backing exception reporting, trace location heatmaps, task tracking, and feature metadata. Data is scoped per **game** (tenant); users authenticate with HTTP sessions. Default HTTP port **8080** (`spring.application.name=gdtracker-api`).

@@ -1,5 +1,7 @@
 # GDTracker API — project guidance
 
+> **Deprecated.** This Spring Boot API is **unsupported**; use **[gdtracker-go-api](../../gdtracker-go-api/)** for new features and integrations (see [Go API docs](../../gdtracker-go-api/docs/README.md)).
+
 REST API for GDTracker: game exceptions, trace heatmap data, tasks, and product features. Consumed by the `gdtracker-web` Vite app (proxied `/api` in dev). **Cross-origin dashboards** must set **`GDTRACKER_CORS_ALLOWED_ORIGINS`** to patterns matching the UI origin (comma-separated); `localhost` and `127.0.0.1` count as distinct.
 
 **Start here**

@@ -16,7 +16,7 @@
     <artifactId>gdtracker-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>GDTracker API</name>
-    <description>GDTracker REST API with error reporting and game telemetry</description>
+    <description>Deprecated: unsupported Spring API; use gdtracker-go-api for new work. Legacy REST with error reporting and game telemetry.</description>
 
     <licenses>
         <license>

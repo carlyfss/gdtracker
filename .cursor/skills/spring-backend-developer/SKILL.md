@@ -1,7 +1,12 @@
 ---
 name: spring-backend-developer
-description: Implement backend features only for the gdtracker-api Spring Boot project (REST controllers, services, repositories, JPA, database integration). Do not modify files outside `gdtracker-api/` unless explicitly requested.
+description: >-
+  **Deprecated — do not use.** The gdtracker-api Spring Boot service is no longer supported. Use the
+  `golang-backend-developer` skill and `gdtracker-go-api/` for all new backend work. (Historical:
+  Spring REST/JPA under `gdtracker-api/` only.)
 ---
+
+> **Deprecated — do not select this skill for new work.** The **gdtracker-api** Spring Boot application is **no longer supported**. Implement and extend APIs only in **[`gdtracker-go-api/`](../../../gdtracker-go-api/)** using the **[`golang-backend-developer`](../golang-backend-developer/SKILL.md)** skill. This file remains for rare maintenance of legacy Spring code only.
 
 # Spring Backend Developer
 
