@@ -10,7 +10,7 @@ By submitting a pull request or otherwise contributing material to this reposito
 
 ## Practical notes
 
-- Follow each subproject’s guidance under `gdtracker/docs/` and `gdtracker-api/docs/`.
+- Follow each subproject’s guidance under `gdtracker-web/docs/`, `gdtracker-api/docs/`, and `gdtracker-go-api/docs/` as applicable.
 - Do not commit secrets, real credentials, or local-only files (see the workspace `README.md` security section).
 
 If you need a **Developer Certificate of Origin (DCO)** or a formal **Contributor License Agreement (CLA)** for your organization, add that process here once it exists.

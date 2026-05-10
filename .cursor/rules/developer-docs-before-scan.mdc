@@ -1,14 +1,15 @@
 ---
-description: Frontend/backend work in gdtracker or gdtracker-api—read project docs before planning and before broad code search.
+description: App work in gdtracker-web, gdtracker-api, or gdtracker-go-api—read project docs before planning and before broad code search.
 globs:
-    - gdtracker/**
+    - gdtracker-web/**
     - gdtracker-api/**
+    - gdtracker-go-api/**
 alwaysApply: false
 ---
 
 # Read project guidance before planning or scanning
 
-When you are **planning a new feature**, **planning a change**, or **finding where to implement** work under `gdtracker/` or `gdtracker-api/`:
+When you are **planning a new feature**, **planning a change**, or **finding where to implement** work under `gdtracker-web/`, `gdtracker-api/`, or `gdtracker-go-api/`:
 
 ## Do this first (same project root you will edit)
 

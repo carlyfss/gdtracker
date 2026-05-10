@@ -1,8 +1,6 @@
 ---
-description: Keep chat responses concise and high-signal
 alwaysApply: true
 ---
-
 # Concise chat rule (always apply)
 
 - Prefer **short, high-signal** responses over verbose explanations.

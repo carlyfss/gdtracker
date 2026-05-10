@@ -1,0 +1,3 @@
+ALTER TABLE features DROP COLUMN IF EXISTS description;
+ALTER TABLE features DROP COLUMN IF EXISTS status;
+ALTER TABLE features DROP COLUMN IF EXISTS color;

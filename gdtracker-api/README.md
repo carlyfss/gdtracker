@@ -1,6 +1,6 @@
 # gdtracker-api
 
-Spring Boot REST API that backs the [gdtracker](../gdtracker/) frontend. It receives game exception reports, trace/heatmap events, game events, and exposes endpoints for tasks, features, categories, and per-game configuration. PostgreSQL is the only supported database; the schema is managed by Liquibase.
+Spring Boot REST API that backs the [gdtracker-web](../gdtracker-web/) frontend. It receives game exception reports, trace/heatmap events, game events, and exposes endpoints for tasks, features, categories, and per-game configuration. PostgreSQL is the only supported database; the schema is managed by Liquibase.
 
 ## Stack
 

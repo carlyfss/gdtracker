@@ -1,3 +1,5 @@
+# Stack targets small boards (e.g. Raspberry Pi): build images on the device for correct ARM arch,
+# or use `docker buildx build --platform linux/arm64` (64-bit Pi) / linux/arm/v7 (32-bit) from x86 CI.
 services:
     postgres:
         image: postgres:14-alpine
@@ -19,23 +21,32 @@ services:
         networks:
             - gdtracker
 
+    # gdtracker-go-api (not Spring). Listen port inside the container is PORT; host mapping uses SERVER_PORT.
     backend:
         build:
-            context: ./gdtracker-api
+            context: ./gdtracker-go-api
             dockerfile: Dockerfile
-        image: gdtracker-api:local
-        container_name: gdtracker-api
+        image: gdtracker-go-api:local
+        container_name: gdtracker-go-api
         restart: unless-stopped
         depends_on:
             postgres:
                 condition: service_healthy
         environment:
-            DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/gdtracker}
+            PORT: ${SERVER_PORT:-8080}
+            DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/gdtracker?sslmode=disable}
             DB_USERNAME: ${DB_USERNAME:-gdtracker}
             DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
-            SERVER_PORT: ${SERVER_PORT:-8080}
+            GDTRACKER_SESSION_SECRET: ${GDTRACKER_SESSION_SECRET:?GDTRACKER_SESSION_SECRET is required for gdtracker-go-api (see .env.example)}
             GDTRACKER_CORS_ALLOWED_ORIGINS: ${GDTRACKER_CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
             GDTRACKER_COOKIE_DOMAIN: ${GDTRACKER_COOKIE_DOMAIN:-}
+            GDTRACKER_COOKIE_SECURE: ${GDTRACKER_COOKIE_SECURE:-false}
+            GDTRACKER_GO_AUTO_MIGRATE: ${GDTRACKER_GO_AUTO_MIGRATE:-auto}
+            GDTRACKER_GO_MIGRATE_FORCE_VERSION: ${GDTRACKER_GO_MIGRATE_FORCE_VERSION:-}
+            GDTRACKER_ARCHIVE_RETENTION: ${GDTRACKER_ARCHIVE_RETENTION:-}
+            GDTRACKER_ARCHIVE_RETENTION_TIMEZONE: ${GDTRACKER_ARCHIVE_RETENTION_TIMEZONE:-}
+            GDTRACKER_ARCHIVE_RETENTION_HOUR: ${GDTRACKER_ARCHIVE_RETENTION_HOUR:-}
+            GDTRACKER_ARCHIVE_RETENTION_MINUTE: ${GDTRACKER_ARCHIVE_RETENTION_MINUTE:-}
         ports:
             - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
         networks:
@@ -43,11 +54,11 @@ services:
 
     frontend:
         build:
-            context: ./gdtracker
+            context: ./gdtracker-web
             dockerfile: Dockerfile
             args:
-                VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
-        image: gdtracker:local
+                VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:${SERVER_PORT:-8080}}
+        image: gdtracker-web:local
         container_name: gdtracker-web
         restart: unless-stopped
         depends_on:

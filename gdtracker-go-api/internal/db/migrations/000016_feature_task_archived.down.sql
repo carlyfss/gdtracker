@@ -1,0 +1,2 @@
+ALTER TABLE tasks DROP COLUMN IF EXISTS archived;
+ALTER TABLE features DROP COLUMN IF EXISTS archived;
