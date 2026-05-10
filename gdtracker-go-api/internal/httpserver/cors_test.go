@@ -3,6 +3,7 @@ package httpserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -28,10 +29,18 @@ func TestCorsMiddleware_optionsPreflight(t *testing.T) {
 	}))
 	req := httptest.NewRequest(http.MethodOptions, "/api/auth/login", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Headers", "content-type, x-xsrf-token")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d", rec.Code)
+	}
+	allowHeaders := strings.ToLower(rec.Header().Get("Access-Control-Allow-Headers"))
+	if !strings.Contains(allowHeaders, "x-xsrf-token") {
+		t.Fatalf("Allow-Headers missing x-xsrf-token: %q", rec.Header().Get("Access-Control-Allow-Headers"))
+	}
+	if !strings.Contains(allowHeaders, "content-type") {
+		t.Fatalf("Allow-Headers missing content-type: %q", rec.Header().Get("Access-Control-Allow-Headers"))
 	}
 }
 
