@@ -421,6 +421,24 @@ WHERE t.id = $1 AND f.game_id = $2 FOR UPDATE`,
 	return err
 }
 
+// DeleteArchivedByGameBeforeCutoff deletes tasks that are archived (archived_at set) and older than cutoff,
+// scoped to the game via feature (Spring TaskRepository.deleteArchivedByGameIdBefore parity).
+func (r *TaskRepository) DeleteArchivedByGameBeforeCutoff(ctx context.Context, gameID string, cutoff time.Time) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `
+DELETE FROM tasks t
+USING features f
+WHERE t.feature_id = f.id
+  AND f.game_id = $1
+  AND t.archived_at IS NOT NULL
+  AND t.archived_at < $2`,
+		gameID, cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete archived tasks before cutoff: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 func (r *TaskRepository) LoadTagsForTasks(ctx context.Context, taskIDs []string) (map[string][]Tag, error) {
 	if len(taskIDs) == 0 {
 		return map[string][]Tag{}, nil

@@ -5,6 +5,8 @@
 - **OpenAPI**: `docs/openapi.yaml` (update whenever routes/req/resp/status codes change)
 - **Liquibase parity / migration authority**: `docs/MIGRATIONS.md`
 - **Auth / CSRF / CORS (Spring parity)**: `docs/AUTH.md`
+- **Archive retention (scheduled purge of archived rows)**: `docs/ARCHIVE_RETENTION.md`
+- **Spring vs Go error-shape notes (ingest/session)**: `docs/CODE_REVIEW_SPOTCHECK.md`
 
 ## Directory map (code)
 
@@ -13,6 +15,7 @@ gdtracker-go-api/
 ├── cmd/gdtracker-go-api/   # entrypoint
 ├── internal/
 │   ├── db/                 # Postgres DSN (JDBC→postgres URL), pool, embedded golang-migrate SQL
+│   ├── retention/          # archive TTL purge (Spring ArchiveRetentionService parity)
 │   └── httpx/              # small HTTP helpers
 ├── controller/             # HTTP handlers (when added)
 ├── service/
@@ -34,11 +37,15 @@ gdtracker-go-api/
 - **Migrations**: 23 versions embedded under `internal/db/migrations/` (mirrors Liquibase order). See **`MIGRATIONS.md`** for the inventory and **single-owner** rules (Liquibase vs golang-migrate).
 - **Auto migrate**: `GDTRACKER_GO_AUTO_MIGRATE` — `auto` (default), `on`, or `off`. Default `auto` skips golang-migrate when table `databasechangelog` exists so a Spring-managed database is not double-migrated.
 
+## Archive retention
+
+When the database is enabled, a background goroutine purges old **archived** tasks and features using `ARCHIVE_TIME_BOMB` in `game_configurations.settings` (default **30** days). Configure schedule and timezone with `GDTRACKER_ARCHIVE_RETENTION*` env vars. Details: **`ARCHIVE_RETENTION.md`**.
+
 ## HTTP
 
 - **`GET /healthz`** — process up (no DB required).
 - **`GET /readyz`** — `200` if Postgres is configured and ping succeeds; `503` if DB disabled or ping fails.
-- **Domain routes (games, categories, tags, tasks, features, configuration, archives, game-exceptions)** — see `openapi.yaml` (source of truth for paths and schemas).
+- **Domain routes (games, categories, tags, tasks, features, configuration, archives, game-exceptions, ingest plane, game events, traces, feedback)** — see `openapi.yaml` (source of truth for paths and schemas).
 
 ## Common commands
 

@@ -15,6 +15,7 @@ import (
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/db"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpserver"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpx"
+	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/retention"
 )
 
 func main() {
@@ -94,6 +95,10 @@ func run(ctx context.Context, logger *log.Logger) error {
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if sqlDB != nil {
+		retention.Start(ctx, sqlDB, logger, retention.ConfigFromEnv())
+	}
 
 	go func() {
 		<-ctx.Done()

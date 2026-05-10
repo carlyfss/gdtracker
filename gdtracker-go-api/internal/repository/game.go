@@ -112,6 +112,18 @@ func (r *GameRepository) SetIngestToken(ctx context.Context, gameID, hash string
 	return nil
 }
 
+// SetLastIntegrationValidationAt updates games.last_integration_validation_at (integration ping parity).
+func (r *GameRepository) SetLastIntegrationValidationAt(ctx context.Context, gameID string, at time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE games SET last_integration_validation_at = $2 WHERE id = $1`,
+		gameID, at,
+	)
+	if err != nil {
+		return fmt.Errorf("set last integration validation: %w", err)
+	}
+	return nil
+}
+
 // EnsureGameBootstrap mirrors GameSetupService.ensureGameBootstrap (idempotent).
 func EnsureGameBootstrap(ctx context.Context, db *sql.DB, gameID string) error {
 	tx, err := db.BeginTx(ctx, nil)

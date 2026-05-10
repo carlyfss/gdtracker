@@ -253,6 +253,21 @@ func LockFeatureForUpdate(ctx context.Context, tx *sql.Tx, featureID, gameID str
 	return err
 }
 
+// DeleteArchivedByGameBeforeCutoff deletes features that are archived and older than cutoff (Spring FeatureRepository parity).
+func (r *FeatureRepository) DeleteArchivedByGameBeforeCutoff(ctx context.Context, gameID string, cutoff time.Time) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `
+DELETE FROM features
+WHERE game_id = $1
+  AND archived_at IS NOT NULL
+  AND archived_at < $2`,
+		gameID, cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete archived features before cutoff: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // CollectFeatureSubtreeIDs returns rootId and all descendant feature ids (BFS), given all features in the game.
 func CollectFeatureSubtreeIDs(all []Feature, rootID string) []string {
 	childrenByParent := make(map[string][]string)

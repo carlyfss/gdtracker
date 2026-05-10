@@ -20,21 +20,26 @@ const sessionCookieName = "JSESSIONID"
 
 // Server wires auth routes and shared session / CSRF cookie settings.
 type Server struct {
-	db             *sql.DB
-	users          *repository.UserRepository
-	games          *repository.GameRepository
-	categories     *repository.CategoryRepository
-	tags           *repository.TagRepository
-	features       *repository.FeatureRepository
-	tasks          *repository.TaskRepository
-	taskRefs       *repository.TaskRefsRepository
-	gameExceptions *repository.GameExceptionRepository
-	gamePlayers    *repository.GamePlayerRepository
-	archived       *repository.ArchivedRepository
-	gameConfig     *repository.GameConfigurationRepository
-	store          *sessions.CookieStore
-	cookieDomain   string
-	cookieSecure   bool
+	db                   *sql.DB
+	users                *repository.UserRepository
+	games                *repository.GameRepository
+	categories           *repository.CategoryRepository
+	tags                 *repository.TagRepository
+	features             *repository.FeatureRepository
+	tasks                *repository.TaskRepository
+	taskRefs             *repository.TaskRefsRepository
+	gameExceptions       *repository.GameExceptionRepository
+	gamePlayers          *repository.GamePlayerRepository
+	archived             *repository.ArchivedRepository
+	gameConfig           *repository.GameConfigurationRepository
+	gameEventDefinitions *repository.GameEventDefinitionRepository
+	gameEvents           *repository.GameEventRepository
+	gameTraces           *repository.GameEventTraceRepository
+	feedbackMeters       *repository.GameFeedbackMeterDefinitionRepository
+	feedbacks            *repository.GameFeedbackRepository
+	store                *sessions.CookieStore
+	cookieDomain         string
+	cookieSecure         bool
 }
 
 // Config for New.
@@ -55,17 +60,22 @@ func New(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	var (
-		users          *repository.UserRepository
-		games          *repository.GameRepository
-		categories     *repository.CategoryRepository
-		tags           *repository.TagRepository
-		features       *repository.FeatureRepository
-		tasks          *repository.TaskRepository
-		taskRefs       *repository.TaskRefsRepository
-		gameExceptions *repository.GameExceptionRepository
-		gamePlayers    *repository.GamePlayerRepository
-		archived       *repository.ArchivedRepository
-		gameConfig     *repository.GameConfigurationRepository
+		users                *repository.UserRepository
+		games                *repository.GameRepository
+		categories           *repository.CategoryRepository
+		tags                 *repository.TagRepository
+		features             *repository.FeatureRepository
+		tasks                *repository.TaskRepository
+		taskRefs             *repository.TaskRefsRepository
+		gameExceptions       *repository.GameExceptionRepository
+		gamePlayers          *repository.GamePlayerRepository
+		archived             *repository.ArchivedRepository
+		gameConfig           *repository.GameConfigurationRepository
+		gameEventDefinitions *repository.GameEventDefinitionRepository
+		gameEvents           *repository.GameEventRepository
+		gameTraces           *repository.GameEventTraceRepository
+		feedbackMeters       *repository.GameFeedbackMeterDefinitionRepository
+		feedbacks            *repository.GameFeedbackRepository
 	)
 	if cfg.DB != nil {
 		users = repository.NewUserRepository(cfg.DB)
@@ -79,23 +89,33 @@ func New(cfg Config) (*Server, error) {
 		gamePlayers = repository.NewGamePlayerRepository(cfg.DB)
 		archived = repository.NewArchivedRepository(cfg.DB)
 		gameConfig = repository.NewGameConfigurationRepository(cfg.DB)
+		gameEventDefinitions = repository.NewGameEventDefinitionRepository(cfg.DB)
+		gameEvents = repository.NewGameEventRepository(cfg.DB)
+		gameTraces = repository.NewGameEventTraceRepository(cfg.DB)
+		feedbackMeters = repository.NewGameFeedbackMeterDefinitionRepository(cfg.DB)
+		feedbacks = repository.NewGameFeedbackRepository(cfg.DB)
 	}
 	return &Server{
-		db:             cfg.DB,
-		users:          users,
-		games:          games,
-		categories:     categories,
-		tags:           tags,
-		features:       features,
-		tasks:          tasks,
-		taskRefs:       taskRefs,
-		gameExceptions: gameExceptions,
-		gamePlayers:    gamePlayers,
-		archived:       archived,
-		gameConfig:     gameConfig,
-		store:          st,
-		cookieDomain:   cfg.CookieDomain,
-		cookieSecure:   cfg.CookieSecure,
+		db:                   cfg.DB,
+		users:                users,
+		games:                games,
+		categories:           categories,
+		tags:                 tags,
+		features:             features,
+		tasks:                tasks,
+		taskRefs:             taskRefs,
+		gameExceptions:       gameExceptions,
+		gamePlayers:          gamePlayers,
+		archived:             archived,
+		gameConfig:           gameConfig,
+		gameEventDefinitions: gameEventDefinitions,
+		gameEvents:           gameEvents,
+		gameTraces:           gameTraces,
+		feedbackMeters:       feedbackMeters,
+		feedbacks:            feedbacks,
+		store:                st,
+		cookieDomain:         cfg.CookieDomain,
+		cookieSecure:         cfg.CookieSecure,
 	}, nil
 }
 
@@ -115,6 +135,10 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 	s.registerFeatureRoutes(mux)
 	s.registerConfigurationRoutes(mux)
 	s.registerExceptionRoutes(mux)
+	s.registerIngestPlaneRoutes(mux)
+	s.registerGameEventRoutes(mux)
+	s.registerTraceRoutes(mux)
+	s.registerFeedbackRoutes(mux)
 
 	strip := http.StripPrefix("/api", mux)
 	return CorsMiddleware(corsEnv)(CsrfMiddleware(s.cookieDomain, s.cookieSecure)(strip))

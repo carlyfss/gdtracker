@@ -1,10 +1,11 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
-    Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, and game exceptions.
+    Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, game exceptions,
+    ingest plane (players, integration ping), game events (definitions + ingest), traces (heatmap), and feedback.
 servers:
   - url: http://localhost:8080
 tags:
@@ -26,6 +27,14 @@ tags:
     description: Per-game feature flags, settings, exception task template (session).
   - name: GameExceptions
     description: Exceptions, search, ingest (Bearer + X-Player-Id for ingest).
+  - name: IngestPlane
+    description: Player registration and integration ping (Bearer ingest token).
+  - name: GameEvents
+    description: Event definitions CRUD, event listing/search, event ingest (Bearer + X-Player-Id for ingest).
+  - name: GameTrace
+    description: Heatmap / trace listing and ingest (Bearer + X-Player-Id for ingest).
+  - name: GameFeedback
+    description: Feedback meter definitions, feedback list/detail, feedback ingest (Bearer + X-Player-Id for ingest).
 paths:
   /healthz:
     get:
@@ -877,6 +886,351 @@ paths:
           description: Missing/invalid token or player id
         "404":
           description: Game not found
+  /api/games/{gameId}/game-players:
+    post:
+      tags: [IngestPlane]
+      operationId: registerGamePlayer
+      summary: Register a player for ingest (Bearer ingest token only)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [playerId]
+                properties:
+                  playerId: { type: string }
+        "401": { description: Invalid token }
+        "404": { description: Game not found }
+  /api/games/{gameId}/integration:
+    post:
+      tags: [IngestPlane]
+      operationId: postIntegrationPing
+      summary: Record integration validation ping
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationPingRequest"
+      responses:
+        "204": { description: No content }
+        "400": { description: validation must be ok }
+        "401": { description: Invalid token }
+        "404": { description: Game not found }
+  /api/games/{gameId}/integration/status:
+    get:
+      tags: [IngestPlane]
+      operationId: getIntegrationStatus
+      summary: Last successful integration ping time (session)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationStatusResponse"
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+  /api/games/{gameId}/game-event-definitions:
+    get:
+      tags: [GameEvents]
+      operationId: listGameEventDefinitions
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GameEventDefinition" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    post:
+      tags: [GameEvents]
+      operationId: createGameEventDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameEventDefinitionUpsertRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameEventDefinition" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+        "409": { description: Duplicate code }
+  /api/games/{gameId}/game-event-definitions/{id}:
+    put:
+      tags: [GameEvents]
+      operationId: updateGameEventDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/EventDefinitionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameEventDefinitionUpsertRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameEventDefinition" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Not found }
+        "409": { description: Duplicate code }
+    delete:
+      tags: [GameEvents]
+      operationId: deleteGameEventDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/EventDefinitionId"
+      responses:
+        "204": { description: Deleted }
+        "401": { description: Not authenticated }
+        "404": { description: Not found }
+        "409": { description: Has recorded events }
+  /api/games/{gameId}/game-events:
+    get:
+      tags: [GameEvents]
+      operationId: listGameEvents
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: code
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GameEvent" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+  /api/games/{gameId}/game-events/search:
+    get:
+      tags: [GameEvents]
+      operationId: searchGameEvents
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: code
+          in: query
+          schema: { type: string }
+        - name: playerId
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameEventPage" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+  /api/games/{gameId}/game-events/ingest:
+    post:
+      tags: [GameEvents]
+      operationId: ingestGameEvent
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameEventIngestRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameEvent" }
+        "400": { description: Template/render validation }
+        "401": { description: Invalid token or player }
+        "404": { description: Game or definition not found }
+  /api/games/{gameId}/game-trace:
+    get:
+      tags: [GameTrace]
+      operationId: listGameTrace
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: playerId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GameEventTrace" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+  /api/games/{gameId}/game-trace/ingest:
+    post:
+      tags: [GameTrace]
+      operationId: ingestGameTrace
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameEventTraceIngestRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameEventTrace" }
+        "400": { description: Bad request }
+        "401": { description: Invalid token or player }
+        "404": { description: Game or event not found }
+  /api/games/{gameId}/game-feedback-meter-definitions:
+    get:
+      tags: [GameFeedback]
+      operationId: listGameFeedbackMeterDefinitions
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GameFeedbackMeterDefinition" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    post:
+      tags: [GameFeedback]
+      operationId: createGameFeedbackMeterDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameFeedbackMeterDefinitionUpsertRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameFeedbackMeterDefinition" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+        "409": { description: Duplicate field key }
+  /api/games/{gameId}/game-feedback-meter-definitions/{id}:
+    put:
+      tags: [GameFeedback]
+      operationId: updateGameFeedbackMeterDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeedbackMeterId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameFeedbackMeterDefinitionUpsertRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameFeedbackMeterDefinition" }
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Not found }
+        "409": { description: Duplicate field key }
+    delete:
+      tags: [GameFeedback]
+      operationId: deleteGameFeedbackMeterDefinition
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeedbackMeterId"
+      responses:
+        "204": { description: Deleted }
+        "401": { description: Not authenticated }
+        "404": { description: Not found }
+  /api/games/{gameId}/game-feedback:
+    get:
+      tags: [GameFeedback]
+      operationId: listGameFeedback
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GameFeedbackSummary" }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    post:
+      tags: [GameFeedback]
+      operationId: ingestGameFeedback
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GameFeedbackIngestRequest" }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameFeedback" }
+        "400": { description: Validation error }
+        "401": { description: Invalid token or player }
+        "404": { description: Game not found }
+  /api/games/{gameId}/game-feedback/{feedbackId}:
+    get:
+      tags: [GameFeedback]
+      operationId: getGameFeedbackDetail
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/FeedbackId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameFeedbackDetail" }
+        "401": { description: Not authenticated }
+        "404": { description: Not found }
 components:
   parameters:
     GameId:
@@ -906,6 +1260,21 @@ components:
       schema: { type: string }
     ExceptionId:
       name: exceptionId
+      in: path
+      required: true
+      schema: { type: string }
+    EventDefinitionId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    FeedbackMeterId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    FeedbackId:
+      name: feedbackId
       in: path
       required: true
       schema: { type: string }
@@ -1154,3 +1523,139 @@ components:
         location: { type: string, nullable: true }
         map: { type: string, nullable: true }
         stackTrace: { type: string, nullable: true }
+    IntegrationPingRequest:
+      type: object
+      required: [validation]
+      properties:
+        validation:
+          type: string
+          enum: [ok]
+    IntegrationStatusResponse:
+      type: object
+      properties:
+        lastValidatedAt: { type: string, format: date-time, nullable: true }
+    GameEventDefinition:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        displayName: { type: string, nullable: true }
+        messageTemplate: { type: string }
+        imageData: { type: string, nullable: true }
+        color: { type: string }
+    GameEventDefinitionUpsertRequest:
+      type: object
+      required: [code, messageTemplate]
+      properties:
+        code: { type: string }
+        displayName: { type: string, nullable: true }
+        messageTemplate: { type: string }
+        imageData: { type: string, nullable: true }
+        color: { type: string, nullable: true }
+    GameEvent:
+      type: object
+      properties:
+        id: { type: string }
+        definitionId: { type: string }
+        definitionCode: { type: string }
+        definitionColor: { type: string }
+        playerId: { type: string, nullable: true }
+        renderedMessage: { type: string }
+        payload:
+          type: object
+          additionalProperties: { type: string }
+        timestamp: { type: string, format: date-time }
+    GameEventPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/GameEvent" }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+        number: { type: integer }
+        size: { type: integer }
+    GameEventIngestRequest:
+      type: object
+      required: [definitionCode]
+      properties:
+        definitionCode: { type: string }
+        parameters:
+          type: object
+          additionalProperties: { type: string }
+    GameEventTrace:
+      type: object
+      properties:
+        id: { type: string }
+        location: { type: string, nullable: true }
+        map: { type: string, nullable: true }
+        playerId: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
+        gameEventId: { type: string, nullable: true }
+        renderedMessage: { type: string, nullable: true }
+        definitionCode: { type: string, nullable: true }
+        definitionColor: { type: string, nullable: true }
+    GameEventTraceIngestRequest:
+      type: object
+      properties:
+        location: { type: string }
+        map: { type: string }
+        gameEventId: { type: string, nullable: true }
+    GameFeedbackMeterDefinition:
+      type: object
+      properties:
+        id: { type: string }
+        fieldKey: { type: string }
+        question: { type: string }
+        sortOrder: { type: integer }
+    GameFeedbackMeterDefinitionUpsertRequest:
+      type: object
+      required: [fieldKey, question]
+      properties:
+        fieldKey: { type: string }
+        question: { type: string }
+        sortOrder: { type: integer }
+    GameFeedbackSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        playerId: { type: string }
+        createdAt: { type: string, format: date-time }
+    GameFeedbackDetail:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        playerId: { type: string }
+        createdAt: { type: string, format: date-time }
+        meters:
+          type: array
+          items: { $ref: "#/components/schemas/GameFeedbackMeterValue" }
+    GameFeedbackMeterValue:
+      type: object
+      properties:
+        fieldKey: { type: string }
+        question: { type: string }
+        value: { type: integer }
+    GameFeedbackIngestRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        meters:
+          type: object
+          additionalProperties: { type: integer }
+    GameFeedback:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        playerId: { type: string }
+        createdAt: { type: string, format: date-time }
+        meters:
+          type: object
+          additionalProperties: { type: integer }
