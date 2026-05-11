@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { GameEvent, GameEventDefinition, GameEventPage } from '../api/gameEvents'
 import { listGameEventDefinitions, searchGameEvents } from '../api/gameEvents'
 import { getLocationHeatmap, getLocationHeatmapForPlayer } from '../api/trace'
+import { FilterPillAddGroup, type FilterPillItem } from '../components/FilterPillAddGroup'
 import { useGameId } from '../context/GameIdContext'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import { isHex6, normalizeHex6 } from '../util/hexColor'
@@ -204,7 +205,8 @@ export function HeatmapPage() {
     }, [playerIdInput])
 
     useEffect(() => {
-        setEventsPage(0)
+        const id = window.requestAnimationFrame(() => setEventsPage(0))
+        return () => window.cancelAnimationFrame(id)
     }, [eventSearchDebounced, eventCodeFilter, eventsSize, gameId])
 
     useEffect(() => {
@@ -320,6 +322,106 @@ export function HeatmapPage() {
         if (mapOptions.includes(selectedMap)) return selectedMap
         return '__all__'
     }, [mapOptions, selectedMap])
+
+    const mapFilterSelected = useMemo((): FilterPillItem[] => {
+        if (effectiveSelectedMap === '__all__') return []
+        return [
+            {
+                value: effectiveSelectedMap,
+                label: effectiveSelectedMap,
+                swatchColor: DEFAULT_EVENT_COLOR,
+            },
+        ]
+    }, [effectiveSelectedMap])
+
+    const mapFilterAddOptions = useMemo((): FilterPillItem[] => {
+        const rows: FilterPillItem[] = []
+        if (effectiveSelectedMap !== '__all__') {
+            rows.push({ value: '__all__', label: 'All maps', swatchColor: DEFAULT_EVENT_COLOR })
+        }
+        for (const m of mapOptions) {
+            if (m === effectiveSelectedMap) continue
+            rows.push({ value: m, label: m, swatchColor: DEFAULT_EVENT_COLOR })
+        }
+        return rows
+    }, [effectiveSelectedMap, mapOptions])
+
+    const heatmapChartEventSelected = useMemo((): FilterPillItem[] => {
+        if (heatmapEventCodeFilter === '__all__') return []
+        if (heatmapEventCodeFilter === '__none__') {
+            return [
+                {
+                    value: '__none__',
+                    label: 'No event code',
+                    swatchColor: 'rgba(255,255,255,0.15)',
+                },
+            ]
+        }
+        const d = heatmapEventDefinitionsSorted.find((x) => x.code === heatmapEventCodeFilter)
+        return [
+            {
+                value: heatmapEventCodeFilter,
+                label: heatmapEventCodeFilter,
+                swatchColor: d ? normalizeHex6(d.color, DEFAULT_EVENT_COLOR) : DEFAULT_EVENT_COLOR,
+            },
+        ]
+    }, [heatmapEventCodeFilter, heatmapEventDefinitionsSorted])
+
+    const heatmapChartEventAddOptions = useMemo((): FilterPillItem[] => {
+        const rows: FilterPillItem[] = []
+        if (heatmapEventCodeFilter !== '__all__') {
+            rows.push({
+                value: '__all__',
+                label: 'All event codes',
+                swatchColor: DEFAULT_EVENT_COLOR,
+            })
+        }
+        if (heatmapEventCodeFilter !== '__none__') {
+            rows.push({
+                value: '__none__',
+                label: 'No event code',
+                swatchColor: 'rgba(255,255,255,0.15)',
+            })
+        }
+        for (const d of heatmapEventDefinitionsSorted) {
+            if (d.code === heatmapEventCodeFilter) continue
+            rows.push({
+                value: d.code,
+                label: d.code,
+                swatchColor: normalizeHex6(d.color, DEFAULT_EVENT_COLOR),
+            })
+        }
+        return rows
+    }, [heatmapEventCodeFilter, heatmapEventDefinitionsSorted])
+
+    const gameEventsCodeSelected = useMemo((): FilterPillItem[] => {
+        if (eventCodeFilter === '__all__') return []
+        const d = eventDefinitions.find((e) => e.code === eventCodeFilter)
+        return [
+            {
+                value: eventCodeFilter,
+                label: eventCodeFilter,
+                swatchColor: d ? normalizeHex6(d.color, DEFAULT_EVENT_COLOR) : DEFAULT_EVENT_COLOR,
+            },
+        ]
+    }, [eventCodeFilter, eventDefinitions])
+
+    const gameEventsCodeAddOptions = useMemo((): FilterPillItem[] => {
+        const rows: FilterPillItem[] = []
+        if (eventCodeFilter !== '__all__') {
+            rows.push({ value: '__all__', label: 'All event codes', swatchColor: DEFAULT_EVENT_COLOR })
+        }
+        for (const c of eventDefinitionCodes) {
+            if (c === eventCodeFilter) continue
+            const d = eventDefinitions.find((e) => e.code === c)
+            rows.push({
+                value: c,
+                label: c,
+                swatchColor: d ? normalizeHex6(d.color, DEFAULT_EVENT_COLOR) : DEFAULT_EVENT_COLOR,
+            })
+        }
+        return rows
+    }, [eventCodeFilter, eventDefinitionCodes, eventDefinitions])
 
     const filteredPoints = useMemo(() => {
         return points.filter((p) => {
@@ -482,22 +584,18 @@ export function HeatmapPage() {
             <section className="gamePageSection">
                 <div className="cardHeader">
                     <h2 className="cardTitle">Location Heatmap</h2>
-                    <select
-                        className="intervalSelect"
-                        value={effectiveSelectedMap}
-                        onChange={(e) => setSelectedMap(e.target.value)}
-                        aria-label="Filter by map"
-                    >
-                        <option value="__all__">All maps</option>
-                        {mapOptions.map((m) => (
-                            <option key={m} value={m}>
-                                {m}
-                            </option>
-                        ))}
-                    </select>
                 </div>
                 <div className="cardBody tasksLayout">
                     <aside className="tasksFilterPanel" aria-label="Heatmap filters">
+                        <FilterPillAddGroup
+                            title="Filter by map"
+                            selected={mapFilterSelected}
+                            onRemove={() => setSelectedMap('__all__')}
+                            addOptions={mapFilterAddOptions}
+                            onAdd={(v) => setSelectedMap(v)}
+                            addPlaceholder="Add map filter…"
+                            ariaLabel="Heatmap map filters"
+                        />
                         <div className="tasksFilterPanelTitle">Filter by player id</div>
                         <input
                             type="search"
@@ -507,54 +605,16 @@ export function HeatmapPage() {
                             onChange={(e) => setPlayerIdInput(e.target.value)}
                             aria-label="Filter heatmap by player id"
                         />
-                        <div className="tasksFilterPanelTitle">Filter by event code</div>
-                        <div className="tasksFilterList" role="list">
-                            <button
-                                type="button"
-                                className="filterItem"
-                                data-active={heatmapEventCodeFilter === '__all__'}
-                                onClick={() => setHeatmapEventCodeFilter('__all__')}
-                            >
-                                <span className="filterItemInner">
-                                    <span className="featureSwatch" style={{ backgroundColor: DEFAULT_EVENT_COLOR }} />
-                                    <span>All event codes</span>
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                className="filterItem"
-                                data-active={heatmapEventCodeFilter === '__none__'}
-                                onClick={() => setHeatmapEventCodeFilter('__none__')}
-                            >
-                                <span className="filterItemInner">
-                                    <span
-                                        className="featureSwatch"
-                                        style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-                                    />
-                                    <span>No event code</span>
-                                </span>
-                            </button>
-                            {heatmapEventDefinitionsSorted.map((d) => {
-                                const swatch = normalizeHex6(d.color, DEFAULT_EVENT_COLOR)
-                                return (
-                                    <button
-                                        key={d.id}
-                                        type="button"
-                                        className="filterItem"
-                                        data-active={heatmapEventCodeFilter === d.code}
-                                        onClick={() => setHeatmapEventCodeFilter(d.code)}
-                                    >
-                                        <span className="filterItemInner">
-                                            <span className="featureSwatch" style={{ backgroundColor: swatch }} />
-                                            <span>{d.code}</span>
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                        <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                            Range (chart X)
-                        </div>
+                        <FilterPillAddGroup
+                            title="Filter by event code"
+                            selected={heatmapChartEventSelected}
+                            onRemove={() => setHeatmapEventCodeFilter('__all__')}
+                            addOptions={heatmapChartEventAddOptions}
+                            onAdd={(v) => setHeatmapEventCodeFilter(v)}
+                            addPlaceholder="Add event code filter…"
+                            ariaLabel="Heatmap chart event code filters"
+                        />
+                        <div className="tasksFilterPanelTitle">Range (chart X)</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <div
                                 style={{
@@ -641,9 +701,7 @@ export function HeatmapPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                            Range (chart Y)
-                        </div>
+                        <div className="tasksFilterPanelTitle">Range (chart Y)</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <div
                                 style={{
@@ -823,19 +881,17 @@ export function HeatmapPage() {
                             aria-label="Filter game events by player id"
                             style={{ minWidth: 200, flex: '1 1 200px' }}
                         />
-                        <select
-                            className="intervalSelect"
-                            value={eventCodeFilter}
-                            onChange={(e) => setEventCodeFilter(e.target.value)}
-                            aria-label="Filter by event code"
-                        >
-                            <option value="__all__">All event codes</option>
-                            {eventDefinitionCodes.map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
-                        </select>
+                        <div style={{ flex: '1 1 220px', minWidth: 180, maxWidth: 420 }}>
+                            <FilterPillAddGroup
+                                title="Event code"
+                                selected={gameEventsCodeSelected}
+                                onRemove={() => setEventCodeFilter('__all__')}
+                                addOptions={gameEventsCodeAddOptions}
+                                onAdd={(v) => setEventCodeFilter(v)}
+                                addPlaceholder="Add event code filter…"
+                                ariaLabel="Game events list event code filters"
+                            />
+                        </div>
                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                             <span className="muted" style={{ fontSize: 12 }}>
                                 Page size

@@ -613,6 +613,9 @@
 }
 
 .tasksFilterPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
     background: var(--panel);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 12px;
@@ -631,6 +634,90 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+.filterPillAddGroup {
+    min-width: 0;
+}
+
+.filterPillAddGroupBody {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.filterPillList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+}
+
+.filterPill {
+    margin: 0;
+    padding: 0;
+    max-width: 100%;
+}
+
+.filterPillInner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 4px 4px 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.25;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-h);
+}
+
+.filterPillLabel {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.filterPillRemove {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-h);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.filterPillRemove:hover {
+    background: rgba(248, 113, 113, 0.25);
+    color: #fecaca;
+}
+
+.filterPillRemove:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.filterPillAddSelect {
+    width: 100%;
+    max-width: 100%;
 }
 
 .filterItem {
@@ -1910,7 +1997,7 @@
 }
 
 .tasksFilterPanelFooter {
-    margin-top: 14px;
+    margin-top: 0;
     padding-top: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
