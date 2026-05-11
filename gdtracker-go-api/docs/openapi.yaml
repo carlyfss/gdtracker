@@ -509,6 +509,8 @@ paths:
     post:
       tags: [Tasks]
       operationId: archiveTask
+      summary: Archive task subtree
+      description: Archives this task and every descendant task in the same game (via parent_task_id). Idempotent when the root task is already archived.
       parameters:
         - $ref: "#/components/parameters/GameId"
         - $ref: "#/components/parameters/TaskId"
@@ -534,6 +536,8 @@ paths:
     post:
       tags: [Tasks]
       operationId: unarchiveTask
+      summary: Unarchive task subtree
+      description: When the task's feature is not archived, clears archive state for this task and all its descendant tasks in the same game. Other response branches apply when the feature is archived (restore flow).
       parameters:
         - $ref: "#/components/parameters/GameId"
         - $ref: "#/components/parameters/TaskId"
@@ -1543,6 +1547,10 @@ components:
         messageTemplate: { type: string }
         imageData: { type: string, nullable: true }
         color: { type: string }
+        examplePlaceholderValues:
+          type: object
+          additionalProperties: { type: string }
+          description: Uppercase placeholder token names (e.g. KEY, VALUE) to sample strings for UI preview; PLAYER_ID is never stored.
     GameEventDefinitionUpsertRequest:
       type: object
       required: [code, messageTemplate]
@@ -1552,6 +1560,9 @@ components:
         messageTemplate: { type: string }
         imageData: { type: string, nullable: true }
         color: { type: string, nullable: true }
+        examplePlaceholderValues:
+          type: object
+          additionalProperties: { type: string }
     GameEvent:
       type: object
       properties:

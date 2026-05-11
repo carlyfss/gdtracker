@@ -45,7 +45,7 @@ func run(ctx context.Context, logger *log.Logger) error {
 		if err := db.MigrateUp(ctx, sqlDB); err != nil {
 			return err
 		}
-		logger.Printf("database: migrate mode %q (auto skips when Liquibase databasechangelog exists)", db.AutoMigrateMode())
+		logger.Printf("database: migrate mode %q (off skips embedded migrations)", db.AutoMigrateMode())
 	}
 
 	mux := http.NewServeMux()

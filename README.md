@@ -22,7 +22,7 @@ docker compose up -d --build
 This starts:
 
 - `postgres` — PostgreSQL 14, persistent volume `gdtracker-pgdata`, **host port `5433`** mapped to `5432` inside the container (see `docker-compose.yml`).
-- `backend` — **`gdtracker-go-api`** (Go), exposed on `${SERVER_PORT}` (default `8080`). Schema updates use **golang-migrate** (not Liquibase); see [gdtracker-go-api/docs/MIGRATIONS.md](./gdtracker-go-api/docs/MIGRATIONS.md).
+- `backend` — **`gdtracker-go-api`** (Go), exposed on `${SERVER_PORT}` (default `8080`). Schema updates use **embedded golang-migrate** on startup unless `GDTRACKER_GO_AUTO_MIGRATE=off`; see [gdtracker-go-api/docs/MIGRATIONS.md](./gdtracker-go-api/docs/MIGRATIONS.md).
 - `frontend` — **`gdtracker-web`** (nginx serving the static bundle), exposed on `${FRONTEND_PORT}` (default `5173`). Open `http://localhost:5173`.
 
 If you previously used compose with the old volume name `numb-tracker-pgdata`, either keep using that data by renaming the Docker volume to `gdtracker-pgdata` or run `docker compose down -v` and start fresh (drops DB data).
@@ -53,7 +53,7 @@ docker compose build --no-cache frontend  # rebuild after changing VITE_API_BASE
 | `GDTRACKER_CORS_ALLOWED_ORIGINS` | no | backend | Comma-separated origins for credentialed `/api/**` requests. **`localhost` and `127.0.0.1` are different** — list both if you switch hosts. Compose defaults to `http://localhost:${FRONTEND_PORT}` when unset. Changing only this: recreate `backend` (no frontend rebuild). |
 | `GDTRACKER_COOKIE_DOMAIN` | no | backend | Cookie `Domain` for cross-subdomain setups; often empty on localhost |
 | `GDTRACKER_COOKIE_SECURE` | no | backend | Set `true` when the API is only served over HTTPS |
-| `GDTRACKER_GO_AUTO_MIGRATE` | no | backend | `auto` \| `on` \| `off` — startup migration behavior (see [MIGRATIONS.md](./gdtracker-go-api/docs/MIGRATIONS.md)) |
+| `GDTRACKER_GO_AUTO_MIGRATE` | no | backend | `auto` (default) / `on` run embedded migrations Up; `off` skips (see [MIGRATIONS.md](./gdtracker-go-api/docs/MIGRATIONS.md)) |
 | `GDTRACKER_GO_MIGRATE_FORCE_VERSION` | no | backend | One-shot dirty repair; see [MIGRATIONS.md](./gdtracker-go-api/docs/MIGRATIONS.md) |
 | `GDTRACKER_ARCHIVE_RETENTION` | no | backend | Archive retention feature flag; details in [ARCHIVE_RETENTION.md](./gdtracker-go-api/docs/ARCHIVE_RETENTION.md) |
 | `GDTRACKER_ARCHIVE_RETENTION_TIMEZONE` | no | backend | With archive retention |

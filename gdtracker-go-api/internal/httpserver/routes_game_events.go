@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -20,8 +21,9 @@ import (
 )
 
 var (
-	gameEventCodePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_\-]*$`)
-	eventColorHexPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	gameEventCodePattern         = regexp.MustCompile(`^[a-z0-9][a-z0-9_\-]*$`)
+	eventColorHexPattern         = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	examplePlaceholderKeyPattern = regexp.MustCompile(`^[A-Z0-9_]+$`)
 )
 
 const (
@@ -30,6 +32,11 @@ const (
 	maxGameEventListLimit     = 500
 	defaultEventSearchSize    = 10
 	maxEventSearchSize        = 100
+
+	maxExamplePlaceholderKeys      = 64
+	maxExamplePlaceholderKeyLen    = 64
+	maxExamplePlaceholderValueLen  = 200
+	maxExamplePlaceholderJSONBytes = 16384
 )
 
 func (s *Server) registerGameEventRoutes(mux *http.ServeMux) {
@@ -95,10 +102,11 @@ func imageDataNull(raw *string) sql.NullString {
 
 func gameEventDefinitionToMap(d repository.GameEventDefinitionRow) map[string]any {
 	m := map[string]any{
-		"id":              d.ID,
-		"code":            d.Code,
-		"messageTemplate": d.MessageTemplate,
-		"color":           d.Color,
+		"id":                       d.ID,
+		"code":                     d.Code,
+		"messageTemplate":          d.MessageTemplate,
+		"color":                    d.Color,
+		"examplePlaceholderValues": d.ExamplePlaceholderValues,
 	}
 	if d.DisplayName.Valid {
 		m["displayName"] = d.DisplayName.String
@@ -109,6 +117,9 @@ func gameEventDefinitionToMap(d repository.GameEventDefinitionRow) map[string]an
 		m["imageData"] = d.ImageData.String
 	} else {
 		m["imageData"] = nil
+	}
+	if m["examplePlaceholderValues"] == nil {
+		m["examplePlaceholderValues"] = map[string]string{}
 	}
 	return m
 }
@@ -132,11 +143,48 @@ func gameEventRowToMap(e repository.GameEventRow) map[string]any {
 }
 
 type gameEventDefinitionUpsertBody struct {
-	Code            string  `json:"code"`
-	DisplayName     *string `json:"displayName"`
-	MessageTemplate string  `json:"messageTemplate"`
-	ImageData       *string `json:"imageData"`
-	Color           *string `json:"color"`
+	Code                     string            `json:"code"`
+	DisplayName              *string           `json:"displayName"`
+	MessageTemplate          string            `json:"messageTemplate"`
+	ImageData                *string           `json:"imageData"`
+	Color                    *string           `json:"color"`
+	ExamplePlaceholderValues map[string]string `json:"examplePlaceholderValues"`
+}
+
+func normalizeExamplePlaceholderValues(raw map[string]string) (map[string]string, error) {
+	if len(raw) == 0 {
+		return map[string]string{}, nil
+	}
+	if len(raw) > maxExamplePlaceholderKeys {
+		return nil, errors.New("too many example placeholder entries")
+	}
+	out := make(map[string]string, len(raw))
+	for k, v := range raw {
+		nk := strings.ToUpper(strings.TrimSpace(k))
+		nk = strings.ReplaceAll(nk, "-", "_")
+		if nk == "" || nk == "PLAYER_ID" {
+			continue
+		}
+		if len(nk) > maxExamplePlaceholderKeyLen {
+			return nil, errors.New("invalid example placeholder key length")
+		}
+		if !examplePlaceholderKeyPattern.MatchString(nk) {
+			return nil, errors.New("invalid example placeholder key")
+		}
+		vv := v
+		if len(vv) > maxExamplePlaceholderValueLen {
+			return nil, errors.New("example placeholder value too long")
+		}
+		out[nk] = vv
+	}
+	j, err := json.Marshal(out)
+	if err != nil {
+		return nil, errors.New("invalid example placeholder values")
+	}
+	if len(j) > maxExamplePlaceholderJSONBytes {
+		return nil, errors.New("example placeholder values too large")
+	}
+	return out, nil
 }
 
 func (s *Server) getGameEventDefinitions(w http.ResponseWriter, r *http.Request) {
@@ -207,6 +255,11 @@ func (s *Server) postGameEventDefinition(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	exPh, err := normalizeExamplePlaceholderValues(body.ExamplePlaceholderValues)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	exists, err := s.gameEventDefinitions.ExistsByGameAndCodeIgnoreCase(ctx, gameID, code)
 	if err != nil {
@@ -219,7 +272,7 @@ func (s *Server) postGameEventDefinition(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	id := uuid.NewString()
-	if err := s.gameEventDefinitions.Insert(ctx, id, gameID, code, dn, msg, imageDataNull(body.ImageData), col); err != nil {
+	if err := s.gameEventDefinitions.Insert(ctx, id, gameID, code, dn, msg, imageDataNull(body.ImageData), col, exPh); err != nil {
 		if isPGUniqueViolation(err) {
 			http.Error(w, "game event definition code already exists", http.StatusConflict)
 			return
@@ -309,7 +362,12 @@ func (s *Server) putGameEventDefinition(w http.ResponseWriter, r *http.Request) 
 		}
 		col = c
 	}
-	if err := s.gameEventDefinitions.Update(ctx, id, gameID, code, dn, msg, imageDataNull(body.ImageData), col); err != nil {
+	exPh, err := normalizeExamplePlaceholderValues(body.ExamplePlaceholderValues)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.gameEventDefinitions.Update(ctx, id, gameID, code, dn, msg, imageDataNull(body.ImageData), col, exPh); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "game event definition not found", http.StatusNotFound)
 			return

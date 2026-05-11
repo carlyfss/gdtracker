@@ -1,17 +1,16 @@
 # Database migrations (Go API)
 
-## Source of truth (Spring / Liquibase)
+## Authority for `gdtracker-go-api`
 
-The production schema is defined by **Liquibase** in the Spring Boot project:
+On startup (unless `GDTRACKER_GO_AUTO_MIGRATE=off`), the Go binary runs **embedded golang-migrate** SQL from `internal/db/migrations/` and records versions in **`schema_migrations`**.
 
-- Master changelog: [`gdtracker-api/src/main/resources/db/changelog/db.changelog-master.xml`](../../gdtracker-api/src/main/resources/db/changelog/db.changelog-master.xml)
-- SQL increments: [`gdtracker-api/src/main/resources/db/changelog/migrations/`](../../gdtracker-api/src/main/resources/db/changelog/migrations/)
+Legacy databases may still contain Liquibase’s **`databasechangelog`** table from older deployments; that does **not** disable Go migrations anymore.
 
-Runtime queries (not migrations) live under `gdtracker-api/src/main/resources/sql/`.
+Historical Spring/Liquibase sources (reference only): [`gdtracker-api/src/main/resources/db/changelog/`](../../gdtracker-api/src/main/resources/db/changelog/).
 
-## Inventory (0001–0023)
+## Inventory (early versions mirror legacy Liquibase order)
 
-Order matches `db.changelog-master.xml`.
+Go migrations **000001–000023** historically mirrored Spring changelog order. **000024+** are Go-first increments.
 
 | # | File | Purpose |
 |---|------|---------|
@@ -38,10 +37,11 @@ Order matches `db.changelog-master.xml`.
 | 21 | `0021_game_exception_task_sequences_per_game.sql` | Per-game sequence table |
 | 22 | `0022_archive_timebomb_and_archive_tables.sql` | `archived_at`, archive mirror tables, backfill |
 | 23 | `0023_tasks_feature_fk_cascade_delete.sql` | `tasks` → `features` FK `ON DELETE CASCADE` |
+| 24 | `000024_game_event_definition_example_placeholders.sql` | `example_placeholder_values` JSONB on `game_event_definitions` |
 
-## Go mirror (`golang-migrate`)
+## Go embedded migrations (`golang-migrate`)
 
-The Go service ships the **same SQL** as 23 sequential `golang-migrate` versions under `internal/db/migrations/` (`*_up.sql` / `*_down.sql`). Strips Liquibase metadata only; SQL bodies match the Java project.
+Files live under `internal/db/migrations/` as `*_up.sql` / `*_down.sql`.
 
 On startup, migrations run on a **separate** Postgres pool opened from the same DSN as the app. That avoids golang-migrate’s `Close()` shutting down the application’s primary `*sql.DB` (which would surface as `sql: database is closed` on the first API query).
 
@@ -49,16 +49,16 @@ On startup, migrations run on a **separate** Postgres pool opened from the same 
 
 **Note:** With `MultiStatementEnabled`, the driver splits the migration file on **every ASCII semicolon** (including inside `--` comments and string literals). Avoid `;` except as real statement terminators; `COMMENT` strings use a comma instead of a semicolon where the Liquibase original had one.
 
-## Migration authority (do not double-apply)
+## Version tables
 
-- **Liquibase** records changes in `databasechangelog` (default table name).
-- **golang-migrate** uses `schema_migrations`.
+- **golang-migrate** uses **`schema_migrations`** (authoritative for what the Go binary applied).
+- Legacy **Liquibase** may still have **`databasechangelog`**; do not use it to gate Go migrations.
 
-**Rules:**
+**Operational rules:**
 
-1. **Database already managed by Spring / Liquibase** — do **not** run Go `migrate up` on that database unless you are doing a deliberate cutover and have a written plan (baseline or fresh DB). Prefer `GDTRACKER_GO_AUTO_MIGRATE=off` (default) so the Go binary does not apply migrations.
-2. **Greenfield / Go-only Postgres** — set `GDTRACKER_GO_AUTO_MIGRATE=on` (or `auto` when `databasechangelog` is absent) so the app applies `internal/db/migrations` on startup, **or** run the migrate CLI against the DSN (see README).
-3. Never run Liquibase and golang-migrate **both** against the same database for the same logical schema without reconciling their version tables.
+1. **Normal operation** — leave `GDTRACKER_GO_AUTO_MIGRATE` unset or `auto` / `on` so pending `internal/db/migrations` apply on startup.
+2. **Disable binary migrations** — set `GDTRACKER_GO_AUTO_MIGRATE=off` only when you intentionally manage schema elsewhere (then apply the same DDL yourself).
+3. Avoid running **Liquibase `update`** and **golang-migrate `up`** as competing writers against the same schema without a coordinated cutover plan.
 
 ## Dirty `schema_migrations` (failed migration)
 

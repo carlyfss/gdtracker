@@ -3,7 +3,7 @@
 ## What lives here
 
 - **OpenAPI**: `docs/openapi.yaml` (update whenever routes/req/resp/status codes change)
-- **Liquibase parity / migration authority**: `docs/MIGRATIONS.md`
+- **Embedded SQL migrations (golang-migrate)**: `docs/MIGRATIONS.md`
 - **Auth / CSRF / CORS (Spring parity)**: `docs/AUTH.md`
 - **Archive retention (scheduled purge of archived rows)**: `docs/ARCHIVE_RETENTION.md`
 - **Spring vs Go error-shape notes (ingest/session)**: `docs/CODE_REVIEW_SPOTCHECK.md`
@@ -34,8 +34,8 @@ gdtracker-go-api/
 ## Database (Phase 0)
 
 - **Env**: `DB_URL` (JDBC `jdbc:postgresql://host:port/dbname[?query]`), `DB_USERNAME`, `DB_PASSWORD` — same as [`gdtracker-api`](../../gdtracker-api/README.md).
-- **Migrations**: 23 versions embedded under `internal/db/migrations/` (mirrors Liquibase order). See **`MIGRATIONS.md`** for the inventory and **single-owner** rules (Liquibase vs golang-migrate).
-- **Auto migrate**: `GDTRACKER_GO_AUTO_MIGRATE` — `auto` (default), `on`, or `off`. Default `auto` skips golang-migrate when table `databasechangelog` exists so a Spring-managed database is not double-migrated.
+- **Migrations**: Embedded SQL under `internal/db/migrations/` (`*_up.sql` / `*_down.sql`). See **`MIGRATIONS.md`** for inventory and operational notes.
+- **Auto migrate**: `GDTRACKER_GO_AUTO_MIGRATE` — `auto` (default) or `on` runs embedded golang-migrate **Up** on startup; `off` skips (operational escape hatch).
 
 ## Archive retention
 
@@ -74,7 +74,7 @@ go run ./cmd/gdtracker-go-api
 curl -sf http://localhost:8080/readyz
 ```
 
-Compare resulting tables to a Spring `ddl-auto=validate` database, or run Spring against the same DB only **after** choosing a single migration owner (see `MIGRATIONS.md`).
+See **`MIGRATIONS.md`** if you share a database with legacy tooling (Liquibase history may still exist alongside **`schema_migrations`**).
 
 ### CLI-only migrate (optional)
 

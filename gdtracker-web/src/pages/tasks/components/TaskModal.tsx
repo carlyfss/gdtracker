@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { Category } from '../../../api/categories'
@@ -17,6 +18,34 @@ import {
     type UiState,
 } from '../tasksPageUtils'
 
+function TaskModalSubtasksContent({
+    directSubtasks,
+    onOpenSubtask,
+}: {
+    directSubtasks: Task[]
+    onOpenSubtask?: (task: Task) => void
+}) {
+    return (
+        <div className="modalTaskSubtasksBelowParent">
+            <div className="modalSubtasksHeading">Subtasks</div>
+            {directSubtasks.length === 0 ? (
+                <p className="modalSubtasksEmpty muted">No subtasks for this task.</p>
+            ) : (
+                <ul className="modalSubtasksList">
+                    {directSubtasks.map((st) => (
+                        <li key={st.id}>
+                            <button type="button" className="modalSubtaskRowBtn" onClick={() => onOpenSubtask?.(st)}>
+                                <span className="modalSubtaskTitle">{st.title || 'Untitled'}</span>
+                                <span className="modalSubtaskStatus muted">{statusLabel(st.status as TaskStatus)}</span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    )
+}
+
 export type TaskModalProps = {
     modal: TaskModalState
     state: UiState
@@ -26,8 +55,8 @@ export type TaskModalProps = {
     categories: Category[]
     allTags: Tag[]
     tasks: Task[]
-    modalTitleText: string
     canSubmitDraft: (d: TaskDraft) => boolean
+    onOpenSubtask?: (task: Task) => void
     closeModal: () => void
     toggleTaskSurface: () => void
     cancelEditToView: () => void
@@ -50,8 +79,8 @@ export function TaskModal(props: TaskModalProps) {
         categories,
         allTags,
         tasks,
-        modalTitleText,
         canSubmitDraft,
+        onOpenSubtask,
         closeModal,
         toggleTaskSurface,
         cancelEditToView,
@@ -63,6 +92,14 @@ export function TaskModal(props: TaskModalProps) {
         featureNameById,
         categoryNameById,
     } = props
+
+    const directSubtasks = useMemo(() => {
+        if (modal.kind !== 'task') return []
+        return tasks.filter((t) => String(t.parentTaskId ?? '') === modal.taskId)
+    }, [tasks, modal])
+
+    const viewParentId = modal.kind === 'task' && modal.surface === 'view' ? modal.draft.parentTaskId.trim() : ''
+    const viewParentTask = viewParentId ? tasks.find((t) => t.id === viewParentId) : undefined
 
     if (modal.kind === 'closed') return null
 
@@ -76,9 +113,26 @@ export function TaskModal(props: TaskModalProps) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="modalTaskHeader">
-                    <h3 className="modalTitle" id="task-modal-title">
-                        {modalTitleText}
-                    </h3>
+                    {modal.kind === 'create' ? (
+                        <h3 className="modalTitle" id="task-modal-title">
+                            Create task
+                        </h3>
+                    ) : null}
+                    {modal.kind === 'task' && modal.surface === 'view' ? (
+                        <h3 className="modalTitle modalTaskTitleHeader" id="task-modal-title">
+                            {modal.draft.title.trim() ? modal.draft.title : 'Untitled task'}
+                        </h3>
+                    ) : null}
+                    {modal.kind === 'task' && modal.surface === 'edit' ? (
+                        <input
+                            id="task-modal-title"
+                            className="textInput modalTaskTitleInput"
+                            value={modal.draft.title}
+                            placeholder="Title"
+                            aria-label="Task title"
+                            onChange={(e) => patchDraft({ title: e.target.value })}
+                        />
+                    ) : null}
                     <div className="modalHeaderTrailing">
                         {modal.kind === 'task' && (
                             <button type="button" className="btn" onClick={toggleTaskSurface}>
@@ -251,80 +305,110 @@ export function TaskModal(props: TaskModalProps) {
 
                 {modal.kind === 'task' && modal.surface === 'view' && (
                     <>
-                        <div className="modalTaskScroll">
-                            <div className="modalTaskViewBody">
-                                <div className="modalReadonlyRow">
-                                    <span className="modalFieldLabel">Title</span>
-                                    <div className="modalReadonlyValue">{modal.draft.title || '—'}</div>
-                                </div>
-                                <div className="modalReadonlyRow">
-                                    <span className="modalFieldLabel">Parent task</span>
-                                    <div className="modalReadonlyValue">
-                                        {modal.draft.parentTaskId.trim().length > 0
-                                            ? (tasks.find((x) => x.id === modal.draft.parentTaskId)?.title ??
-                                              modal.draft.parentTaskId)
-                                            : '—'}
-                                    </div>
-                                </div>
-                                <div className="modalMetaRow modalMetaRowReadonly">
-                                    <div className="modalMetaCell">
-                                        <span className="modalFieldLabel">Feature</span>
-                                        <div className="modalReadonlyValue">
-                                            {featureNameById(modal.draft.featureId) || '—'}
-                                        </div>
-                                    </div>
-                                    <div className="modalMetaCell">
-                                        <span className="modalFieldLabel">Category</span>
-                                        <div className="modalReadonlyValue">
-                                            {categoryNameById(modal.draft.categoryId) || '—'}
-                                        </div>
-                                    </div>
-                                    <div className="modalMetaCell">
-                                        <span className="modalFieldLabel">Status</span>
-                                        <div className="modalReadonlyValue">{statusLabel(modal.draft.status)}</div>
-                                    </div>
-                                </div>
-                                <div className="modalReadonlyRow">
-                                    <span className="modalFieldLabel">Tags</span>
-                                    <div className="modalReadonlyValue">
-                                        {modal.draft.tagIds.length === 0 ? (
-                                            <span className="muted">—</span>
-                                        ) : (
-                                            <div className="tasksTagCell">
-                                                {modal.draft.tagIds.map((id) => {
-                                                    const tg = allTags.find((x) => x.id === id)
-                                                    const name = tg?.name ?? id
-                                                    const tc = normalizeHex6(tg?.color, FALLBACK_FEATURE_COLOR)
-                                                    return (
-                                                        <span
-                                                            key={id}
-                                                            className="tagChip"
-                                                            style={{
-                                                                backgroundColor: tc,
-                                                                color: chipTextColor(tc),
-                                                            }}
-                                                        >
-                                                            #{name}
-                                                        </span>
-                                                    )
-                                                })}
+                        <div className="modalTaskColumns">
+                            <section className="modalTaskMainPane" aria-label="Task details">
+                                <div className="modalTaskScroll">
+                                    <div className="modalTaskViewBody">
+                                        <div className="modalMetaRow modalMetaRowReadonly">
+                                            <div className="modalMetaCell">
+                                                <span className="modalFieldLabel">Feature</span>
+                                                <div className="modalReadonlyValue">
+                                                    {featureNameById(modal.draft.featureId) || '—'}
+                                                </div>
                                             </div>
-                                        )}
+                                            <div className="modalMetaCell">
+                                                <span className="modalFieldLabel">Category</span>
+                                                <div className="modalReadonlyValue">
+                                                    {categoryNameById(modal.draft.categoryId) || '—'}
+                                                </div>
+                                            </div>
+                                            <div className="modalMetaCell">
+                                                <span className="modalFieldLabel">Status</span>
+                                                <div className="modalReadonlyValue">
+                                                    {statusLabel(modal.draft.status)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="modalReadonlyRow">
+                                            <span className="modalFieldLabel">Tags</span>
+                                            <div className="modalReadonlyValue">
+                                                {modal.draft.tagIds.length === 0 ? (
+                                                    <span className="muted">—</span>
+                                                ) : (
+                                                    <div className="tasksTagCell">
+                                                        {modal.draft.tagIds.map((id) => {
+                                                            const tg = allTags.find((x) => x.id === id)
+                                                            const name = tg?.name ?? id
+                                                            const tc = normalizeHex6(tg?.color, FALLBACK_FEATURE_COLOR)
+                                                            return (
+                                                                <span
+                                                                    key={id}
+                                                                    className="tagChip"
+                                                                    style={{
+                                                                        backgroundColor: tc,
+                                                                        color: chipTextColor(tc),
+                                                                    }}
+                                                                >
+                                                                    #{name}
+                                                                </span>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="modalDescriptionBlock">
+                                            <span className="modalFieldLabel">Description</span>
+                                            {modal.draft.description.trim().length > 0 ? (
+                                                <div className="modalDescriptionMarkdownWrap">
+                                                    <TaskDescriptionMarkdown markdown={modal.draft.description} />
+                                                </div>
+                                            ) : (
+                                                <div className="muted modalReadonlyValue" style={{ marginTop: 6 }}>
+                                                    No description
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="modalDescriptionBlock">
-                                    <span className="modalFieldLabel">Description</span>
-                                    {modal.draft.description.trim().length > 0 ? (
-                                        <div className="modalDescriptionMarkdownWrap">
-                                            <TaskDescriptionMarkdown markdown={modal.draft.description} />
-                                        </div>
+                            </section>
+                            <aside className="modalTaskSubtasksPane" aria-label="Parent task and subtasks">
+                                <div className="modalTaskParentSection">
+                                    <span className="modalFieldLabel">Parent task</span>
+                                    {viewParentId.length === 0 ? (
+                                        <p className="muted modalParentTaskEmpty">No Parent Task</p>
                                     ) : (
-                                        <div className="muted modalReadonlyValue" style={{ marginTop: 6 }}>
-                                            No description
-                                        </div>
+                                        <ul className="modalSubtasksList modalParentTaskRowList">
+                                            <li>
+                                                <button
+                                                    type="button"
+                                                    className="modalSubtaskRowBtn"
+                                                    onClick={() => viewParentTask && onOpenSubtask?.(viewParentTask)}
+                                                    disabled={!viewParentTask}
+                                                    aria-label={
+                                                        viewParentTask
+                                                            ? `Open parent task: ${viewParentTask.title || 'Untitled'}`
+                                                            : `Parent task unavailable (${viewParentId})`
+                                                    }
+                                                >
+                                                    <span className="modalSubtaskTitle">
+                                                        {viewParentTask?.title ?? viewParentId}
+                                                    </span>
+                                                    <span className="modalSubtaskStatus muted">
+                                                        {viewParentTask
+                                                            ? statusLabel(viewParentTask.status as TaskStatus)
+                                                            : '—'}
+                                                    </span>
+                                                </button>
+                                            </li>
+                                        </ul>
                                     )}
                                 </div>
-                            </div>
+                                <TaskModalSubtasksContent
+                                    directSubtasks={directSubtasks}
+                                    onOpenSubtask={onOpenSubtask}
+                                />
+                            </aside>
                         </div>
                         <div className="modalFooter modalFooterTask">
                             <div
@@ -368,134 +452,141 @@ export function TaskModal(props: TaskModalProps) {
 
                 {modal.kind === 'task' && modal.surface === 'edit' && (
                     <>
-                        <div className="modalTaskScroll">
-                            <div className="modalFormGrid">
-                                <label className="modalFieldLabel" htmlFor="task-edit-title">
-                                    Title
-                                </label>
-                                <input
-                                    id="task-edit-title"
-                                    className="textInput"
-                                    value={modal.draft.title}
-                                    onChange={(e) => patchDraft({ title: e.target.value })}
-                                />
-                                <div className="modalMetaRow">
-                                    <div className="modalMetaCell">
-                                        <label className="modalFieldLabel" htmlFor="task-edit-feature">
-                                            Feature
-                                        </label>
-                                        <select
-                                            id="task-edit-feature"
-                                            className="intervalSelect"
-                                            value={modal.draft.featureId}
-                                            onChange={(e) =>
-                                                patchDraft({
-                                                    featureId: e.target.value,
-                                                    parentTaskId: '',
-                                                })
-                                            }
-                                        >
-                                            {features.map((f) => (
-                                                <option key={f.id} value={f.id}>
-                                                    {f.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="modalMetaCell">
-                                        <label className="modalFieldLabel" htmlFor="task-edit-category">
-                                            Category
-                                        </label>
-                                        <select
-                                            id="task-edit-category"
-                                            className="intervalSelect"
-                                            value={modal.draft.categoryId}
-                                            onChange={(e) => patchDraft({ categoryId: e.target.value })}
-                                        >
-                                            <option value="">None</option>
-                                            {categories.map((c) => (
-                                                <option key={c.id} value={c.id}>
-                                                    {c.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="modalMetaCell">
-                                        <label className="modalFieldLabel" htmlFor="task-edit-status">
-                                            Status
-                                        </label>
-                                        <select
-                                            id="task-edit-status"
-                                            className="intervalSelect"
-                                            value={modal.draft.status}
-                                            onChange={(e) => patchDraft({ status: e.target.value as TaskStatus })}
-                                        >
-                                            {allStatus.map((s) => (
-                                                <option key={s} value={s}>
-                                                    {statusLabel(s)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                                <label className="modalFieldLabel" htmlFor="task-edit-parent">
-                                    Parent task (optional)
-                                </label>
-                                <select
-                                    id="task-edit-parent"
-                                    className="intervalSelect"
-                                    value={modal.draft.parentTaskId}
-                                    onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
-                                    aria-label="Parent task"
-                                >
-                                    <option value="">None (root task)</option>
-                                    {parentTaskPickerOptions(tasks, modal.draft.featureId, modal.taskId).map((pt) => (
-                                        <option key={pt.id} value={pt.id}>
-                                            {pt.title}
-                                        </option>
-                                    ))}
-                                </select>
-                                <label className="modalFieldLabel" htmlFor="task-edit-desc">
-                                    Description (markdown)
-                                </label>
-                                <textarea
-                                    id="task-edit-desc"
-                                    className="textArea modalTaskDescArea"
-                                    value={modal.draft.description}
-                                    placeholder="Description (optional, markdown source)"
-                                    onChange={(e) => patchDraft({ description: e.target.value })}
-                                    rows={4}
-                                />
-                                <span className="modalFieldLabel">Tags</span>
-                                <div className="modalTagPicker" role="group" aria-label="Task tags">
-                                    {allTags.length === 0 ? (
-                                        <span className="muted" style={{ fontSize: 13 }}>
-                                            No tags defined — add some in Configuration.
-                                        </span>
-                                    ) : (
-                                        allTags.map((tg) => {
-                                            const col = normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR)
-                                            const on = modal.draft.tagIds.includes(tg.id)
-                                            return (
-                                                <button
-                                                    key={tg.id}
-                                                    type="button"
-                                                    className="tagChip tagChipToggle"
-                                                    data-selected={on}
-                                                    style={{
-                                                        backgroundColor: on ? col : 'transparent',
-                                                        color: on ? chipTextColor(col) : col,
-                                                        borderColor: col,
-                                                    }}
-                                                    onClick={() => toggleDraftTagId(tg.id)}
+                        <div className="modalTaskColumns">
+                            <section className="modalTaskMainPane" aria-label="Edit task">
+                                <div className="modalTaskScroll">
+                                    <div className="modalFormGrid modalTaskEditForm">
+                                        <div className="modalMetaRow">
+                                            <div className="modalMetaCell">
+                                                <label className="modalFieldLabel" htmlFor="task-edit-feature">
+                                                    Feature
+                                                </label>
+                                                <select
+                                                    id="task-edit-feature"
+                                                    className="intervalSelect"
+                                                    value={modal.draft.featureId}
+                                                    onChange={(e) =>
+                                                        patchDraft({
+                                                            featureId: e.target.value,
+                                                            parentTaskId: '',
+                                                        })
+                                                    }
                                                 >
-                                                    #{tg.name}
-                                                </button>
-                                            )
-                                        })
-                                    )}
+                                                    {features.map((f) => (
+                                                        <option key={f.id} value={f.id}>
+                                                            {f.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="modalMetaCell">
+                                                <label className="modalFieldLabel" htmlFor="task-edit-category">
+                                                    Category
+                                                </label>
+                                                <select
+                                                    id="task-edit-category"
+                                                    className="intervalSelect"
+                                                    value={modal.draft.categoryId}
+                                                    onChange={(e) => patchDraft({ categoryId: e.target.value })}
+                                                >
+                                                    <option value="">None</option>
+                                                    {categories.map((c) => (
+                                                        <option key={c.id} value={c.id}>
+                                                            {c.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="modalMetaCell">
+                                                <label className="modalFieldLabel" htmlFor="task-edit-status">
+                                                    Status
+                                                </label>
+                                                <select
+                                                    id="task-edit-status"
+                                                    className="intervalSelect"
+                                                    value={modal.draft.status}
+                                                    onChange={(e) =>
+                                                        patchDraft({ status: e.target.value as TaskStatus })
+                                                    }
+                                                >
+                                                    {allStatus.map((s) => (
+                                                        <option key={s} value={s}>
+                                                            {statusLabel(s)}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <label className="modalFieldLabel" htmlFor="task-edit-desc">
+                                            Description (markdown)
+                                        </label>
+                                        <textarea
+                                            id="task-edit-desc"
+                                            className="textArea modalTaskDescArea"
+                                            value={modal.draft.description}
+                                            placeholder="Description (optional, markdown source)"
+                                            onChange={(e) => patchDraft({ description: e.target.value })}
+                                            rows={4}
+                                        />
+                                        <span className="modalFieldLabel">Tags</span>
+                                        <div className="modalTagPicker" role="group" aria-label="Task tags">
+                                            {allTags.length === 0 ? (
+                                                <span className="muted" style={{ fontSize: 13 }}>
+                                                    No tags defined — add some in Configuration.
+                                                </span>
+                                            ) : (
+                                                allTags.map((tg) => {
+                                                    const col = normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR)
+                                                    const on = modal.draft.tagIds.includes(tg.id)
+                                                    return (
+                                                        <button
+                                                            key={tg.id}
+                                                            type="button"
+                                                            className="tagChip tagChipToggle"
+                                                            data-selected={on}
+                                                            style={{
+                                                                backgroundColor: on ? col : 'transparent',
+                                                                color: on ? chipTextColor(col) : col,
+                                                                borderColor: col,
+                                                            }}
+                                                            onClick={() => toggleDraftTagId(tg.id)}
+                                                        >
+                                                            #{tg.name}
+                                                        </button>
+                                                    )
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            </section>
+                            <aside className="modalTaskSubtasksPane" aria-label="Parent task and subtasks">
+                                <div className="modalTaskParentSection">
+                                    <label className="modalFieldLabel" htmlFor="task-edit-parent">
+                                        Parent task
+                                    </label>
+                                    <select
+                                        id="task-edit-parent"
+                                        className="intervalSelect"
+                                        value={modal.draft.parentTaskId}
+                                        onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
+                                        aria-label="Parent task"
+                                    >
+                                        <option value="">None (root task)</option>
+                                        {parentTaskPickerOptions(tasks, modal.draft.featureId, modal.taskId).map(
+                                            (pt) => (
+                                                <option key={pt.id} value={pt.id}>
+                                                    {pt.title}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                </div>
+                                <TaskModalSubtasksContent
+                                    directSubtasks={directSubtasks}
+                                    onOpenSubtask={onOpenSubtask}
+                                />
+                            </aside>
                         </div>
                         <div className="modalFooter modalFooterTask">
                             <div
