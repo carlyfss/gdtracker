@@ -1,9 +1,10 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Category } from '../../../api/categories'
 import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
 import type { TaskStatus } from '../../../api/tasks'
-import { chipTextColor } from '../../../util/chipTextColor'
+import { FilterPillAddGroup, type FilterPillItem } from '../../../components/FilterPillAddGroup'
 import { normalizeHex6 } from '../../../util/hexColor'
 import { allStatus, statusLabel } from '../../../util/taskStatus'
 import { FALLBACK_FEATURE_COLOR, type UiState } from '../tasksPageUtils'
@@ -47,111 +48,153 @@ export function TasksFilterPanel({
     setSelectedStatus,
     openCreateModal,
 }: TasksFilterPanelProps) {
+    const featureSelected = useMemo((): FilterPillItem[] => {
+        if (selectedFeatureId === '__all__') return []
+        const f = features.find((x) => x.id === selectedFeatureId)
+        if (!f) return []
+        return [
+            {
+                value: f.id,
+                label: f.name,
+                swatchColor: normalizeHex6(f.color, FALLBACK_FEATURE_COLOR),
+            },
+        ]
+    }, [features, selectedFeatureId])
+
+    const featureAddOptions = useMemo((): FilterPillItem[] => {
+        const byId = features
+            .filter((f) => f.id !== selectedFeatureId)
+            .map((f) => ({
+                value: f.id,
+                label: f.name,
+                swatchColor: normalizeHex6(f.color, FALLBACK_FEATURE_COLOR),
+            }))
+        if (selectedFeatureId !== '__all__') {
+            return [{ value: '__all__', label: 'All features', swatchColor: FALLBACK_FEATURE_COLOR }, ...byId]
+        }
+        return byId
+    }, [features, selectedFeatureId])
+
+    const categorySelected = useMemo((): FilterPillItem[] => {
+        if (selectedCategoryId === '__all__') return []
+        const c = categories.find((x) => x.id === selectedCategoryId)
+        if (!c) return []
+        return [
+            {
+                value: c.id,
+                label: c.name,
+                swatchColor: normalizeHex6(c.color, FALLBACK_FEATURE_COLOR),
+            },
+        ]
+    }, [categories, selectedCategoryId])
+
+    const categoryAddOptions = useMemo((): FilterPillItem[] => {
+        const byId = categories
+            .filter((c) => c.id !== selectedCategoryId)
+            .map((c) => ({
+                value: c.id,
+                label: c.name,
+                swatchColor: normalizeHex6(c.color, FALLBACK_FEATURE_COLOR),
+            }))
+        if (selectedCategoryId !== '__all__') {
+            return [{ value: '__all__', label: 'All categories', swatchColor: FALLBACK_FEATURE_COLOR }, ...byId]
+        }
+        return byId
+    }, [categories, selectedCategoryId])
+
+    const statusSelected = useMemo((): FilterPillItem[] => {
+        if (selectedStatus === '__all__') return []
+        return [{ value: selectedStatus, label: statusLabel(selectedStatus) }]
+    }, [selectedStatus])
+
+    const statusAddOptions = useMemo((): FilterPillItem[] => {
+        if (selectedStatus === '__all__') {
+            return allStatus.map((s) => ({ value: s, label: statusLabel(s) }))
+        }
+        const rows: FilterPillItem[] = [{ value: '__all__', label: 'All statuses' }]
+        for (const s of allStatus) {
+            if (s !== selectedStatus) rows.push({ value: s, label: statusLabel(s) })
+        }
+        return rows
+    }, [selectedStatus])
+
+    const tagSelected = useMemo((): FilterPillItem[] => {
+        const out: FilterPillItem[] = []
+        for (const id of selectedFilterTagIds) {
+            const tg = allTags.find((t) => t.id === id)
+            if (!tg) continue
+            out.push({
+                value: tg.id,
+                label: `#${tg.name}`,
+                swatchColor: normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR),
+            })
+        }
+        return out
+    }, [allTags, selectedFilterTagIds])
+
+    const tagAddOptions = useMemo((): FilterPillItem[] => {
+        return allTags
+            .filter((tg) => !selectedFilterTagIds.includes(tg.id))
+            .map((tg) => ({
+                value: tg.id,
+                label: `#${tg.name}`,
+                swatchColor: normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR),
+            }))
+    }, [allTags, selectedFilterTagIds])
+
     return (
         <aside className="tasksFilterPanel" aria-label="Task filters">
-            <div className="tasksFilterPanelTitle">Filter by feature</div>
-            {features.length === 0 && (
-                <div className="emptyState">
-                    No features yet. Create one on the{' '}
-                    <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                </div>
+            {features.length === 0 ? (
+                <>
+                    <div className="tasksFilterPanelTitle">Filter by feature</div>
+                    <div className="emptyState">
+                        No features yet. Create one on the{' '}
+                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
+                    </div>
+                </>
+            ) : (
+                <FilterPillAddGroup
+                    title="Filter by feature"
+                    selected={featureSelected}
+                    onRemove={() => setSelectedFeatureId('__all__')}
+                    addOptions={featureAddOptions}
+                    onAdd={(v) => setSelectedFeatureId(v)}
+                    addPlaceholder="Add feature filter…"
+                    ariaLabel="Task feature filters"
+                />
             )}
 
-            {features.length > 0 && (
-                <div className="tasksFilterList" role="list">
-                    <button
-                        type="button"
-                        className="filterItem"
-                        data-active={selectedFeatureId === '__all__'}
-                        onClick={() => setSelectedFeatureId('__all__')}
-                    >
-                        <span className="filterItemInner">
-                            <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
-                            <span>All features</span>
-                        </span>
-                    </button>
-                    {features.map((f) => {
-                        const c = normalizeHex6(f.color, FALLBACK_FEATURE_COLOR)
-                        return (
-                            <button
-                                key={f.id}
-                                type="button"
-                                className="filterItem"
-                                data-active={selectedFeatureId === f.id}
-                                onClick={() => setSelectedFeatureId(f.id)}
-                            >
-                                <span className="filterItemInner">
-                                    <span className="featureSwatch" style={{ backgroundColor: c }} />
-                                    <span>{f.name}</span>
-                                </span>
-                            </button>
-                        )
-                    })}
-                </div>
+            {categories.length === 0 ? (
+                <>
+                    <div className="tasksFilterPanelTitle">Filter by category</div>
+                    <div className="emptyState">
+                        No categories yet. Create one on the{' '}
+                        <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
+                    </div>
+                </>
+            ) : (
+                <FilterPillAddGroup
+                    title="Filter by category"
+                    selected={categorySelected}
+                    onRemove={() => setSelectedCategoryId('__all__')}
+                    addOptions={categoryAddOptions}
+                    onAdd={(v) => setSelectedCategoryId(v)}
+                    addPlaceholder="Add category filter…"
+                    ariaLabel="Task category filters"
+                />
             )}
 
-            <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                Filter by category
-            </div>
-            {categories.length === 0 && (
-                <div className="emptyState">
-                    No categories yet. Create one on the{' '}
-                    <Link to={`/g/${encodeURIComponent(gameId)}/configuration`}>Configuration</Link> page.
-                </div>
-            )}
-            {categories.length > 0 && (
-                <div className="tasksFilterList" role="list">
-                    <button
-                        type="button"
-                        className="filterItem"
-                        data-active={selectedCategoryId === '__all__'}
-                        onClick={() => setSelectedCategoryId('__all__')}
-                    >
-                        <span className="filterItemInner">
-                            <span className="featureSwatch" style={{ backgroundColor: FALLBACK_FEATURE_COLOR }} />
-                            <span>All categories</span>
-                        </span>
-                    </button>
-                    {categories.map((cat) => {
-                        const col = normalizeHex6(cat.color, FALLBACK_FEATURE_COLOR)
-                        return (
-                            <button
-                                key={cat.id}
-                                type="button"
-                                className="filterItem"
-                                data-active={selectedCategoryId === cat.id}
-                                onClick={() => setSelectedCategoryId(cat.id)}
-                            >
-                                <span className="filterItemInner">
-                                    <span className="featureSwatch" style={{ backgroundColor: col }} />
-                                    <span>{cat.name}</span>
-                                </span>
-                            </button>
-                        )
-                    })}
-                </div>
-            )}
+            <FilterPillAddGroup
+                title="Status"
+                selected={statusSelected}
+                onRemove={() => setSelectedStatus('__all__')}
+                addOptions={statusAddOptions}
+                onAdd={(v) => setSelectedStatus(v as TaskStatus | '__all__')}
+                addPlaceholder="Add status filter…"
+                ariaLabel="Task status filters"
+            />
 
-            <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                Status
-            </div>
-            <select
-                className="intervalSelect"
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | '__all__')}
-                aria-label="Filter tasks by status"
-            >
-                <option value="__all__">All statuses</option>
-                {allStatus.map((s) => (
-                    <option key={s} value={s}>
-                        {statusLabel(s)}
-                    </option>
-                ))}
-            </select>
-
-            <div className="tasksFilterPanelTitle" style={{ marginTop: 14 }}>
-                Filter by tag
-            </div>
+            <div className="tasksFilterPanelTitle">Filter by tag</div>
             {allTags.length === 0 && (
                 <div className="emptyState" style={{ fontSize: 13 }}>
                     No tags yet. Create tags on the{' '}
@@ -175,28 +218,15 @@ export function TasksFilterPanel({
                 </div>
             )}
             {allTags.length > 0 && (
-                <div className="tasksTagFilterChips" role="group" aria-label="Filter by tags">
-                    {allTags.map((tg) => {
-                        const col = normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR)
-                        const selected = selectedFilterTagIds.includes(tg.id)
-                        return (
-                            <button
-                                key={tg.id}
-                                type="button"
-                                className="tagChip tagChipToggle"
-                                data-selected={selected}
-                                style={{
-                                    backgroundColor: selected ? col : 'transparent',
-                                    color: selected ? chipTextColor(col) : col,
-                                    borderColor: col,
-                                }}
-                                onClick={() => toggleFilterTagId(tg.id)}
-                            >
-                                #{tg.name}
-                            </button>
-                        )
-                    })}
-                </div>
+                <FilterPillAddGroup
+                    title=""
+                    selected={tagSelected}
+                    onRemove={(id) => toggleFilterTagId(id)}
+                    addOptions={tagAddOptions}
+                    onAdd={(id) => toggleFilterTagId(id)}
+                    addPlaceholder="Add tag filter…"
+                    ariaLabel="Task tag filters"
+                />
             )}
 
             {!archivedOnly && (
