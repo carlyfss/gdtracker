@@ -12,6 +12,22 @@ import (
 	"github.com/lib/pq"
 )
 
+// TaskSubtreeArchiveRow is one row when locking a task subtree for archive/unarchive (scoped by game).
+type TaskSubtreeArchiveRow struct {
+	TaskID            string
+	TaskArchivedAt    sql.NullTime
+	FeatureID         string
+	FeatureArchivedAt sql.NullTime
+}
+
+// ArchivedFeatureHintForUpsert builds archived_tasks.archived_feature_id like single-task archive does.
+func ArchivedFeatureHintForUpsert(featureID string, featureArchivedAt sql.NullTime) sql.NullString {
+	if featureArchivedAt.Valid {
+		return sql.NullString{String: featureID, Valid: true}
+	}
+	return sql.NullString{}
+}
+
 // TaskListRow is a task joined with its feature (for JSON responses).
 type TaskListRow struct {
 	TaskID                string
@@ -124,6 +140,43 @@ func scanTaskListRows(rows *sql.Rows) ([]TaskListRow, error) {
 		}
 		tr.Feature = f
 		out = append(out, tr)
+	}
+	return out, rows.Err()
+}
+
+// ListSubtreeTaskArchiveRowsTx returns every task in the subtree rooted at rootTaskID (same game), with rows locked FOR UPDATE.
+func (r *TaskRepository) ListSubtreeTaskArchiveRowsTx(ctx context.Context, tx *sql.Tx, rootTaskID, gameID string) ([]TaskSubtreeArchiveRow, error) {
+	const q = `
+WITH RECURSIVE task_tree AS (
+  SELECT t.id
+  FROM tasks t
+  INNER JOIN features f ON f.id = t.feature_id
+  WHERE t.id = $1 AND f.game_id = $2
+  UNION ALL
+  SELECT t.id
+  FROM tasks t
+  INNER JOIN features f ON f.id = t.feature_id
+  INNER JOIN task_tree tr ON t.parent_task_id = tr.id
+  WHERE f.game_id = $2
+)
+SELECT t.id, t.archived_at, t.feature_id, f.archived_at
+FROM tasks t
+INNER JOIN task_tree tt ON tt.id = t.id
+INNER JOIN features f ON f.id = t.feature_id AND f.game_id = $2
+ORDER BY t.id
+FOR UPDATE OF t`
+	rows, err := tx.QueryContext(ctx, q, rootTaskID, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("list subtree task archive rows: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []TaskSubtreeArchiveRow
+	for rows.Next() {
+		var row TaskSubtreeArchiveRow
+		if err := rows.Scan(&row.TaskID, &row.TaskArchivedAt, &row.FeatureID, &row.FeatureArchivedAt); err != nil {
+			return nil, fmt.Errorf("scan subtree task archive row: %w", err)
+		}
+		out = append(out, row)
 	}
 	return out, rows.Err()
 }

@@ -5,6 +5,7 @@ import { getConfiguration, patchConfiguration } from '../../../api/configuration
 import { IconTrash } from '../../../components/icons'
 import { useGameTheme } from '../../../context/GameThemeContext'
 import type { UiState } from '../configurationUtils'
+import { GameIngestTokenSection } from './GameIngestTokenSection'
 
 type FlagRow = { id: string; key: string; on: boolean }
 type SettingRow = { id: string; key: string; value: string }
@@ -281,6 +282,8 @@ export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string
                         Add archive timebomb
                     </button>
                 </div>
+
+                <GameIngestTokenSection gameId={gameId} />
 
                 <h3 className="configSubheading">Task templates (from game exceptions)</h3>
                 <p className="muted" style={{ marginBottom: 12 }}>

@@ -7,6 +7,8 @@ export type GameEventDefinition = {
     messageTemplate: string
     imageData?: string | null
     color?: string
+    /** Saved sample values for placeholders (preview); PLAYER_ID is never stored server-side. */
+    examplePlaceholderValues?: Record<string, string>
 }
 
 export type GameEventDefinitionUpsertBody = {
@@ -15,6 +17,7 @@ export type GameEventDefinitionUpsertBody = {
     messageTemplate: string
     imageData?: string | null
     color?: string | null
+    examplePlaceholderValues?: Record<string, string>
 }
 
 export type GameEvent = {

@@ -576,12 +576,6 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         }
     }
 
-    const modalTitleText = useMemo(() => {
-        if (modal.kind === 'create') return 'Create task'
-        if (modal.kind === 'task') return modal.surface === 'view' ? 'View task' : 'Edit task'
-        return ''
-    }, [modal])
-
     const filteredCountLabel = useMemo(() => {
         const parts: string[] = []
         if (selectedFeatureId !== '__all__') {
@@ -698,8 +692,8 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 categories={categories}
                 allTags={allTags}
                 tasks={tasks}
-                modalTitleText={modalTitleText}
                 canSubmitDraft={canSubmitDraft}
+                onOpenSubtask={openTaskView}
                 closeModal={closeModal}
                 toggleTaskSurface={toggleTaskSurface}
                 cancelEditToView={cancelEditToView}

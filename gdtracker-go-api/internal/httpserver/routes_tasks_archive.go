@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpx"
+	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/repository"
 )
 
 func (s *Server) postTaskArchive(w http.ResponseWriter, r *http.Request) {
@@ -32,26 +33,28 @@ func (s *Server) postTaskArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var trArchived, featArchived sql.NullTime
-	var featID string
-	err = tx.QueryRowContext(ctx, `
-SELECT t.archived_at, f.archived_at, f.id
-FROM tasks t
-JOIN features f ON f.id = t.feature_id
-WHERE t.id = $1 AND f.game_id = $2
-FOR UPDATE OF t`,
-		taskID, gameID,
-	).Scan(&trArchived, &featArchived, &featID)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.Error(w, "task not found", http.StatusNotFound)
-		return
-	}
+	rows, err := s.tasks.ListSubtreeTaskArchiveRowsTx(ctx, tx, taskID, gameID)
 	if err != nil {
-		log.Printf("lock task archive: %v", err)
+		log.Printf("list subtree task archive rows: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if trArchived.Valid {
+	if len(rows) == 0 {
+		http.Error(w, "task not found", http.StatusNotFound)
+		return
+	}
+	var root *repository.TaskSubtreeArchiveRow
+	for i := range rows {
+		if rows[i].TaskID == taskID {
+			root = &rows[i]
+			break
+		}
+	}
+	if root == nil {
+		http.Error(w, "task not found", http.StatusNotFound)
+		return
+	}
+	if root.TaskArchivedAt.Valid {
 		if err := tx.Commit(); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -64,27 +67,26 @@ FOR UPDATE OF t`,
 		return
 	}
 	now := time.Now().UTC()
-	if err := s.tasks.SetArchivedWithTime(ctx, tx, taskID, now); err != nil {
-		log.Printf("archive task: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	var af sql.NullString
-	if featArchived.Valid {
-		af = sql.NullString{String: featID, Valid: true}
-	}
-	if err := s.archived.UpsertArchivedTaskTx(ctx, tx, taskID, now, af); err != nil {
-		log.Printf("archived_tasks upsert: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+	for _, row := range rows {
+		af := repository.ArchivedFeatureHintForUpsert(row.FeatureID, row.FeatureArchivedAt)
+		if err := s.tasks.SetArchivedWithTime(ctx, tx, row.TaskID, now); err != nil {
+			log.Printf("archive task: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if err := s.archived.UpsertArchivedTaskTx(ctx, tx, row.TaskID, now, af); err != nil {
+			log.Printf("archived_tasks upsert: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("archive_task game_id=%s task_id=%s feature_archived=%v", gameID, taskID, featArchived.Valid)
+	log.Printf("archive_task game_id=%s task_id=%s subtree_tasks=%d", gameID, taskID, len(rows))
 	if wantSummary {
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"branch": "normal"})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"branch": "normal", "tasksTouched": len(rows)})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -147,23 +149,35 @@ FOR UPDATE OF t, f`,
 
 	featureArchived := featArchived.Valid
 	if !featureArchived {
-		if err := s.tasks.ClearArchivedTx(ctx, tx, taskID); err != nil {
-			log.Printf("unarchive task: %v", err)
+		subRows, errSub := s.tasks.ListSubtreeTaskArchiveRowsTx(ctx, tx, taskID, gameID)
+		if errSub != nil {
+			log.Printf("list subtree task unarchive: %v", errSub)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		if err := s.archived.DeleteArchivedTaskTx(ctx, tx, taskID); err != nil {
-			log.Printf("delete archived_task: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+		if len(subRows) == 0 {
+			http.Error(w, "task not found", http.StatusNotFound)
 			return
+		}
+		for _, row := range subRows {
+			if err := s.tasks.ClearArchivedTx(ctx, tx, row.TaskID); err != nil {
+				log.Printf("unarchive task: %v", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			if err := s.archived.DeleteArchivedTaskTx(ctx, tx, row.TaskID); err != nil {
+				log.Printf("delete archived_task: %v", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
 		}
 		if err := tx.Commit(); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("unarchive_task branch=active_feature game_id=%s task_id=%s", gameID, taskID)
+		log.Printf("unarchive_task branch=active_feature game_id=%s task_id=%s subtree_tasks=%d", gameID, taskID, len(subRows))
 		if wantSummary {
-			httpx.WriteJSON(w, http.StatusOK, map[string]any{"branch": "unarchive_to_active_feature"})
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{"branch": "unarchive_to_active_feature", "tasksTouched": len(subRows)})
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
