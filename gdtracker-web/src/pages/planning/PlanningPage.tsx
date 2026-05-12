@@ -20,6 +20,7 @@ import previewEyeIcon from '../../assets/icons/preview_eye.svg'
 import saveDocumentIcon from '../../assets/icons/save_document.svg'
 import { TaskDescriptionMarkdown } from '../../components/TaskDescriptionMarkdown'
 import { serializePlanningExcalidrawSceneForCompare } from '../../util/planningExcalidrawScene'
+import { nextDefaultPlanningNodeName } from '../../util/planningDefaultNames'
 import './planningPage.css'
 
 const PlanningExcalidrawPanel = lazy(async () => {
@@ -42,8 +43,11 @@ function buildTree(nodes: PlanningNodeMeta[]): TreeEntry[] {
         byParent.get(p)!.push(n)
     }
     const cmp = (a: PlanningNodeMeta, b: PlanningNodeMeta) => {
-        if (a.sortOrder !== b.sortOrder) {
-            return a.sortOrder - b.sortOrder
+        const folderRank = (k: PlanningNodeMeta['kind']) => (k === 'folder' ? 1 : 0)
+        const ra = folderRank(a.kind)
+        const rb = folderRank(b.kind)
+        if (ra !== rb) {
+            return ra - rb
         }
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     }
@@ -354,7 +358,8 @@ export function PlanningPage() {
             return
         }
         const parentId = defaultParentId
-        const name = kind === 'folder' ? 'New folder' : kind === 'markdown' ? 'Untitled.md' : 'Untitled drawing'
+        const siblings = nodes.filter((n) => n.parentId === parentId)
+        const name = nextDefaultPlanningNodeName(siblings, kind)
         try {
             const d = await createPlanningNode(gameId, {
                 kind,
