@@ -1,0 +1,336 @@
+.planningPage {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 12px;
+}
+
+.planningBanner {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #6366f1) 35%, transparent);
+}
+
+.planningSplit {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) 1fr;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+}
+
+@media (max-width: 900px) {
+    .planningSplit {
+        grid-template-columns: 1fr;
+    }
+}
+
+.planningSidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--panel-elevated, rgba(0, 0, 0, 0.2));
+    min-height: 0;
+    min-width: 0;
+}
+
+.planningSidebarHeader {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.planningToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.planningTree {
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+    max-height: min(52vh, 560px);
+}
+
+.planningMuted {
+    color: var(--text-muted, rgba(255, 255, 255, 0.55));
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.planningTreeRow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 6px;
+}
+
+.planningTreeRowSelected {
+    background: color-mix(in srgb, var(--accent, #6366f1) 18%, transparent);
+}
+
+.planningTreeRowDepth1 {
+    padding-left: 12px;
+}
+.planningTreeRowDepth2 {
+    padding-left: 24px;
+}
+.planningTreeRowDepth3 {
+    padding-left: 36px;
+}
+.planningTreeRowDepth4 {
+    padding-left: 48px;
+}
+.planningTreeRowDepth5 {
+    padding-left: 60px;
+}
+.planningTreeRowDepth6 {
+    padding-left: 72px;
+}
+
+.planningTreeChevron {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.planningTreeChevron:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.planningTreeChevronSpacer {
+    width: 28px;
+    flex-shrink: 0;
+}
+
+.planningTreeLabel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.planningTreeLabel:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.planningTreeKind {
+    font-size: 0.75rem;
+    opacity: 0.85;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.planningTreeKindIcon {
+    display: block;
+    flex-shrink: 0;
+    opacity: 0.92;
+}
+
+.planningTreeName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.planningMain {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    min-height: 0;
+    flex: 1;
+    min-width: 0;
+    background: var(--panel-elevated, rgba(0, 0, 0, 0.2));
+}
+
+.planningMainHeader {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    flex-shrink: 0;
+}
+
+.planningEditorHeader {
+    width: 100%;
+}
+
+.planningEditorHeaderTop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: 0;
+}
+
+.planningHeaderTrailing {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.planningTitleButton {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.planningTitleButton:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.planningTitleInput {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.planningEditorHeaderTop > .planningEditorHeaderActions {
+    margin-left: auto;
+}
+
+.planningEditorHeaderActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+}
+
+.planningIconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.planningIconBtnOnly {
+    min-width: 40px;
+    min-height: 36px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.planningToolbarIcon {
+    display: block;
+    flex-shrink: 0;
+    opacity: 0.92;
+}
+
+.planningIconBtn:hover .planningToolbarIcon {
+    opacity: 1;
+}
+
+.planningSaveStatus {
+    font-size: 0.85rem;
+    color: var(--text-muted, rgba(255, 255, 255, 0.55));
+    line-height: 1.35;
+}
+
+.planningSaveStatusInline {
+    flex: 0 1 auto;
+    text-align: right;
+    max-width: min(200px, 28vw);
+    min-height: 1.35em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.planningMainBody {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.planningMainBody--excal {
+    overflow: hidden;
+}
+
+.planningMdEditor {
+    flex: 1;
+    width: 100%;
+    min-height: 200px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.planningMdPreview {
+    flex: 1;
+    overflow: auto;
+    padding: 4px 2px;
+    min-height: 0;
+}
+
+.planningExcalidrawHost {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.planningExcalidrawHost .excalidraw.excalidraw-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.planningExcalidrawHost .excalidraw {
+    height: 100%;
+}
+
+.planningExcalidrawHost .SVGLayer {
+    /* Excalidraw sets large inline width/height on this node, which expands the page; override to the host box. */
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}

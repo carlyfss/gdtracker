@@ -1,4 +1,5 @@
-import axios from 'axios'
+import axios, { isAxiosError } from 'axios'
+import { notifyApiUnauthorized } from './apiUnauthorized'
 
 let csrfTokenOverride: string | null = null
 
@@ -39,6 +40,35 @@ export const api = axios.create({
 // In cross-subdomain deployments (e.g. dashboard.* -> api.*), the SPA cannot read the API's XSRF cookie via document.cookie.
 // Prime once so subsequent mutating requests can send the header even when the cookie isn't readable on the SPA origin.
 void primeCsrf()
+
+function shouldNotifyUnauthorized(url: string): boolean {
+    if (!url.startsWith('/api/')) {
+        return false
+    }
+    if (
+        url === '/api/auth/me' ||
+        url === '/api/auth/login' ||
+        url === '/api/auth/register' ||
+        url === '/api/auth/logout' ||
+        url === '/api/csrf'
+    ) {
+        return false
+    }
+    return true
+}
+
+api.interceptors.response.use(
+    (res) => res,
+    (err) => {
+        if (isAxiosError(err) && err.response?.status === 401) {
+            const url = err.config?.url ?? ''
+            if (shouldNotifyUnauthorized(url)) {
+                notifyApiUnauthorized()
+            }
+        }
+        return Promise.reject(err)
+    }
+)
 
 api.interceptors.request.use((config) => {
     const url = config.url ?? ''

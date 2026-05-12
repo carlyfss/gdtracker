@@ -57,6 +57,16 @@ Session auth unless noted. **404** when `gameId` is not owned by the current use
 | POST | `/api/games/{gameId}/game-exceptions` | Session + CSRF | `reportGameException` |
 | POST | `/api/games/{gameId}/game-exceptions/ingest` | **Bearer ingest + `X-Player-Id`** (no session / CSRF) | `GameExceptionIngestController.ingest` |
 
+## Planning nodes (Go-only)
+
+| Method | Path | Auth | Notes |
+|--------|------|------|------|
+| GET | `/api/games/{gameId}/planning-nodes` | Session | Flat list metadata (no bodies) |
+| GET | `/api/games/{gameId}/planning-nodes/{id}` | Session | Full node + markdown / Excalidraw JSON |
+| POST | `/api/games/{gameId}/planning-nodes` | Session + CSRF | Create folder, markdown, or excalidraw |
+| PUT | `/api/games/{gameId}/planning-nodes/{id}` | Session + CSRF | Partial update |
+| DELETE | `/api/games/{gameId}/planning-nodes/{id}` | Session + CSRF | Delete (cascades children via FK) |
+
 ## OpenAPI (canonical contract elsewhere)
 
 Spring canonical: [`gdtracker-api/docs/openapi.yaml`](../../gdtracker-api/docs/openapi.yaml). Go mirror: [`openapi.yaml`](./openapi.yaml).

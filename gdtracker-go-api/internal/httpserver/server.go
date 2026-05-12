@@ -37,6 +37,7 @@ type Server struct {
 	gameTraces           *repository.GameEventTraceRepository
 	feedbackMeters       *repository.GameFeedbackMeterDefinitionRepository
 	feedbacks            *repository.GameFeedbackRepository
+	planning             *repository.PlanningRepository
 	store                *sessions.CookieStore
 	cookieDomain         string
 	cookieSecure         bool
@@ -76,6 +77,7 @@ func New(cfg Config) (*Server, error) {
 		gameTraces           *repository.GameEventTraceRepository
 		feedbackMeters       *repository.GameFeedbackMeterDefinitionRepository
 		feedbacks            *repository.GameFeedbackRepository
+		planning             *repository.PlanningRepository
 	)
 	if cfg.DB != nil {
 		users = repository.NewUserRepository(cfg.DB)
@@ -94,6 +96,7 @@ func New(cfg Config) (*Server, error) {
 		gameTraces = repository.NewGameEventTraceRepository(cfg.DB)
 		feedbackMeters = repository.NewGameFeedbackMeterDefinitionRepository(cfg.DB)
 		feedbacks = repository.NewGameFeedbackRepository(cfg.DB)
+		planning = repository.NewPlanningRepository(cfg.DB)
 	}
 	return &Server{
 		db:                   cfg.DB,
@@ -113,6 +116,7 @@ func New(cfg Config) (*Server, error) {
 		gameTraces:           gameTraces,
 		feedbackMeters:       feedbackMeters,
 		feedbacks:            feedbacks,
+		planning:             planning,
 		store:                st,
 		cookieDomain:         cfg.CookieDomain,
 		cookieSecure:         cfg.CookieSecure,
@@ -139,6 +143,7 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 	s.registerGameEventRoutes(mux)
 	s.registerTraceRoutes(mux)
 	s.registerFeedbackRoutes(mux)
+	s.registerPlanningRoutes(mux)
 
 	strip := http.StripPrefix("/api", mux)
 	return CorsMiddleware(corsEnv)(CsrfMiddleware(s.cookieDomain, s.cookieSecure)(strip))

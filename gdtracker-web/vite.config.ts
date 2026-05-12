@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
 
     return {
         plugins: [react()],
+        resolve: {
+            dedupe: ['@braintree/sanitize-url', 'mermaid'],
+        },
+        optimizeDeps: {
+            include: ['@excalidraw/excalidraw'],
+        },
         server: {
             proxy: {
                 '/api': {
