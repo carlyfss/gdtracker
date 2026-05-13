@@ -5,7 +5,7 @@ info:
   description: |
     Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
     Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, game exceptions,
-    ingest plane (players, integration ping), game events (definitions + ingest), traces (heatmap), and feedback.
+    ingest plane (players, integration ping), game events (definitions + ingest), traces (heatmap), feedback, and planning nodes.
 servers:
   - url: http://localhost:8080
 tags:
@@ -35,6 +35,8 @@ tags:
     description: Heatmap / trace listing and ingest (Bearer + X-Player-Id for ingest).
   - name: GameFeedback
     description: Feedback meter definitions, feedback list/detail, feedback ingest (Bearer + X-Player-Id for ingest).
+  - name: Planning
+    description: Per-game planning documents (folders, markdown, Excalidraw JSON) (session).
 paths:
   /healthz:
     get:
@@ -1235,6 +1237,99 @@ paths:
               schema: { $ref: "#/components/schemas/GameFeedbackDetail" }
         "401": { description: Not authenticated }
         "404": { description: Not found }
+  /api/games/{gameId}/planning-nodes:
+    get:
+      tags: [Planning]
+      operationId: listPlanningNodes
+      summary: List planning nodes (metadata only, flat)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlanningNodeMeta"
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+    post:
+      tags: [Planning]
+      operationId: createPlanningNode
+      summary: Create folder, markdown, or excalidraw node
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanningNodeCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanningNodeDetail"
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Game not found or not owned }
+        "409": { description: Duplicate name in folder }
+  /api/games/{gameId}/planning-nodes/{id}:
+    get:
+      tags: [Planning]
+      operationId: getPlanningNode
+      summary: Get planning node including body/scene
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/PlanningNodeId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanningNodeDetail"
+        "401": { description: Not authenticated }
+        "404": { description: Node or game not found }
+    put:
+      tags: [Planning]
+      operationId: updatePlanningNode
+      summary: Partial update (name, parentId, sortOrder, markdownBody, excalidrawScene)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/PlanningNodeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanningNodeUpdateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanningNodeDetail"
+        "400": { description: Validation error }
+        "401": { description: Not authenticated }
+        "404": { description: Node not found }
+        "409": { description: Duplicate name in folder }
+    delete:
+      tags: [Planning]
+      operationId: deletePlanningNode
+      summary: Delete node (cascades to children per DB FK)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - $ref: "#/components/parameters/PlanningNodeId"
+      responses:
+        "204": { description: Deleted }
+        "401": { description: Not authenticated }
+        "404": { description: Node not found }
 components:
   parameters:
     GameId:
@@ -1279,6 +1374,11 @@ components:
       schema: { type: string }
     FeedbackId:
       name: feedbackId
+      in: path
+      required: true
+      schema: { type: string }
+    PlanningNodeId:
+      name: id
       in: path
       required: true
       schema: { type: string }
@@ -1670,3 +1770,49 @@ components:
         meters:
           type: object
           additionalProperties: { type: integer }
+    PlanningNodeMeta:
+      type: object
+      properties:
+        id: { type: string }
+        parentId: { type: string, nullable: true }
+        kind: { type: string, enum: [folder, markdown, excalidraw] }
+        name: { type: string }
+        sortOrder: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PlanningNodeDetail:
+      allOf:
+        - $ref: "#/components/schemas/PlanningNodeMeta"
+        - type: object
+          properties:
+            markdownBody: { type: string, nullable: true }
+            excalidrawScene:
+              type: object
+              nullable: true
+              additionalProperties: true
+    PlanningNodeCreateRequest:
+      type: object
+      required: [kind, name]
+      properties:
+        parentId: { type: string, nullable: true }
+        kind: { type: string, enum: [folder, markdown, excalidraw] }
+        name: { type: string }
+        markdownBody: { type: string, nullable: true }
+        excalidrawScene:
+          type: object
+          nullable: true
+          additionalProperties: true
+    PlanningNodeUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        parentId:
+          type: string
+          nullable: true
+          description: JSON null or omit to move to root when parentId is sent; omit field to leave unchanged
+        sortOrder: { type: integer }
+        markdownBody: { type: string }
+        excalidrawScene:
+          type: object
+          nullable: true
+          additionalProperties: true

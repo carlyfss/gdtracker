@@ -12,6 +12,7 @@ import { ArchivePage } from './pages/ArchivePage'
 import { FeedbackPage } from './pages/FeedbackPage'
 import { IntegrationPage } from './pages/IntegrationPage'
 import { LoginPage } from './pages/LoginPage'
+import { PlanningPage } from './pages/planning/PlanningPage'
 import { SdkIntegrationPage } from './pages/SdkIntegrationPage'
 import { TasksPage } from './pages/TasksPage'
 
@@ -76,6 +77,7 @@ function App() {
                 <Route path="integration" element={<IntegrationPage />} />
                 <Route path="sdk" element={<SdkIntegrationPage />} />
                 <Route path="configuration" element={<ConfigurationPage />} />
+                <Route path="planning" element={<PlanningPage />} />
                 <Route path="features" element={<ConfigurationRedirectFromLegacyFeatures />} />
                 <Route index element={<Navigate to="dashboard" replace />} />
             </Route>

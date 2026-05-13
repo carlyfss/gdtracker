@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { describeApiError } from '../api/errors'
 import { createGame, listGames } from '../api/games'
-import { useAuth } from '../context/AuthContext'
+import { AppAuthenticatedShell } from '../components/AppAuthenticatedShell'
 
 export function GameCreatePage() {
     const navigate = useNavigate()
-    const { logout } = useAuth()
     const [name, setName] = useState('')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -40,16 +39,6 @@ export function GameCreatePage() {
         }
     }, [])
 
-    const onLeaveToLogin = () => {
-        void (async () => {
-            try {
-                await logout()
-            } finally {
-                navigate('/login', { replace: true })
-            }
-        })()
-    }
-
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         const trimmed = name.trim()
@@ -73,52 +62,45 @@ export function GameCreatePage() {
     }
 
     return (
-        <div className="fullScreenCreate">
-            <button
-                type="button"
-                className="fullScreenCreateClose"
-                onClick={onLeaveToLogin}
-                aria-label="Sign out and return to login"
-                title="Sign out"
-            >
-                ×
-            </button>
-            <div className="authSurface" style={{ width: 'min(520px, 100%)' }}>
-                <h1 className="authTitle">Create a game</h1>
-                <p className="authSubtitle">
-                    Games separate exceptions, traces, tasks, and configuration. You can switch games any time from the
-                    games hub.
-                </p>
-                {error && <p className="authError">{error}</p>}
-                <form onSubmit={onSubmit}>
-                    <div className="authField">
-                        <label className="authLabel" htmlFor="game-name">
-                            Game name
-                        </label>
-                        <input
-                            id="game-name"
-                            className="authInput"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            autoFocus
-                            placeholder="e.g. Main project"
-                            disabled={priming}
-                        />
-                    </div>
-                    <div className="authActions">
-                        <button type="submit" className="authPrimaryButton" disabled={busy || priming}>
-                            {priming ? 'Preparing…' : busy ? 'Creating…' : 'Create game'}
-                        </button>
-                        <button
-                            type="button"
-                            className="authSecondaryButton"
-                            onClick={() => navigate('/games', { replace: false })}
-                        >
-                            Back to games
-                        </button>
-                    </div>
-                </form>
+        <AppAuthenticatedShell sidebarNav={null} sidebarNavLabel="Game hub" mainAriaLabel="Create game">
+            <div className="appMainInner gameCreateMain">
+                <div className="authSurface" style={{ width: 'min(520px, 100%)' }}>
+                    <h1 className="authTitle">Create a game</h1>
+                    <p className="authSubtitle">
+                        Games separate exceptions, traces, tasks, and configuration. You can switch games any time from
+                        the games hub.
+                    </p>
+                    {error && <p className="authError">{error}</p>}
+                    <form onSubmit={onSubmit}>
+                        <div className="authField">
+                            <label className="authLabel" htmlFor="game-name">
+                                Game name
+                            </label>
+                            <input
+                                id="game-name"
+                                className="authInput"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                autoFocus
+                                placeholder="e.g. Main project"
+                                disabled={priming}
+                            />
+                        </div>
+                        <div className="authActions">
+                            <button type="submit" className="authPrimaryButton" disabled={busy || priming}>
+                                {priming ? 'Preparing…' : busy ? 'Creating…' : 'Create game'}
+                            </button>
+                            <button
+                                type="button"
+                                className="authSecondaryButton"
+                                onClick={() => navigate('/games', { replace: false })}
+                            >
+                                Back to games
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </AppAuthenticatedShell>
     )
 }

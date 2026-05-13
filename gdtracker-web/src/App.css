@@ -250,16 +250,129 @@
     z-index: 10;
     flex: 0 0 auto;
     width: 64px;
-    padding: 10px 8px;
+    padding: 10px 8px 12px;
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     background: rgba(17, 17, 24, 0.72);
     backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.appSidebarTop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    width: 100%;
+}
+
+.appSidebarLogoLink {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 40px;
+    border-radius: 12px;
+    text-decoration: none;
+    border: 1px solid transparent;
+}
+
+.appSidebarLogoLink:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.appSidebarLogoLink:focus-visible {
+    outline: 2px solid rgba(167, 139, 250, 0.55);
+    outline-offset: 2px;
+}
+
+.appSidebarLogo {
+    display: block;
+    max-width: 40px;
+    max-height: 32px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+}
+
+.appSidebarDivider {
+    width: 36px;
+    height: 0;
+    margin: 8px 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.appSidebarNavScroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.appSidebarFooter {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding-top: 4px;
+}
+
+.appSidebarLogoutButton {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 44px;
+    border-radius: 12px;
+    color: var(--text-h);
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    padding: 0;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.appSidebarLogoutButton:hover {
+    color: var(--text-h);
+    background: rgba(248, 113, 113, 0.14);
+    border-color: rgba(248, 113, 113, 0.65);
+}
+
+.appSidebarLogoutButton:focus-visible {
+    outline: 2px solid rgba(248, 113, 113, 0.75);
+    outline-offset: 2px;
+}
+
+.appSidebarLogoutButton .appSidebarRasterIcon {
+    filter: brightness(1.1);
+}
+
+.appSidebarLogoutButton:hover .appSidebarTooltip,
+.appSidebarLogoutButton:focus-visible .appSidebarTooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
 }
 
 .appSidebarNav {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 .appSidebarLink {
@@ -2535,11 +2648,33 @@
     padding: 28px 20px 48px;
 }
 
+.gamesHubIntro {
+    margin: 0 0 20px;
+}
+
 .gamesHubTitle {
     margin: 0 0 8px;
     font-size: 26px;
     font-weight: 750;
     color: var(--text-h);
+}
+
+.gamesHubSubtitle {
+    margin: 0;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.45;
+    letter-spacing: 0.2px;
+}
+
+.gameCreateMain {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .gamesList {
