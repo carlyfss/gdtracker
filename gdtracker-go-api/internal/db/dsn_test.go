@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestPostgresDSNFromJDBC_DefaultPort(t *testing.T) {
-	got, err := PostgresDSNFromJDBC("jdbc:postgresql://localhost:5432/numb_tracker", "numb_tracker", "secret")
+func TestPostgresDSNFromDBURL_DefaultPort(t *testing.T) {
+	got, err := PostgresDSNFromDBURL("postgresql://localhost:5432/numb_tracker", "numb_tracker", "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,9 +19,9 @@ func TestPostgresDSNFromJDBC_DefaultPort(t *testing.T) {
 	}
 }
 
-func TestPostgresDSNFromJDBC_QueryParams(t *testing.T) {
-	got, err := PostgresDSNFromJDBC(
-		"jdbc:postgresql://db.example.com:5432/appdb?sslmode=require&currentSchema=public",
+func TestPostgresDSNFromDBURL_QueryParams(t *testing.T) {
+	got, err := PostgresDSNFromDBURL(
+		"postgresql://db.example.com:5432/appdb?sslmode=require&currentSchema=public",
 		"u",
 		"p@ss",
 	)
@@ -50,8 +50,8 @@ func TestPostgresDSNFromJDBC_QueryParams(t *testing.T) {
 	}
 }
 
-func TestPostgresDSNFromJDBC_NoPort(t *testing.T) {
-	got, err := PostgresDSNFromJDBC("jdbc:postgresql://localhost/mydb", "a", "b")
+func TestPostgresDSNFromDBURL_NoPort(t *testing.T) {
+	got, err := PostgresDSNFromDBURL("postgresql://localhost/mydb", "a", "b")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,14 +60,28 @@ func TestPostgresDSNFromJDBC_NoPort(t *testing.T) {
 		t.Fatal(err)
 	}
 	if u.Query().Get("sslmode") != "prefer" {
-		t.Fatalf("sslmode = %q", u.Query().Get("sslmode"))
+		t.Fatalf("sslmode = %q, want prefer", u.Query().Get("sslmode"))
 	}
 }
 
-func TestPostgresDSNFromJDBC_InvalidPrefix(t *testing.T) {
-	_, err := PostgresDSNFromJDBC("mysql://localhost/x", "a", "b")
+func TestPostgresDSNFromDBURL_InvalidScheme(t *testing.T) {
+	_, err := PostgresDSNFromDBURL("mysql://localhost/x", "a", "b")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestPostgresDSNFromDBURL_PostgresSchemeRejected(t *testing.T) {
+	_, err := PostgresDSNFromDBURL("postgres://localhost:5432/mydb", "a", "b")
+	if err == nil {
+		t.Fatal("expected error for postgres:// scheme")
+	}
+}
+
+func TestPostgresDSNFromDBURL_JDBCRejected(t *testing.T) {
+	_, err := PostgresDSNFromDBURL("jdbc:postgresql://localhost:5432/mydb", "a", "b")
+	if err == nil {
+		t.Fatal("expected error for jdbc URL")
 	}
 }
 

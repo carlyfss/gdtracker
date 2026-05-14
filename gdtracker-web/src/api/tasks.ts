@@ -3,6 +3,12 @@ import type { Category } from './categories'
 import type { Feature } from './features'
 import type { Tag } from './tags'
 
+export type TaskPlanningDocumentRef = {
+    id: string
+    name: string
+    kind: 'markdown' | 'excalidraw'
+}
+
 export type TaskStatus = 'PENDING' | 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'DONE'
 
 export type Task = {
@@ -18,11 +24,32 @@ export type Task = {
     tagIds?: string[]
     parentTaskId?: string | null
     sourceGameExceptionId?: string | null
+    planningDocumentRefs?: TaskPlanningDocumentRef[]
     createdAt?: string
     updatedAt?: string
     archived?: boolean
     archivedAt?: string | null
     [key: string]: unknown
+}
+
+function normalizePlanningDocumentRefs(raw: unknown): TaskPlanningDocumentRef[] {
+    if (!Array.isArray(raw)) return []
+    const out: TaskPlanningDocumentRef[] = []
+    for (const row of raw) {
+        if (!row || typeof row !== 'object') continue
+        const o = row as Record<string, unknown>
+        const id = typeof o.id === 'string' ? o.id : ''
+        const name = typeof o.name === 'string' ? o.name : ''
+        const kind = o.kind === 'markdown' || o.kind === 'excalidraw' ? o.kind : null
+        if (!id || !kind) continue
+        out.push({ id, name: name || id, kind })
+    }
+    return out
+}
+
+export function taskPlanningDocumentRefsFromApi(t: Task): TaskPlanningDocumentRef[] {
+    const raw = (t as Record<string, unknown>).planningDocumentRefs
+    return normalizePlanningDocumentRefs(raw)
 }
 
 export type ListTasksParams = {
@@ -44,6 +71,7 @@ export type UpsertTaskBody = {
     tagIds?: string[]
     parentTaskId?: string | null
     sourceGameExceptionId?: string | null
+    planningNodeIds?: string[]
 }
 
 function base(gameId: string) {

@@ -28,6 +28,13 @@ func ArchivedFeatureHintForUpsert(featureID string, featureArchivedAt sql.NullTi
 	return sql.NullString{}
 }
 
+// TaskPlanningDocumentRef is one linked planning document on a task (markdown or excalidraw).
+type TaskPlanningDocumentRef struct {
+	PlanningNodeID string
+	Name           string
+	Kind           string
+}
+
 // TaskListRow is a task joined with its feature (for JSON responses).
 type TaskListRow struct {
 	TaskID                string
@@ -232,6 +239,7 @@ type TaskInsert struct {
 	ParentTaskID          sql.NullString
 	SourceGameExceptionID sql.NullString
 	TagIDs                []string
+	PlanningNodeIDs       []string
 }
 
 func (r *TaskRepository) Insert(ctx context.Context, ins TaskInsert) error {
@@ -259,6 +267,9 @@ func (r *TaskRepository) Insert(ctx context.Context, ins TaskInsert) error {
 	if err := replaceTaskTagsTx(ctx, tx, id, ins.TagIDs); err != nil {
 		return err
 	}
+	if err := replaceTaskPlanningDocumentRefsTx(ctx, tx, id, ins.PlanningNodeIDs); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -272,6 +283,7 @@ type TaskUpdate struct {
 	ParentTaskID          sql.NullString
 	SourceGameExceptionID sql.NullString
 	TagIDs                *[]string
+	PlanningNodeIDs       *[]string
 }
 
 func (r *TaskRepository) Update(ctx context.Context, u TaskUpdate) error {
@@ -295,7 +307,30 @@ func (r *TaskRepository) Update(ctx context.Context, u TaskUpdate) error {
 			return err
 		}
 	}
+	if u.PlanningNodeIDs != nil {
+		if err := replaceTaskPlanningDocumentRefsTx(ctx, tx, u.ID, *u.PlanningNodeIDs); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
+}
+
+func replaceTaskPlanningDocumentRefsTx(ctx context.Context, tx *sql.Tx, taskID string, planningNodeIDs []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM task_planning_document_refs WHERE task_id = $1`, taskID); err != nil {
+		return fmt.Errorf("clear task_planning_document_refs: %w", err)
+	}
+	for i, nid := range planningNodeIDs {
+		if nid == "" {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO task_planning_document_refs (task_id, planning_node_id, sort_order) VALUES ($1, $2, $3)`,
+			taskID, nid, i,
+		); err != nil {
+			return fmt.Errorf("insert task_planning_document_ref: %w", err)
+		}
+	}
+	return nil
 }
 
 func replaceTaskTagsTx(ctx context.Context, tx *sql.Tx, taskID string, tagIDs []string) error {
@@ -490,6 +525,34 @@ WHERE t.feature_id = f.id
 		return 0, fmt.Errorf("delete archived tasks before cutoff: %w", err)
 	}
 	return res.RowsAffected()
+}
+
+func (r *TaskRepository) LoadPlanningDocumentRefsForTasks(ctx context.Context, taskIDs []string) (map[string][]TaskPlanningDocumentRef, error) {
+	if len(taskIDs) == 0 {
+		return map[string][]TaskPlanningDocumentRef{}, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT r.task_id, r.planning_node_id, n.name, n.kind
+FROM task_planning_document_refs r
+JOIN planning_nodes n ON n.id = r.planning_node_id
+WHERE r.task_id = ANY($1::text[])
+ORDER BY r.task_id, r.sort_order, LOWER(n.name)`,
+		pq.Array(taskIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load task planning document refs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[string][]TaskPlanningDocumentRef)
+	for rows.Next() {
+		var taskID string
+		var ref TaskPlanningDocumentRef
+		if err := rows.Scan(&taskID, &ref.PlanningNodeID, &ref.Name, &ref.Kind); err != nil {
+			return nil, err
+		}
+		out[taskID] = append(out[taskID], ref)
+	}
+	return out, rows.Err()
 }
 
 func (r *TaskRepository) LoadTagsForTasks(ctx context.Context, taskIDs []string) (map[string][]Tag, error) {

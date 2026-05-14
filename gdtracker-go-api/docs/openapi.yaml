@@ -1575,6 +1575,16 @@ components:
         updatedAt: { type: string, format: date-time }
         archived: { type: boolean }
         archivedAt: { type: string, nullable: true, format: date-time }
+        planningDocumentRefs:
+          type: array
+          description: Linked planning documents (markdown or excalidraw) for this task.
+          items: { $ref: "#/components/schemas/TaskPlanningDocumentRef" }
+    TaskPlanningDocumentRef:
+      type: object
+      properties:
+        id: { type: string, description: Planning node id }
+        name: { type: string }
+        kind: { type: string, enum: [markdown, excalidraw] }
     TaskUpsertRequest:
       type: object
       required: [title, status, featureId]
@@ -1589,6 +1599,11 @@ components:
           items: { type: string }
         parentTaskId: { type: string, nullable: true }
         sourceGameExceptionId: { type: string, nullable: true }
+        planningNodeIds:
+          type: array
+          description: Planning node ids to attach (markdown or excalidraw only); replaces existing on update when sent.
+          maxItems: 20
+          items: { type: string }
     GameException:
       type: object
       properties:

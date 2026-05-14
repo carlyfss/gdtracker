@@ -54,7 +54,7 @@ func tagToMap(t repository.Tag) map[string]any {
 	return m
 }
 
-func taskRowToMap(tr repository.TaskListRow, tags []repository.Tag, cat *repository.Category) map[string]any {
+func taskRowToMap(tr repository.TaskListRow, tags []repository.Tag, cat *repository.Category, planningRefs []repository.TaskPlanningDocumentRef) map[string]any {
 	m := map[string]any{
 		"id":        tr.TaskID,
 		"title":     tr.Title,
@@ -101,5 +101,14 @@ func taskRowToMap(tr repository.TaskListRow, tags []repository.Tag, cat *reposit
 	}
 	m["tags"] = tagObjs
 	m["tagIds"] = tagIDs
+	refObjs := make([]map[string]any, 0, len(planningRefs))
+	for _, r := range planningRefs {
+		refObjs = append(refObjs, map[string]any{
+			"id":   r.PlanningNodeID,
+			"name": r.Name,
+			"kind": r.Kind,
+		})
+	}
+	m["planningDocumentRefs"] = refObjs
 	return m
 }

@@ -35,6 +35,7 @@ type taskUpsertBody struct {
 	TagIDs                *[]string `json:"tagIds"`
 	ParentTaskID          *string   `json:"parentTaskId"`
 	SourceGameExceptionID *string   `json:"sourceGameExceptionId"`
+	PlanningNodeIDs       *[]string `json:"planningNodeIds"`
 }
 
 func normalizeTaskTitle(raw string) string {
@@ -109,6 +110,12 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	planningRefMap, err := s.tasks.LoadPlanningDocumentRefsForTasks(ctx, taskIDs)
+	if err != nil {
+		log.Printf("load task planning refs: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	catMap, err := s.categories.MapByIDs(ctx, catIDs)
 	if err != nil {
 		log.Printf("load categories: %v", err)
@@ -124,7 +131,7 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 				cat = &c
 			}
 		}
-		out = append(out, taskRowToMap(tr, tags, cat))
+		out = append(out, taskRowToMap(tr, tags, cat, planningRefMap[tr.TaskID]))
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
@@ -294,6 +301,17 @@ func (s *Server) writeTaskCreate(w http.ResponseWriter, ctx context.Context, gam
 		}
 		return err
 	}
+	planningIDs := []string{}
+	if body.PlanningNodeIDs != nil {
+		planningIDs, err = s.validatePlanningNodeIDList(ctx, gameID, *body.PlanningNodeIDs)
+		if err != nil {
+			var he httpStatusErr
+			if errors.As(err, &he) {
+				return he
+			}
+			return err
+		}
+	}
 	ins := repository.TaskInsert{
 		ID:                    uuid.NewString(),
 		Title:                 title,
@@ -304,6 +322,7 @@ func (s *Server) writeTaskCreate(w http.ResponseWriter, ctx context.Context, gam
 		ParentTaskID:          parentID,
 		SourceGameExceptionID: srcEx,
 		TagIDs:                tagList,
+		PlanningNodeIDs:       planningIDs,
 	}
 	if err := s.tasks.Insert(ctx, ins); err != nil {
 		return err
@@ -372,6 +391,18 @@ func (s *Server) writeTaskUpdate(w http.ResponseWriter, ctx context.Context, gam
 			srcEx = sql.NullString{String: raw, Valid: true}
 		}
 	}
+	var planningUpdate *[]string
+	if body.PlanningNodeIDs != nil {
+		pids, err := s.validatePlanningNodeIDList(ctx, gameID, *body.PlanningNodeIDs)
+		if err != nil {
+			var he httpStatusErr
+			if errors.As(err, &he) {
+				return he
+			}
+			return err
+		}
+		planningUpdate = &pids
+	}
 	u := repository.TaskUpdate{
 		ID:                    taskID,
 		Title:                 title,
@@ -382,6 +413,7 @@ func (s *Server) writeTaskUpdate(w http.ResponseWriter, ctx context.Context, gam
 		ParentTaskID:          parentID,
 		SourceGameExceptionID: srcEx,
 		TagIDs:                tagUpdate,
+		PlanningNodeIDs:       planningUpdate,
 	}
 	if err := s.tasks.Update(ctx, u); err != nil {
 		return err
@@ -405,7 +437,12 @@ func (s *Server) writeTaskResponse(w http.ResponseWriter, ctx context.Context, g
 			}
 		}
 	}
-	httpx.WriteJSON(w, status, taskRowToMap(*tr, tags[taskID], cat))
+	planningRefMap, err := s.tasks.LoadPlanningDocumentRefsForTasks(ctx, []string{taskID})
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	httpx.WriteJSON(w, status, taskRowToMap(*tr, tags[taskID], cat, planningRefMap[taskID]))
 }
 
 func dedupeStrings(in []string) []string {
@@ -422,6 +459,41 @@ func dedupeStrings(in []string) []string {
 		}
 	}
 	return out
+}
+
+const maxTaskPlanningDocumentRefs = 20
+
+func validatePlanningNodeDocumentKinds(ids []string, kindByID map[string]string) error {
+	if len(kindByID) != len(ids) {
+		return httpStatusErr{400, "planningNodeIds contain invalid planning nodes"}
+	}
+	for _, id := range ids {
+		if kindByID[id] == repository.PlanningKindFolder {
+			return httpStatusErr{400, "planningNodeIds must not reference folders"}
+		}
+	}
+	return nil
+}
+
+func (s *Server) validatePlanningNodeIDList(ctx context.Context, gameID string, raw []string) ([]string, error) {
+	if s.planning == nil {
+		return nil, fmt.Errorf("planning repository not configured")
+	}
+	ids := dedupeStrings(raw)
+	if len(ids) > maxTaskPlanningDocumentRefs {
+		return nil, httpStatusErr{400, "planningNodeIds: at most 20 references allowed"}
+	}
+	if len(ids) == 0 {
+		return []string{}, nil
+	}
+	kindMap, err := s.planning.MapKindsByIDsInGame(ctx, gameID, ids)
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePlanningNodeDocumentKinds(ids, kindMap); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (s *Server) resolveCategoryID(ctx context.Context, gameID string, raw *string) (sql.NullString, error) {

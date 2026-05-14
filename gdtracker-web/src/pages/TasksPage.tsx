@@ -305,6 +305,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                     parentTaskId: '',
                     tagIds: [],
                     sourceGameExceptionId: c.exceptionId,
+                    planningDocumentRefs: [],
                 },
             })
             navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} })
@@ -445,6 +446,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 categoryId: modal.draft.categoryId.trim().length > 0 ? modal.draft.categoryId.trim() : null,
                 tagIds: modal.draft.tagIds,
                 parentTaskId: upsertBodyParentId(modal.draft),
+                planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
                 ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
             })
             closeModal()
@@ -470,6 +472,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 tagIds: modal.draft.tagIds,
                 parentTaskId: upsertBodyParentId(modal.draft),
                 sourceGameExceptionId: modal.draft.sourceGameExceptionId.trim(),
+                planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
             })
             setModal({
                 kind: 'task',

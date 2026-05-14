@@ -101,6 +101,30 @@ func (r *PlanningRepository) FindKindByIDAndGame(ctx context.Context, id, gameID
 	return kind, true, nil
 }
 
+// MapKindsByIDsInGame returns id -> kind for planning nodes in the given game among ids (partial map if some ids are missing).
+func (r *PlanningRepository) MapKindsByIDsInGame(ctx context.Context, gameID string, ids []string) (map[string]string, error) {
+	if len(ids) == 0 {
+		return map[string]string{}, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, kind FROM planning_nodes WHERE game_id = $1 AND id = ANY($2::text[])`,
+		gameID, pq.Array(ids),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("map planning kinds: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[string]string)
+	for rows.Next() {
+		var id, kind string
+		if err := rows.Scan(&id, &kind); err != nil {
+			return nil, err
+		}
+		out[id] = kind
+	}
+	return out, rows.Err()
+}
+
 // IsAncestorOf walks parent chain from nodeID upward; returns true if ancestorID appears (ancestorID is strict ancestor of nodeID).
 func (r *PlanningRepository) IsAncestorOf(ctx context.Context, gameID, ancestorID, nodeID string) (bool, error) {
 	if ancestorID == nodeID {
