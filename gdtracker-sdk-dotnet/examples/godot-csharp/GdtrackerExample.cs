@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Gdtracker;
 using Godot;
 
+/// <summary>Minimal smoke test: configure from the editor, then run the ingest flow once.</summary>
 public partial class GdtrackerExample : Node
 {
     [Export] public string ApiBaseUrl = "http://localhost:8080";
@@ -11,36 +12,40 @@ public partial class GdtrackerExample : Node
 
     public override async void _Ready()
     {
-        var client = new GdtrackerClient(new GdtrackerClientOptions
+        GdtrackerIntegration.Configure(new GdtrackerClientOptions
         {
             BaseUrl = ApiBaseUrl,
             GameId = GameId,
             IngestToken = IngestToken,
         });
 
-        try
+        await GdtrackerIntegration.SafeRun(async () =>
         {
-            await client.PingIntegration();
-            var playerId = await client.RegisterPlayer();
+            await GdtrackerIntegration.PingIntegration();
+            var playerId = await GdtrackerIntegration.RegisterPlayer();
             GD.Print($"GDTracker playerId: {playerId}");
 
-            await client.CreateEvent(
-                definitionCode: "player_died",
-                parameters: new Dictionary<string, string>
-                {
-                    { "player_id", "123" },
-                    { "enemy", "Zombie" },
-                    { "map", "proto-dungeon" },
-                    { "location", "(35, 22, 17)" },
-                }
-            );
+            await GdtrackerIntegration.CreateEvent(
+                "player_died",
+                playerId: "123",
+                key: "cause",
+                value: "zombie",
+                map: "proto-dungeon",
+                location: new Vector3(35, 22, 17));
 
-            await client.CreateTrace(location: "(35, 22, 17)", map: "proto-dungeon");
-        }
-        catch (GdtrackerApiException ex)
-        {
-            GD.PushError($"GDTracker API error: {(int)ex.StatusCode} {ex.Message}\n{ex.ResponseBody}");
-        }
+            await GdtrackerIntegration.CreateTrace("proto-dungeon", new Vector3(35, 22, 17));
+
+            await GdtrackerIntegration.CreateException(
+                errorMessage: "NullReferenceException",
+                shortErrorMessage: "NRE",
+                location: "(35, 22, 17)",
+                map: "proto-dungeon",
+                stackTrace: "at Player.Tick()\n...");
+
+            await GdtrackerIntegration.CreateFeedback(
+                "Great session",
+                "Loved the new level.",
+                new Dictionary<string, int> { { "game_fun", 8 }, { "balance", 6 } });
+        });
     }
 }
-
