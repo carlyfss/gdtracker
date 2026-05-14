@@ -7,13 +7,12 @@ import (
 	"strings"
 )
 
-// PostgresDSNFromEnv builds a libpq/postgres URL from the same variables as Spring Boot
-// (`gdtracker-api` application.properties): DB_URL (JDBC), DB_USERNAME, DB_PASSWORD.
+// PostgresDSNFromEnv builds a libpq URL from DB_URL (postgresql://…), DB_USERNAME, and DB_PASSWORD.
 func PostgresDSNFromEnv() (string, error) {
-	jdbc := strings.TrimSpace(os.Getenv("DB_URL"))
+	dbURL := strings.TrimSpace(os.Getenv("DB_URL"))
 	user := strings.TrimSpace(os.Getenv("DB_USERNAME"))
 	pass := os.Getenv("DB_PASSWORD")
-	if jdbc == "" {
+	if dbURL == "" {
 		return "", fmt.Errorf("DB_URL is required for database connectivity")
 	}
 	if user == "" {
@@ -22,67 +21,36 @@ func PostgresDSNFromEnv() (string, error) {
 	if pass == "" {
 		return "", fmt.Errorf("DB_PASSWORD is required for database connectivity")
 	}
-	return PostgresDSNFromJDBC(jdbc, user, pass)
+	return PostgresDSNFromDBURL(dbURL, user, pass)
 }
 
-// PostgresDSNFromJDBC converts jdbc:postgresql://host:port/dbname[?params] into postgres://...
-func PostgresDSNFromJDBC(jdbcURL, username, password string) (string, error) {
-	jdbcURL = strings.TrimSpace(jdbcURL)
-	const (
-		prefixSlashes = "jdbc:postgresql://"
-		prefixNoSlash = "jdbc:postgresql:"
-	)
-	var remainder string
-	switch {
-	case strings.HasPrefix(jdbcURL, prefixSlashes):
-		remainder = strings.TrimPrefix(jdbcURL, prefixSlashes)
-	case strings.HasPrefix(jdbcURL, prefixNoSlash):
-		remainder = strings.TrimPrefix(jdbcURL, prefixNoSlash)
-	default:
-		return "", fmt.Errorf("DB_URL must start with %q or %q", prefixSlashes, prefixNoSlash)
+// PostgresDSNFromDBURL parses DB_URL as postgresql://host[:port]/dbname[?query], applies username/password
+// from the caller, and returns a postgres:// URL suitable for database/sql with lib/pq.
+func PostgresDSNFromDBURL(dbURL, username, password string) (string, error) {
+	dbURL = strings.TrimSpace(dbURL)
+	if strings.HasPrefix(strings.ToLower(dbURL), "jdbc:") {
+		return "", fmt.Errorf("DB_URL must use postgresql:// (jdbc:postgresql:// is no longer supported)")
 	}
-
-	hostPort, dbName, query := splitJDBCPath(remainder)
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		return "", fmt.Errorf("DB_URL: %w", err)
+	}
+	if !strings.EqualFold(u.Scheme, "postgresql") {
+		return "", fmt.Errorf("DB_URL must use postgresql:// scheme (got %q)", u.Scheme)
+	}
+	dbName := strings.TrimPrefix(u.Path, "/")
 	if dbName == "" {
-		return "", fmt.Errorf("DB_URL: missing database name in path")
+		return "", fmt.Errorf("DB_URL: missing database name in path (e.g. postgresql://host:5432/dbname)")
 	}
 
-	u := url.URL{
-		Scheme: "postgres",
-		User:   url.UserPassword(username, password),
-		Host:   hostPort,
-		Path:   "/" + dbName,
-	}
-	q := url.Values{}
-	if query != "" {
-		parsed, err := url.ParseQuery(query)
-		if err != nil {
-			return "", fmt.Errorf("DB_URL query: %w", err)
-		}
-		q = parsed
-	}
-	// lib/pq otherwise behaves like sslmode=require for many setups, which breaks typical
-	// local Postgres (Docker) with SSL disabled. Spring JDBC is more lenient by default.
+	out := *u
+	out.Scheme = "postgres"
+	out.User = url.UserPassword(username, password)
+
+	q := out.Query()
 	if q.Get("sslmode") == "" {
 		q.Set("sslmode", "prefer")
 	}
-	u.RawQuery = q.Encode()
-	return u.String(), nil
-}
-
-// splitJDBCPath parses host[:port]/database[?query] after the jdbc:postgresql:// prefix.
-func splitJDBCPath(remainder string) (hostPort, database, rawQuery string) {
-	qIdx := strings.IndexByte(remainder, '?')
-	queryPart := ""
-	if qIdx >= 0 {
-		queryPart = remainder[qIdx+1:]
-		remainder = remainder[:qIdx]
-	}
-	slash := strings.IndexByte(remainder, '/')
-	if slash < 0 {
-		return remainder, "", queryPart
-	}
-	hostPort = remainder[:slash]
-	dbPart := remainder[slash+1:]
-	return hostPort, dbPart, queryPart
+	out.RawQuery = q.Encode()
+	return out.String(), nil
 }

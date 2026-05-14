@@ -88,4 +88,4 @@ If migration 19 actually created objects before failing, drop them manually or u
 
 ## Environment variables
 
-Same as Spring: `DB_URL` (JDBC `jdbc:postgresql://...`), `DB_USERNAME`, `DB_PASSWORD`. See [`README.md`](README.md).
+Same env as the app: `DB_URL` (`postgresql://host:port/dbname[?query]`), `DB_USERNAME`, `DB_PASSWORD`. See [`README.md`](README.md).

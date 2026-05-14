@@ -1,7 +1,8 @@
 import type { Category } from '../../api/categories'
 import type { Feature } from '../../api/features'
 import type { Tag } from '../../api/tags'
-import type { Task, TaskStatus } from '../../api/tasks'
+import type { Task, TaskPlanningDocumentRef, TaskStatus } from '../../api/tasks'
+import { taskPlanningDocumentRefsFromApi } from '../../api/tasks'
 import { normalizeHex6 } from '../../util/hexColor'
 import { isUnderAncestor } from '../../util/taskTree'
 
@@ -20,6 +21,7 @@ export type TaskDraft = {
     parentTaskId: string
     tagIds: string[]
     sourceGameExceptionId: string
+    planningDocumentRefs: TaskPlanningDocumentRef[]
 }
 
 export type CreateFromExceptionState = {
@@ -79,6 +81,7 @@ export function draftFromTask(t: Task): TaskDraft {
         parentTaskId: typeof pid === 'string' && pid.length > 0 ? pid : '',
         tagIds: tagIdsFromTask(t),
         sourceGameExceptionId: typeof sid === 'string' && sid.length > 0 ? sid : '',
+        planningDocumentRefs: taskPlanningDocumentRefsFromApi(t),
     }
 }
 
@@ -92,6 +95,7 @@ export function emptyDraft(featureId: string, categoryId: string): TaskDraft {
         parentTaskId: '',
         tagIds: [],
         sourceGameExceptionId: '',
+        planningDocumentRefs: [],
     }
 }
 

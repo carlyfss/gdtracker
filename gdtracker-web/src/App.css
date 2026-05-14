@@ -1696,6 +1696,83 @@
     flex-shrink: 0;
 }
 
+.modalTaskParentSplit {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    min-height: 0;
+    gap: 0;
+}
+
+.modalTaskParentSplitCreate {
+    gap: 10px;
+}
+
+.modalTaskParentSplitTop {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+}
+
+.modalTaskParentSplitBottom {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modalPlanningDocRefsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.modalPlanningDocRefRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.modalPlanningDocRefName {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.modalPlanningDocRefRemove {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.modalPlanningDocRefSelect {
+    margin-top: 4px;
+}
+
+.modalPlanningDocRefLink {
+    text-decoration: none;
+    color: inherit;
+    box-sizing: border-box;
+}
+
 .modalParentTaskEmpty {
     margin: 0;
     font-size: 13px;

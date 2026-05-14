@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { listPlanningNodes, type PlanningNodeMeta } from '../../../api/planning'
 import type { Category } from '../../../api/categories'
 import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
-import type { Task, TaskStatus } from '../../../api/tasks'
+import type { Task, TaskPlanningDocumentRef, TaskStatus } from '../../../api/tasks'
 import { TaskDescriptionMarkdown } from '../../../components/TaskDescriptionMarkdown'
 import { chipTextColor } from '../../../util/chipTextColor'
 import { normalizeHex6 } from '../../../util/hexColor'
@@ -17,6 +18,110 @@ import {
     type TaskModal as TaskModalState,
     type UiState,
 } from '../tasksPageUtils'
+
+const MAX_TASK_PLANNING_DOC_REFS = 20
+
+function TaskPlanningDocRefsReadonly({
+    refs,
+    gameId,
+    closeModal,
+}: {
+    refs: TaskPlanningDocumentRef[]
+    gameId: string
+    closeModal: () => void
+}) {
+    if (refs.length === 0) {
+        return <p className="muted modalParentTaskEmpty">No linked documents.</p>
+    }
+    return (
+        <ul className="modalPlanningDocRefsList">
+            {refs.map((r) => (
+                <li key={r.id}>
+                    <Link
+                        className="modalSubtaskRowBtn modalPlanningDocRefLink"
+                        to={`/g/${encodeURIComponent(gameId)}/planning?doc=${encodeURIComponent(r.id)}`}
+                        onClick={closeModal}
+                    >
+                        <span className="modalSubtaskTitle">{r.name || r.id}</span>
+                        <span className="modalSubtaskStatus muted">{r.kind}</span>
+                    </Link>
+                </li>
+            ))}
+        </ul>
+    )
+}
+
+function TaskPlanningDocRefsEditable({
+    draft,
+    patchDraft,
+    planningNodeList,
+}: {
+    draft: TaskDraft
+    patchDraft: (patch: Partial<TaskDraft>) => void
+    planningNodeList: PlanningNodeMeta[]
+}) {
+    const addable = useMemo(() => {
+        const sel = new Set(draft.planningDocumentRefs.map((x) => x.id))
+        return planningNodeList.filter((n) => (n.kind === 'markdown' || n.kind === 'excalidraw') && !sel.has(n.id))
+    }, [planningNodeList, draft.planningDocumentRefs])
+
+    const onPick = (nodeId: string) => {
+        const node = planningNodeList.find((n) => n.id === nodeId)
+        if (!node || (node.kind !== 'markdown' && node.kind !== 'excalidraw')) return
+        if (draft.planningDocumentRefs.length >= MAX_TASK_PLANNING_DOC_REFS) return
+        const ref: TaskPlanningDocumentRef = { id: node.id, name: node.name, kind: node.kind }
+        patchDraft({ planningDocumentRefs: [...draft.planningDocumentRefs, ref] })
+    }
+
+    return (
+        <>
+            {draft.planningDocumentRefs.length > 0 ? (
+                <ul className="modalPlanningDocRefsList" aria-label="Selected documents">
+                    {draft.planningDocumentRefs.map((r) => (
+                        <li key={r.id} className="modalPlanningDocRefRow">
+                            <span className="modalPlanningDocRefName" title={r.name}>
+                                {r.name}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn modalPlanningDocRefRemove"
+                                aria-label={`Remove ${r.name}`}
+                                onClick={() =>
+                                    patchDraft({
+                                        planningDocumentRefs: draft.planningDocumentRefs.filter((x) => x.id !== r.id),
+                                    })
+                                }
+                            >
+                                Remove
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p className="muted modalParentTaskEmpty">No documents linked.</p>
+            )}
+            <select
+                className="intervalSelect modalPlanningDocRefSelect"
+                aria-label="Add planning document"
+                defaultValue=""
+                onChange={(e) => {
+                    const v = e.target.value
+                    e.target.value = ''
+                    if (!v) return
+                    onPick(v)
+                }}
+                disabled={addable.length === 0 || draft.planningDocumentRefs.length >= MAX_TASK_PLANNING_DOC_REFS}
+            >
+                <option value="">{addable.length === 0 ? 'No more documents' : 'Add document…'}</option>
+                {addable.map((n) => (
+                    <option key={n.id} value={n.id}>
+                        {n.name}
+                    </option>
+                ))}
+            </select>
+        </>
+    )
+}
 
 function TaskModalSubtasksContent({
     directSubtasks,
@@ -97,6 +202,35 @@ export function TaskModal(props: TaskModalProps) {
         if (modal.kind !== 'task') return []
         return tasks.filter((t) => String(t.parentTaskId ?? '') === modal.taskId)
     }, [tasks, modal])
+
+    const [planningNodeList, setPlanningNodeList] = useState<PlanningNodeMeta[]>([])
+    const planningFetchKey =
+        modal.kind === 'closed'
+            ? ''
+            : modal.kind === 'create'
+              ? `c:${gameId}`
+              : modal.kind === 'task' && modal.surface === 'edit'
+                ? `e:${gameId}:${modal.taskId}`
+                : ''
+
+    useEffect(() => {
+        if (!planningFetchKey) {
+            return
+        }
+        let cancelled = false
+        void listPlanningNodes(gameId)
+            .then((list) => {
+                if (!cancelled) setPlanningNodeList(list)
+            })
+            .catch(() => {
+                if (!cancelled) setPlanningNodeList([])
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [gameId, planningFetchKey])
+
+    const planningNodesForPicker = planningFetchKey ? planningNodeList : []
 
     const viewParentId = modal.kind === 'task' && modal.surface === 'view' ? modal.draft.parentTaskId.trim() : ''
     const viewParentTask = viewParentId ? tasks.find((t) => t.id === viewParentId) : undefined
@@ -225,23 +359,35 @@ export function TaskModal(props: TaskModalProps) {
                                         </select>
                                     </div>
                                 </div>
-                                <label className="modalFieldLabel" htmlFor="task-modal-parent">
-                                    Parent task (optional)
-                                </label>
-                                <select
-                                    id="task-modal-parent"
-                                    className="intervalSelect"
-                                    value={modal.draft.parentTaskId}
-                                    onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
-                                    aria-label="Parent task"
-                                >
-                                    <option value="">None (root task)</option>
-                                    {parentTaskPickerOptions(tasks, modal.draft.featureId, null).map((pt) => (
-                                        <option key={pt.id} value={pt.id}>
-                                            {pt.title}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="modalTaskParentSplit modalTaskParentSplitCreate">
+                                    <div className="modalTaskParentSplitTop">
+                                        <label className="modalFieldLabel" htmlFor="task-modal-parent">
+                                            Parent task (optional)
+                                        </label>
+                                        <select
+                                            id="task-modal-parent"
+                                            className="intervalSelect"
+                                            value={modal.draft.parentTaskId}
+                                            onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
+                                            aria-label="Parent task"
+                                        >
+                                            <option value="">None (root task)</option>
+                                            {parentTaskPickerOptions(tasks, modal.draft.featureId, null).map((pt) => (
+                                                <option key={pt.id} value={pt.id}>
+                                                    {pt.title}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="modalTaskParentSplitBottom">
+                                        <span className="modalFieldLabel">Document references</span>
+                                        <TaskPlanningDocRefsEditable
+                                            draft={modal.draft}
+                                            patchDraft={patchDraft}
+                                            planningNodeList={planningNodesForPicker}
+                                        />
+                                    </div>
+                                </div>
                                 <label className="modalFieldLabel" htmlFor="task-modal-desc">
                                     Description (markdown)
                                 </label>
@@ -373,36 +519,48 @@ export function TaskModal(props: TaskModalProps) {
                                 </div>
                             </section>
                             <aside className="modalTaskSubtasksPane" aria-label="Parent task and subtasks">
-                                <div className="modalTaskParentSection">
-                                    <span className="modalFieldLabel">Parent task</span>
-                                    {viewParentId.length === 0 ? (
-                                        <p className="muted modalParentTaskEmpty">No Parent Task</p>
-                                    ) : (
-                                        <ul className="modalSubtasksList modalParentTaskRowList">
-                                            <li>
-                                                <button
-                                                    type="button"
-                                                    className="modalSubtaskRowBtn"
-                                                    onClick={() => viewParentTask && onOpenSubtask?.(viewParentTask)}
-                                                    disabled={!viewParentTask}
-                                                    aria-label={
-                                                        viewParentTask
-                                                            ? `Open parent task: ${viewParentTask.title || 'Untitled'}`
-                                                            : `Parent task unavailable (${viewParentId})`
-                                                    }
-                                                >
-                                                    <span className="modalSubtaskTitle">
-                                                        {viewParentTask?.title ?? viewParentId}
-                                                    </span>
-                                                    <span className="modalSubtaskStatus muted">
-                                                        {viewParentTask
-                                                            ? statusLabel(viewParentTask.status as TaskStatus)
-                                                            : '—'}
-                                                    </span>
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    )}
+                                <div className="modalTaskParentSplit">
+                                    <div className="modalTaskParentSplitTop modalTaskParentSection">
+                                        <span className="modalFieldLabel">Parent task</span>
+                                        {viewParentId.length === 0 ? (
+                                            <p className="muted modalParentTaskEmpty">No Parent Task</p>
+                                        ) : (
+                                            <ul className="modalSubtasksList modalParentTaskRowList">
+                                                <li>
+                                                    <button
+                                                        type="button"
+                                                        className="modalSubtaskRowBtn"
+                                                        onClick={() =>
+                                                            viewParentTask && onOpenSubtask?.(viewParentTask)
+                                                        }
+                                                        disabled={!viewParentTask}
+                                                        aria-label={
+                                                            viewParentTask
+                                                                ? `Open parent task: ${viewParentTask.title || 'Untitled'}`
+                                                                : `Parent task unavailable (${viewParentId})`
+                                                        }
+                                                    >
+                                                        <span className="modalSubtaskTitle">
+                                                            {viewParentTask?.title ?? viewParentId}
+                                                        </span>
+                                                        <span className="modalSubtaskStatus muted">
+                                                            {viewParentTask
+                                                                ? statusLabel(viewParentTask.status as TaskStatus)
+                                                                : '—'}
+                                                        </span>
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        )}
+                                    </div>
+                                    <div className="modalTaskParentSplitBottom">
+                                        <span className="modalFieldLabel">Document references</span>
+                                        <TaskPlanningDocRefsReadonly
+                                            refs={modal.draft.planningDocumentRefs}
+                                            gameId={gameId}
+                                            closeModal={closeModal}
+                                        />
+                                    </div>
                                 </div>
                                 <TaskModalSubtasksContent
                                     directSubtasks={directSubtasks}
@@ -561,26 +719,36 @@ export function TaskModal(props: TaskModalProps) {
                                 </div>
                             </section>
                             <aside className="modalTaskSubtasksPane" aria-label="Parent task and subtasks">
-                                <div className="modalTaskParentSection">
-                                    <label className="modalFieldLabel" htmlFor="task-edit-parent">
-                                        Parent task
-                                    </label>
-                                    <select
-                                        id="task-edit-parent"
-                                        className="intervalSelect"
-                                        value={modal.draft.parentTaskId}
-                                        onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
-                                        aria-label="Parent task"
-                                    >
-                                        <option value="">None (root task)</option>
-                                        {parentTaskPickerOptions(tasks, modal.draft.featureId, modal.taskId).map(
-                                            (pt) => (
-                                                <option key={pt.id} value={pt.id}>
-                                                    {pt.title}
-                                                </option>
-                                            )
-                                        )}
-                                    </select>
+                                <div className="modalTaskParentSplit">
+                                    <div className="modalTaskParentSplitTop modalTaskParentSection">
+                                        <label className="modalFieldLabel" htmlFor="task-edit-parent">
+                                            Parent task
+                                        </label>
+                                        <select
+                                            id="task-edit-parent"
+                                            className="intervalSelect"
+                                            value={modal.draft.parentTaskId}
+                                            onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
+                                            aria-label="Parent task"
+                                        >
+                                            <option value="">None (root task)</option>
+                                            {parentTaskPickerOptions(tasks, modal.draft.featureId, modal.taskId).map(
+                                                (pt) => (
+                                                    <option key={pt.id} value={pt.id}>
+                                                        {pt.title}
+                                                    </option>
+                                                )
+                                            )}
+                                        </select>
+                                    </div>
+                                    <div className="modalTaskParentSplitBottom">
+                                        <span className="modalFieldLabel">Document references</span>
+                                        <TaskPlanningDocRefsEditable
+                                            draft={modal.draft}
+                                            patchDraft={patchDraft}
+                                            planningNodeList={planningNodesForPicker}
+                                        />
+                                    </div>
                                 </div>
                                 <TaskModalSubtasksContent
                                     directSubtasks={directSubtasks}

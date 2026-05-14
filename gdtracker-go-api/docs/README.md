@@ -14,7 +14,7 @@
 gdtracker-go-api/
 ├── cmd/gdtracker-go-api/   # entrypoint
 ├── internal/
-│   ├── db/                 # Postgres DSN (JDBC→postgres URL), pool, embedded golang-migrate SQL
+│   ├── db/                 # Postgres DSN (postgresql:// → libpq URL), pool, embedded golang-migrate SQL
 │   ├── retention/          # archive TTL purge (Spring ArchiveRetentionService parity)
 │   └── httpx/              # small HTTP helpers
 ├── controller/             # HTTP handlers (when added)
@@ -33,7 +33,7 @@ gdtracker-go-api/
 
 ## Database (Phase 0)
 
-- **Env**: `DB_URL` (JDBC `jdbc:postgresql://host:port/dbname[?query]`), `DB_USERNAME`, `DB_PASSWORD` — same as [`gdtracker-api`](../../gdtracker-api/README.md).
+- **Env**: `DB_URL` (`postgresql://host:port/dbname[?query]` — not JDBC), `DB_USERNAME`, `DB_PASSWORD` (always applied; do not embed credentials in `DB_URL`).
 - **Migrations**: Embedded SQL under `internal/db/migrations/` (`*_up.sql` / `*_down.sql`). See **`MIGRATIONS.md`** for inventory and operational notes.
 - **Auto migrate**: `GDTRACKER_GO_AUTO_MIGRATE` — `auto` (default) or `on` runs embedded golang-migrate **Up** on startup; `off` skips (operational escape hatch).
 
@@ -65,7 +65,7 @@ Use a disposable database (Docker or local). Example:
 
 ```bash
 # Example: Postgres listening on localhost, empty database testdb, GDTRACKER_GO_AUTO_MIGRATE=on
-export DB_URL=jdbc:postgresql://localhost:5432/testdb
+export DB_URL=postgresql://localhost:5432/testdb
 export DB_USERNAME=...
 export DB_PASSWORD=...
 export GDTRACKER_GO_AUTO_MIGRATE=on
@@ -78,4 +78,4 @@ See **`MIGRATIONS.md`** if you share a database with legacy tooling (Liquibase h
 
 ### CLI-only migrate (optional)
 
-Install [`migrate`](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate), export a **postgres://** DSN (see `internal/db/dsn.go` for JDBC conversion rules), and run `migrate -path internal/db/migrations -database "$DATABASE_URL" up` from `gdtracker-go-api/` if you prefer migrations outside the binary.
+Install [`migrate`](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate), export a **postgres://** DSN (see `internal/db/dsn.go` for how `DB_URL` is normalized), and run `migrate -path internal/db/migrations -database "$DATABASE_URL" up` from `gdtracker-go-api/` if you prefer migrations outside the binary.

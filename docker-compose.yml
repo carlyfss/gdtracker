@@ -38,7 +38,7 @@ services:
             DB_USERNAME: ${DB_USERNAME:-gdtracker}
             DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
             GDTRACKER_SESSION_SECRET: ${GDTRACKER_SESSION_SECRET:?GDTRACKER_SESSION_SECRET is required for gdtracker-go-api (see .env.example)}
-            GDTRACKER_CORS_ALLOWED_ORIGINS: ${GDTRACKER_CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
+            GDTRACKER_CORS_ALLOWED_ORIGINS: ${GDTRACKER_CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-4173}}
             GDTRACKER_COOKIE_DOMAIN: ${GDTRACKER_COOKIE_DOMAIN:-}
             GDTRACKER_COOKIE_SECURE: ${GDTRACKER_COOKIE_SECURE:-false}
             # auto/on: run embedded golang-migrate Up on startup; off: skip (see gdtracker-go-api/docs/MIGRATIONS.md).
@@ -65,7 +65,7 @@ services:
         depends_on:
             - backend
         ports:
-            - "${FRONTEND_PORT:-5173}:80"
+            - "${FRONTEND_PORT:-4173}:80"
         networks:
             - gdtracker
 
