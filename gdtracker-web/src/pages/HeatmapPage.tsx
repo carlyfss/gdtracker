@@ -4,6 +4,7 @@ import type { GameEvent, GameEventDefinition, GameEventPage } from '../api/gameE
 import { listGameEventDefinitions, searchGameEvents } from '../api/gameEvents'
 import { getLocationHeatmap, getLocationHeatmapForPlayer } from '../api/trace'
 import { FilterPillAddGroup, type FilterPillItem } from '../components/FilterPillAddGroup'
+import { SelectControl } from '../components/SelectControl'
 import { useGameId } from '../context/GameIdContext'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import { isHex6, normalizeHex6 } from '../util/hexColor'
@@ -957,18 +958,15 @@ export function HeatmapPage() {
                             <span className="muted" style={{ fontSize: 12 }}>
                                 Page size
                             </span>
-                            <select
-                                className="intervalSelect"
-                                value={eventsSize}
-                                onChange={(e) => onChangeEventsSize(Number(e.target.value))}
+                            <SelectControl
+                                value={String(eventsSize)}
+                                onChange={(v) => onChangeEventsSize(Number(v))}
+                                options={EVENTS_PAGE_SIZE_OPTIONS.map((opt) => ({
+                                    value: String(opt),
+                                    label: String(opt),
+                                }))}
                                 aria-label="Game events page size"
-                            >
-                                {EVENTS_PAGE_SIZE_OPTIONS.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                        {opt}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </label>
                     </div>
                     {eventsError && <div className="banner bannerError">{eventsError}</div>}

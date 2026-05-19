@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { SelectControl } from './SelectControl'
 import { TaskDescriptionMarkdown } from './TaskDescriptionMarkdown'
 import type { Category } from '../api/categories'
 import { listCategories } from '../api/categories'
@@ -358,19 +359,13 @@ export function FeatureTasksModal({
                     <div className="modalFieldRow" style={{ marginBottom: 12 }}>
                         <span className="modalFieldLabel">Status</span>
                         {canEditStatus ? (
-                            <select
-                                className="intervalSelect"
+                            <SelectControl
                                 value={featureStatus}
                                 disabled={statusSaving}
-                                onChange={(e) => void onStatusChange(e.target.value as TaskStatus)}
+                                onChange={(v) => void onStatusChange(v as TaskStatus)}
+                                options={allStatus.map((s) => ({ value: s, label: statusLabel(s) }))}
                                 aria-label="Feature status"
-                            >
-                                {allStatus.map((s) => (
-                                    <option key={s} value={s}>
-                                        {statusLabel(s)}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         ) : (
                             <span className="tasksStatusPill" data-status={featureStatus}>
                                 {statusLabel(featureStatus)}
@@ -405,16 +400,17 @@ export function FeatureTasksModal({
                                     >
                                         Subtasks
                                     </label>
-                                    <select
+                                    <SelectControl
                                         id="feature-modal-subtasks-visibility"
-                                        className="intervalSelect tasksListToolbarSelect"
+                                        className="tasksListToolbarSelect"
                                         value={listShowSubtasks ? 'show' : 'hide'}
-                                        onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
+                                        onChange={(v) => setListShowSubtasks(v === 'show')}
+                                        options={[
+                                            { value: 'show', label: 'Show subtasks' },
+                                            { value: 'hide', label: 'Hide subtasks' },
+                                        ]}
                                         aria-label="Show or hide subtasks in the list"
-                                    >
-                                        <option value="show">Show subtasks</option>
-                                        <option value="hide">Hide subtasks</option>
-                                    </select>
+                                    />
                                 </div>
                             )}
                             {sections.map((section, index) => {

@@ -1,4 +1,5 @@
 import type { Feature, FeatureTaskProgressRow } from '../api/features'
+import { SelectControl } from './SelectControl'
 import type { TaskStatus } from '../api/tasks'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import type { FeatureTreeRow } from '../util/featureTree'
@@ -96,16 +97,17 @@ export function DashboardFeatureTreePanel({
                         <label htmlFor="dashboard-subfeatures-visibility" className="tasksListToolbarLabel">
                             Subfeatures
                         </label>
-                        <select
+                        <SelectControl
                             id="dashboard-subfeatures-visibility"
-                            className="intervalSelect tasksListToolbarSelect"
+                            className="tasksListToolbarSelect"
                             value={listShowSubfeatures ? 'show' : 'hide'}
-                            onChange={(e) => onListShowSubfeaturesChange(e.target.value === 'show')}
+                            onChange={(v) => onListShowSubfeaturesChange(v === 'show')}
+                            options={[
+                                { value: 'show', label: 'Show subfeatures' },
+                                { value: 'hide', label: 'Hide subfeatures' },
+                            ]}
                             aria-label="Show or hide subfeatures in the feature list"
-                        >
-                            <option value="show">Show subfeatures</option>
-                            <option value="hide">Hide subfeatures</option>
-                        </select>
+                        />
                     </div>
                     <div className="featureTreeList" role="list">
                         {featureListRows.map((row) => {

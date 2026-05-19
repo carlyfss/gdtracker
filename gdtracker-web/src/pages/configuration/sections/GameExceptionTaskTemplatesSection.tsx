@@ -7,6 +7,7 @@ import {
     extractExceptionPlaceholderTokens,
     previewExceptionTaskTemplates,
 } from '../../../util/exceptionTaskTemplate'
+import { SelectControl } from '../../../components/SelectControl'
 import type { UiState } from '../configurationUtils'
 
 const DEFAULT_TITLE = 'Fix Exception #<EXCEPTION_INDEX>'
@@ -125,24 +126,17 @@ export function GameExceptionTaskTemplatesSection({ gameId, refreshToken }: { ga
                         <label className="tasksListToolbarLabel" htmlFor="exc-task-default-cat">
                             Default category for new exception tasks
                         </label>
-                        <select
+                        <SelectControl
                             id="exc-task-default-cat"
-                            className="intervalSelect"
-                            style={{ maxWidth: 360 }}
+                            className="excTaskDefaultCatSelect"
                             value={defaultCategoryId ?? ''}
-                            onChange={(e) => {
-                                const v = e.target.value
-                                setDefaultCategoryId(v.length ? v : null)
-                            }}
+                            onChange={(v) => setDefaultCategoryId(v.length ? v : null)}
+                            options={[
+                                { value: '', label: 'None' },
+                                ...categories.map((c) => ({ value: c.id, label: c.name })),
+                            ]}
                             aria-label="Default category for tasks created from exceptions"
-                        >
-                            <option value="">None</option>
-                            {categories.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </div>
 
                     {tokens.length > 0 && (

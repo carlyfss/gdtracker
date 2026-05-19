@@ -6,6 +6,7 @@ import type { Category } from '../../../api/categories'
 import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
 import type { Task, TaskPlanningDocumentRef, TaskStatus } from '../../../api/tasks'
+import { SelectControl } from '../../../components/SelectControl'
 import { TaskDescriptionMarkdown } from '../../../components/TaskDescriptionMarkdown'
 import { chipTextColor } from '../../../util/chipTextColor'
 import { normalizeHex6 } from '../../../util/hexColor'
@@ -20,6 +21,8 @@ import {
 } from '../tasksPageUtils'
 
 const MAX_TASK_PLANNING_DOC_REFS = 20
+
+const TASK_STATUS_OPTIONS = allStatus.map((s) => ({ value: s, label: statusLabel(s) }))
 
 function TaskPlanningDocRefsReadonly({
     refs,
@@ -100,25 +103,19 @@ function TaskPlanningDocRefsEditable({
             ) : (
                 <p className="muted modalParentTaskEmpty">No documents linked.</p>
             )}
-            <select
-                className="intervalSelect modalPlanningDocRefSelect"
-                aria-label="Add planning document"
-                defaultValue=""
-                onChange={(e) => {
-                    const v = e.target.value
-                    e.target.value = ''
+            <SelectControl
+                className="modalPlanningDocRefSelect"
+                value=""
+                placeholder={addable.length === 0 ? 'No more documents' : 'Add document…'}
+                resetAfterChange
+                options={addable.map((n) => ({ value: n.id, label: n.name }))}
+                onChange={(v) => {
                     if (!v) return
                     onPick(v)
                 }}
                 disabled={addable.length === 0 || draft.planningDocumentRefs.length >= MAX_TASK_PLANNING_DOC_REFS}
-            >
-                <option value="">{addable.length === 0 ? 'No more documents' : 'Add document…'}</option>
-                {addable.map((n) => (
-                    <option key={n.id} value={n.id}>
-                        {n.name}
-                    </option>
-                ))}
-            </select>
+                aria-label="Add planning document"
+            />
         </>
     )
 }
@@ -316,22 +313,16 @@ export function TaskModal(props: TaskModalProps) {
                                         <label className="modalFieldLabel" htmlFor="task-modal-feature">
                                             Feature
                                         </label>
-                                        <select
+                                        <SelectControl
                                             id="task-modal-feature"
-                                            className="intervalSelect"
                                             value={modal.draft.featureId}
-                                            onChange={(e) => onModalFeatureChange(e.target.value)}
+                                            onChange={onModalFeatureChange}
+                                            options={features.map((f) => ({ value: f.id, label: f.name }))}
                                             disabled={features.length === 0 || featureFieldLocked}
                                             aria-describedby={
                                                 featureFieldLocked ? 'task-modal-feature-hint' : undefined
                                             }
-                                        >
-                                            {features.map((f) => (
-                                                <option key={f.id} value={f.id}>
-                                                    {f.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        />
                                         {featureFieldLocked ? (
                                             <span
                                                 id="task-modal-feature-hint"
@@ -346,36 +337,26 @@ export function TaskModal(props: TaskModalProps) {
                                         <label className="modalFieldLabel" htmlFor="task-modal-category">
                                             Category
                                         </label>
-                                        <select
+                                        <SelectControl
                                             id="task-modal-category"
-                                            className="intervalSelect"
                                             value={modal.draft.categoryId}
-                                            onChange={(e) => patchDraft({ categoryId: e.target.value })}
-                                        >
-                                            <option value="">None</option>
-                                            {categories.map((c) => (
-                                                <option key={c.id} value={c.id}>
-                                                    {c.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            onChange={(v) => patchDraft({ categoryId: v })}
+                                            options={[
+                                                { value: '', label: 'None' },
+                                                ...categories.map((c) => ({ value: c.id, label: c.name })),
+                                            ]}
+                                        />
                                     </div>
                                     <div className="modalMetaCell">
                                         <label className="modalFieldLabel" htmlFor="task-modal-status">
                                             Status
                                         </label>
-                                        <select
+                                        <SelectControl
                                             id="task-modal-status"
-                                            className="intervalSelect"
                                             value={modal.draft.status}
-                                            onChange={(e) => patchDraft({ status: e.target.value as TaskStatus })}
-                                        >
-                                            {allStatus.map((s) => (
-                                                <option key={s} value={s}>
-                                                    {statusLabel(s)}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            onChange={(v) => patchDraft({ status: v as TaskStatus })}
+                                            options={TASK_STATUS_OPTIONS}
+                                        />
                                     </div>
                                 </div>
                                 <div className="modalTaskParentSplit modalTaskParentSplitCreate">
@@ -383,20 +364,18 @@ export function TaskModal(props: TaskModalProps) {
                                         <label className="modalFieldLabel" htmlFor="task-modal-parent">
                                             Parent task (optional)
                                         </label>
-                                        <select
+                                        <SelectControl
                                             id="task-modal-parent"
-                                            className="intervalSelect"
                                             value={modal.draft.parentTaskId}
-                                            onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
+                                            onChange={(v) => patchDraft({ parentTaskId: v })}
+                                            options={[
+                                                { value: '', label: 'None (root task)' },
+                                                ...parentTaskPickerOptions(tasks, modal.draft.featureId, null).map(
+                                                    (pt) => ({ value: pt.id, label: pt.title })
+                                                ),
+                                            ]}
                                             aria-label="Parent task"
-                                        >
-                                            <option value="">None (root task)</option>
-                                            {parentTaskPickerOptions(tasks, modal.draft.featureId, null).map((pt) => (
-                                                <option key={pt.id} value={pt.id}>
-                                                    {pt.title}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        />
                                     </div>
                                     <div className="modalTaskParentSplitBottom">
                                         <span className="modalFieldLabel">Document references</span>
@@ -654,22 +633,16 @@ export function TaskModal(props: TaskModalProps) {
                                                 <label className="modalFieldLabel" htmlFor="task-edit-feature">
                                                     Feature
                                                 </label>
-                                                <select
+                                                <SelectControl
                                                     id="task-edit-feature"
-                                                    className="intervalSelect"
                                                     value={modal.draft.featureId}
-                                                    onChange={(e) => onModalFeatureChange(e.target.value)}
+                                                    onChange={onModalFeatureChange}
+                                                    options={features.map((f) => ({ value: f.id, label: f.name }))}
                                                     disabled={featureFieldLocked}
                                                     aria-describedby={
                                                         featureFieldLocked ? 'task-edit-feature-hint' : undefined
                                                     }
-                                                >
-                                                    {features.map((f) => (
-                                                        <option key={f.id} value={f.id}>
-                                                            {f.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                />
                                                 {featureFieldLocked ? (
                                                     <span
                                                         id="task-edit-feature-hint"
@@ -684,42 +657,30 @@ export function TaskModal(props: TaskModalProps) {
                                                 <label className="modalFieldLabel" htmlFor="task-edit-category">
                                                     Category
                                                 </label>
-                                                <select
+                                                <SelectControl
                                                     id="task-edit-category"
-                                                    className="intervalSelect"
                                                     value={modal.draft.categoryId}
-                                                    onChange={(e) => patchDraft({ categoryId: e.target.value })}
-                                                >
-                                                    <option value="">None</option>
-                                                    {categories.map((c) => (
-                                                        <option key={c.id} value={c.id}>
-                                                            {c.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                    onChange={(v) => patchDraft({ categoryId: v })}
+                                                    options={[
+                                                        { value: '', label: 'None' },
+                                                        ...categories.map((c) => ({ value: c.id, label: c.name })),
+                                                    ]}
+                                                />
                                             </div>
                                             <div className="modalMetaCell">
                                                 <label className="modalFieldLabel" htmlFor="task-edit-status">
                                                     Status
                                                 </label>
-                                                <select
+                                                <SelectControl
                                                     id="task-edit-status"
-                                                    className="intervalSelect"
                                                     value={modal.draft.status}
                                                     disabled={statusLockedBySubtasks}
                                                     aria-describedby={
                                                         statusLockedBySubtasks ? 'task-edit-status-hint' : undefined
                                                     }
-                                                    onChange={(e) =>
-                                                        patchDraft({ status: e.target.value as TaskStatus })
-                                                    }
-                                                >
-                                                    {allStatus.map((s) => (
-                                                        <option key={s} value={s}>
-                                                            {statusLabel(s)}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                    onChange={(v) => patchDraft({ status: v as TaskStatus })}
+                                                    options={TASK_STATUS_OPTIONS}
+                                                />
                                                 {statusLockedBySubtasks ? (
                                                     <p id="task-edit-status-hint" className="muted modalFieldHint">
                                                         Status follows subtasks (lowest active subtask status).
@@ -776,22 +737,20 @@ export function TaskModal(props: TaskModalProps) {
                                         <label className="modalFieldLabel" htmlFor="task-edit-parent">
                                             Parent task
                                         </label>
-                                        <select
+                                        <SelectControl
                                             id="task-edit-parent"
-                                            className="intervalSelect"
                                             value={modal.draft.parentTaskId}
-                                            onChange={(e) => patchDraft({ parentTaskId: e.target.value })}
+                                            onChange={(v) => patchDraft({ parentTaskId: v })}
+                                            options={[
+                                                { value: '', label: 'None (root task)' },
+                                                ...parentTaskPickerOptions(
+                                                    tasks,
+                                                    modal.draft.featureId,
+                                                    modal.taskId
+                                                ).map((pt) => ({ value: pt.id, label: pt.title })),
+                                            ]}
                                             aria-label="Parent task"
-                                        >
-                                            <option value="">None (root task)</option>
-                                            {parentTaskPickerOptions(tasks, modal.draft.featureId, modal.taskId).map(
-                                                (pt) => (
-                                                    <option key={pt.id} value={pt.id}>
-                                                        {pt.title}
-                                                    </option>
-                                                )
-                                            )}
-                                        </select>
+                                        />
                                     </div>
                                     <div className="modalTaskParentSplitBottom">
                                         <span className="modalFieldLabel">Document references</span>

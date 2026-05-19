@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { searchGameExceptions, type GameException, type GameExceptionPage } from '../../../api/gameExceptions'
+import { SelectControl } from '../../../components/SelectControl'
 import { subtitleForException, titleForException } from '../dashboardPageUtils'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
@@ -83,18 +84,15 @@ export function ExceptionSearchPanel({ gameId, selectedExceptionId, onSelect }: 
                     />
                     <label className="exceptionSearchSizeLabel">
                         Page size
-                        <select
-                            className="intervalSelect"
-                            value={size}
-                            onChange={(e) => onChangeSize(Number(e.target.value))}
+                        <SelectControl
+                            value={String(size)}
+                            onChange={(v) => onChangeSize(Number(v))}
+                            options={PAGE_SIZE_OPTIONS.map((opt) => ({
+                                value: String(opt),
+                                label: String(opt),
+                            }))}
                             aria-label="Exception search page size"
-                        >
-                            {PAGE_SIZE_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                    {opt}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </label>
                 </div>
             </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
+import { SelectControl } from '../components/SelectControl'
 import { FeatureTasksModal } from '../components/FeatureTasksModal'
 import type { Feature } from '../api/features'
 import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
@@ -461,17 +462,17 @@ export function DashboardPage() {
                         )}
                         <div className="dashboardExceptionsToolbar">
                             <h3 className="dashboardSubheading">Exceptions</h3>
-                            <select
-                                className="intervalSelect"
+                            <SelectControl
                                 value={exceptionBucket}
-                                onChange={(e) => setExceptionBucket(e.target.value as TimeBucket)}
+                                onChange={(v) => setExceptionBucket(v as TimeBucket)}
+                                options={[
+                                    { value: 'minute', label: 'Per minute' },
+                                    { value: 'halfHour', label: 'Per 30 minutes' },
+                                    { value: 'hour', label: 'Hourly' },
+                                    { value: 'day', label: 'Per day' },
+                                ]}
                                 aria-label="Exception occurrences interval"
-                            >
-                                <option value="minute">Per minute</option>
-                                <option value="halfHour">Per 30 minutes</option>
-                                <option value="hour">Hourly</option>
-                                <option value="day">Per day</option>
-                            </select>
+                            />
                         </div>
 
                         <div className="dashboardExceptionsRightStack">

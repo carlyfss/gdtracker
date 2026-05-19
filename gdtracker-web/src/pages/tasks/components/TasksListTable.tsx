@@ -3,6 +3,7 @@ import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
 import type { Task, TaskStatus } from '../../../api/tasks'
 import { IconTrash } from '../../../components/icons'
+import { SelectControl } from '../../../components/SelectControl'
 import { chipTextColor } from '../../../util/chipTextColor'
 import { normalizeHex6 } from '../../../util/hexColor'
 import { isTaskDone, statusLabel } from '../../../util/taskStatus'
@@ -52,16 +53,17 @@ export function TasksListTable({
                 <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
                     Subtasks
                 </label>
-                <select
+                <SelectControl
                     id="tasks-subtasks-visibility"
-                    className="intervalSelect tasksListToolbarSelect"
+                    className="tasksListToolbarSelect"
                     value={listShowSubtasks ? 'show' : 'hide'}
-                    onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
+                    onChange={(v) => setListShowSubtasks(v === 'show')}
+                    options={[
+                        { value: 'show', label: 'Show subtasks' },
+                        { value: 'hide', label: 'Hide subtasks' },
+                    ]}
                     aria-label="Show or hide subtasks in the list"
-                >
-                    <option value="show">Show subtasks</option>
-                    <option value="hide">Hide subtasks</option>
-                </select>
+                />
             </div>
             <table className="table tableCompact tableTasksList">
                 <thead>
