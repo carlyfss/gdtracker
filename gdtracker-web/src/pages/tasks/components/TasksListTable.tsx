@@ -5,7 +5,7 @@ import type { Task, TaskStatus } from '../../../api/tasks'
 import { IconTrash } from '../../../components/icons'
 import { chipTextColor } from '../../../util/chipTextColor'
 import { normalizeHex6 } from '../../../util/hexColor'
-import { statusLabel } from '../../../util/taskStatus'
+import { isTaskDone, statusLabel } from '../../../util/taskStatus'
 import { directChildProgress, formatChildProgressLabel, type TaskListRow } from '../../../util/taskTree'
 import { IconChevronTaskTree, IconCheck } from './TaskIcons'
 import { categoryMeta, FALLBACK_FEATURE_COLOR, featureMeta, sortedTaskTags, type UiState } from '../tasksPageUtils'
@@ -80,7 +80,7 @@ export function TasksListTable({
                         const t = row.task
                         const { name: fn, color: fc } = featureMeta(t, features)
                         const { name: cn, color: cc } = categoryMeta(t, categories)
-                        const atDone = (t.status as TaskStatus) === 'DONE'
+                        const atDone = isTaskDone(t.status)
                         const busyRow = advancingTaskId === t.id
                         const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
                         const progLabels = formatChildProgressLabel(progDone, progTotal)
@@ -91,6 +91,7 @@ export function TasksListTable({
                             <tr
                                 key={t.id}
                                 className="tasksListRow"
+                                data-done={atDone ? 'true' : undefined}
                                 data-odd={idx % 2 === 1}
                                 role="button"
                                 tabIndex={0}

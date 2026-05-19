@@ -19,6 +19,10 @@ export function statusLabel(s: TaskStatus): string {
     }
 }
 
+export function isTaskDone(status: TaskStatus | string | undefined): boolean {
+    return status === 'DONE'
+}
+
 export function nextTaskStatus(s: TaskStatus): TaskStatus | null {
     const i = allStatus.indexOf(s)
     if (i < 0 || i >= allStatus.length - 1) return null

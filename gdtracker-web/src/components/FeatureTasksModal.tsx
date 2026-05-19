@@ -11,7 +11,7 @@ import { listTasks } from '../api/tasks'
 import { categoryMeta } from '../pages/tasks/tasksPageUtils'
 import { immediateChildFeatures } from '../util/featureTree'
 import { normalizeHex6 } from '../util/hexColor'
-import { allStatus, statusLabel } from '../util/taskStatus'
+import { allStatus, isTaskDone, statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
 
 const FALLBACK_FEATURE_COLOR = '#94a3b8'
@@ -97,6 +97,7 @@ function FeatureModalTaskTable({
                             <tr
                                 key={t.id}
                                 className="tasksListRow"
+                                data-done={isTaskDone(t.status) ? 'true' : undefined}
                                 role="button"
                                 tabIndex={0}
                                 aria-label={`Open task: ${t.title}`}

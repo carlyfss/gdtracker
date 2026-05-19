@@ -6,7 +6,7 @@ import type { Task, TaskStatus } from '../api/tasks'
 import { listTasks } from '../api/tasks'
 import { chipTextColor } from '../util/chipTextColor'
 import { normalizeHex6 } from '../util/hexColor'
-import { statusLabel } from '../util/taskStatus'
+import { isTaskDone, statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
 
 function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
@@ -189,6 +189,7 @@ export function TagTasksModal({ open, onClose, gameId, tag, taskListScope = 'act
                                             <tr
                                                 key={t.id}
                                                 className="tasksListRow"
+                                                data-done={isTaskDone(t.status) ? 'true' : undefined}
                                                 role="button"
                                                 tabIndex={0}
                                                 aria-label={`Open task: ${t.title}`}

@@ -1470,6 +1470,24 @@
     outline-offset: -2px;
 }
 
+.tableTasksList tbody tr.tasksListRow[data-done='true'] td {
+    background: color-mix(in srgb, #72f5a1 14%, transparent);
+    box-shadow: inset 0 0 0 1px #459544;
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true'][data-odd='true'] td {
+    background: color-mix(in srgb, #72f5a1 18%, transparent);
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true']:hover td {
+    background: color-mix(in srgb, #72f5a1 22%, transparent);
+    box-shadow: inset 0 0 0 1px #459544;
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true']:focus-visible {
+    outline-color: color-mix(in srgb, #459544 65%, transparent);
+}
+
 .tableCompact tbody td .textInput,
 .tableCompact tbody td .textArea,
 .tableCompact tbody td .intervalSelect {
