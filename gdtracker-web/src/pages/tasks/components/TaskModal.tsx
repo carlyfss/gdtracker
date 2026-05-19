@@ -205,6 +205,14 @@ export function TaskModal(props: TaskModalProps) {
         return tasks.filter((t) => String(t.parentTaskId ?? '') === modal.taskId)
     }, [tasks, modal])
 
+    const activeDirectSubtasks = useMemo(
+        () => directSubtasks.filter((t) => t.archived !== true),
+        [directSubtasks]
+    )
+
+    const statusLockedBySubtasks =
+        modal.kind === 'task' && modal.surface === 'edit' && activeDirectSubtasks.length > 0
+
     const [planningNodeList, setPlanningNodeList] = useState<PlanningNodeMeta[]>([])
     const planningFetchKey =
         modal.kind === 'closed'
@@ -682,6 +690,10 @@ export function TaskModal(props: TaskModalProps) {
                                                     id="task-edit-status"
                                                     className="intervalSelect"
                                                     value={modal.draft.status}
+                                                    disabled={statusLockedBySubtasks}
+                                                    aria-describedby={
+                                                        statusLockedBySubtasks ? 'task-edit-status-hint' : undefined
+                                                    }
                                                     onChange={(e) =>
                                                         patchDraft({ status: e.target.value as TaskStatus })
                                                     }
@@ -692,6 +704,11 @@ export function TaskModal(props: TaskModalProps) {
                                                         </option>
                                                     ))}
                                                 </select>
+                                                {statusLockedBySubtasks ? (
+                                                    <p id="task-edit-status-hint" className="muted modalFieldHint">
+                                                        Status follows subtasks (lowest active subtask status).
+                                                    </p>
+                                                ) : null}
                                             </div>
                                         </div>
                                         <label className="modalFieldLabel" htmlFor="task-edit-desc">

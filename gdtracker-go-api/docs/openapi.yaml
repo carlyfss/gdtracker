@@ -447,6 +447,9 @@ paths:
     post:
       tags: [Tasks]
       operationId: createTask
+      description: |
+        Creates a task. When `parentTaskId` is set, ancestor tasks with subtasks may have their status
+        adjusted to the minimum status among their non-archived direct children.
       parameters:
         - $ref: "#/components/parameters/GameId"
       requestBody:
@@ -472,6 +475,10 @@ paths:
     put:
       tags: [Tasks]
       operationId: updateTask
+      description: |
+        Updates a task. Tasks with non-archived subtasks ignore a higher requested status; the stored status
+        is set to the minimum subtask status. Ancestor tasks may be adjusted the same way when this task's
+        status or `parentTaskId` changes.
       parameters:
         - $ref: "#/components/parameters/GameId"
         - $ref: "#/components/parameters/TaskId"
@@ -1553,7 +1560,11 @@ components:
         exceptionTaskTemplate: { $ref: "#/components/schemas/ExceptionTaskTemplatePatch", nullable: true }
     Task:
       type: object
-      description: Task with nested feature, optional category, tags, and derived tagIds.
+      description: |
+        Task with nested feature, optional category, tags, and derived tagIds.
+        When a task has one or more non-archived direct subtasks, its stored status is derived from those
+        subtasks (minimum workflow status: PENDING, TODO, IN_PROGRESS, COMPLETED, DONE). Parent status is
+        updated automatically when subtasks are created, updated, or deleted, and may be coerced on parent save.
       properties:
         id: { type: string }
         title: { type: string }
