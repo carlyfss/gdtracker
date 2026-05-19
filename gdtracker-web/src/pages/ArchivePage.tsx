@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
 import { FeatureTasksModal } from '../components/FeatureTasksModal'
 import type { Feature } from '../api/features'
 import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
 import { useGameId } from '../context/GameIdContext'
+import { readArchiveFilters, writeArchiveFilters } from '../util/screenFilterPreferences'
 import { flattenFeaturesForList } from '../util/featureTree'
 import { TasksPageBody } from './TasksPage'
 
@@ -21,6 +22,8 @@ export function ArchivePage() {
     const [listShowSubfeatures, setListShowSubfeatures] = useState(true)
     const [collapsedFeatureIds, setCollapsedFeatureIds] = useState<Set<string>>(() => new Set())
 
+    const skipPersistArchiveFilters = useRef(true)
+
     useEffect(() => {
         void (async () => {
             setFeaturesPanelLoading(true)
@@ -28,7 +31,17 @@ export function ArchivePage() {
             try {
                 const loaded = await listFeatures(gameId, { archived: true })
                 setFeatures(loaded)
-                setSelectedFeatureId((prev) => prev ?? loaded[0]?.id ?? null)
+                const featureIds = loaded.map((f) => f.id)
+                const stored = readArchiveFilters(gameId, featureIds)
+                if (stored?.selectedFeatureId && featureIds.includes(stored.selectedFeatureId)) {
+                    setSelectedFeatureId(stored.selectedFeatureId)
+                } else {
+                    setSelectedFeatureId((prev) => prev ?? loaded[0]?.id ?? null)
+                }
+                if (stored) {
+                    setListShowSubfeatures(stored.listShowSubfeatures)
+                    setCollapsedFeatureIds(new Set(stored.collapsedFeatureIds))
+                }
             } catch {
                 setFeatures([])
                 setFeaturesError('Failed to load archived features.')
@@ -50,6 +63,21 @@ export function ArchivePage() {
             }
         })()
     }, [gameId])
+
+    useEffect(() => {
+        if (skipPersistArchiveFilters.current) {
+            skipPersistArchiveFilters.current = false
+            return
+        }
+        const timer = window.setTimeout(() => {
+            writeArchiveFilters(gameId, {
+                selectedFeatureId,
+                listShowSubfeatures,
+                collapsedFeatureIds: [...collapsedFeatureIds],
+            })
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [gameId, selectedFeatureId, listShowSubfeatures, collapsedFeatureIds])
 
     const progressById = useMemo(() => {
         const m = new Map<string, FeatureTaskProgressRow>()
@@ -132,8 +160,13 @@ export function ArchivePage() {
                 onClose={() => setFeatureModal(null)}
                 gameId={gameId}
                 feature={featureModal}
+                features={features}
                 progress={modalProgress}
                 taskListScope="archived"
+                onFeatureUpdated={(updated) => {
+                    setFeatureModal(updated)
+                    setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)))
+                }}
                 onAfterArchiveOrUnarchive={async () => {
                     try {
                         const loaded = await listFeatures(gameId, { archived: true })

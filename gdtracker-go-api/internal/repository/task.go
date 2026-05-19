@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -248,26 +247,7 @@ func (r *TaskRepository) Insert(ctx context.Context, ins TaskInsert) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-
-	now := time.Now().UTC()
-	id := ins.ID
-	if id == "" {
-		id = uuid.NewString()
-	}
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO tasks (id, title, description, status, feature_id, category_id, parent_task_id, source_game_exception_id,
-			archived, archived_at, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,NULL,$9,$10)`,
-		id, ins.Title, ins.Description, ins.Status, ins.FeatureID, ins.CategoryID, ins.ParentTaskID, ins.SourceGameExceptionID,
-		now, now,
-	)
-	if err != nil {
-		return fmt.Errorf("insert task: %w", err)
-	}
-	if err := replaceTaskTagsTx(ctx, tx, id, ins.TagIDs); err != nil {
-		return err
-	}
-	if err := replaceTaskPlanningDocumentRefsTx(ctx, tx, id, ins.PlanningNodeIDs); err != nil {
+	if err := r.InsertTx(ctx, tx, ins); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -292,25 +272,8 @@ func (r *TaskRepository) Update(ctx context.Context, u TaskUpdate) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-
-	now := time.Now().UTC()
-	_, err = tx.ExecContext(ctx,
-		`UPDATE tasks SET title=$2, description=$3, status=$4, feature_id=$5, category_id=$6, parent_task_id=$7,
-			source_game_exception_id=$8, updated_at=$9 WHERE id=$1`,
-		u.ID, u.Title, u.Description, u.Status, u.FeatureID, u.CategoryID, u.ParentTaskID, u.SourceGameExceptionID, now,
-	)
-	if err != nil {
-		return fmt.Errorf("update task: %w", err)
-	}
-	if u.TagIDs != nil {
-		if err := replaceTaskTagsTx(ctx, tx, u.ID, *u.TagIDs); err != nil {
-			return err
-		}
-	}
-	if u.PlanningNodeIDs != nil {
-		if err := replaceTaskPlanningDocumentRefsTx(ctx, tx, u.ID, *u.PlanningNodeIDs); err != nil {
-			return err
-		}
+	if err := r.UpdateTx(ctx, tx, u); err != nil {
+		return err
 	}
 	return tx.Commit()
 }
@@ -349,8 +312,15 @@ func replaceTaskTagsTx(ctx context.Context, tx *sql.Tx, taskID string, tagIDs []
 }
 
 func (r *TaskRepository) DeleteByID(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = $1`, id)
-	return err
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := r.DeleteByIDTx(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *TaskRepository) SetArchived(ctx context.Context, taskID string, at time.Time) error {

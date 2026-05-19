@@ -34,26 +34,30 @@ export function SdkIntegrationPage() {
     const overviewCsharpQuickstart = useMemo(() => {
         const base = escapeForCSharpQuoted(suggestedBase)
         const gid = escapeForCSharpQuoted(gameId)
-        return `// Godot C# quickstart (uses gdtracker-sdk-dotnet/).
+        return `// Godot C# quickstart (gdtracker-sdk-dotnet). Full template:
+// gdtracker-sdk-dotnet/examples/godot-csharp/GdtrackerIntegration.cs
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Gdtracker;
-using Godot;
 
-public partial class GdtrackerSdkQuickstart : Node
+public static class GdtrackerIntegration
 {
-    private readonly GdtrackerClient _client = new(new GdtrackerClientOptions
-    {
-        BaseUrl = "${base}",
-        GameId = "${gid}",
-        IngestToken = "YOUR_INGEST_TOKEN",
-    });
+    private static GdtrackerClient? _client;
 
-    public override async void _Ready()
-    {
-        await _client.PingIntegration();
-        await _client.RegisterPlayer();
+    private static GdtrackerClient Client =>
+        _client ??= new GdtrackerClient(new GdtrackerClientOptions
+        {
+            BaseUrl = "${base}",
+            GameId = "${gid}",
+            IngestToken = "YOUR_INGEST_TOKEN",
+        });
 
-        await _client.CreateEvent("player_died", new Dictionary<string, string>
+    public static Task PingIntegration() => Client.PingIntegration();
+
+    public static Task<string> RegisterPlayer() => Client.RegisterPlayer();
+
+    public static Task CreateExampleEvent() =>
+        Client.CreateEvent("player_died", new Dictionary<string, string>
         {
             { "player_id", "123" },
             { "enemy", "Zombie" },
@@ -61,126 +65,186 @@ public partial class GdtrackerSdkQuickstart : Node
             { "location", "(35, 22, 17)" },
         });
 
-        await _client.CreateTrace(location: "(35, 22, 17)", map: "proto-dungeon");
-    }
+    public static Task CreateExampleTrace() =>
+        Client.CreateTrace(location: "(35, 22, 17)", map: "proto-dungeon");
 }`
     }, [suggestedBase, gameId])
 
     const overviewGdscriptQuickstart = useMemo(() => {
         const base = escapeForGdscriptDoubleQuoted(suggestedBase)
         const gid = escapeForGdscriptDoubleQuoted(gameId)
-        return `# GDScript quickstart (uses godot-addon/gdtracker/).
+        return `# GDScript quickstart (godot-addon/gdtracker). Full per-feature example:
+# godot-addon/gdtracker/examples/gdscript_integration_example.gd
 extends Node
 
-@onready var gdtracker := GDTrackerClient.new()
+var _client := GDTrackerClient.new()
 
 func _ready() -> void:
-    gdtracker.api_base_url = "${base}"
-    gdtracker.game_id = "${gid}"
-    gdtracker.ingest_token = "YOUR_INGEST_TOKEN"
+    _client.api_base_url = "${base}"
+    _client.game_id = "${gid}"
+    _client.ingest_token = "YOUR_INGEST_TOKEN"
+    await example_ping_integration()
 
-    await gdtracker.ping_integration()
-    await gdtracker.register_player()
+func example_ping_integration() -> void:
+    await _client.ping_integration()
 
-    await gdtracker.create_event("player_died", {
-        "player_id": "123",
-        "enemy": "Zombie",
-        "map": "proto-dungeon",
-        "location": "(35, 22, 17)",
-    })
-
-    await gdtracker.create_trace("(35, 22, 17)", "proto-dungeon")`
+func example_register_player() -> void:
+    var player_id := await _client.register_player()
+    print("GDTracker playerId: ", player_id)`
     }, [suggestedBase, gameId])
 
     const csharpFullExample = useMemo(() => {
         const base = escapeForCSharpQuoted(suggestedBase)
         const gid = escapeForCSharpQuoted(gameId)
-        return `// Full C# example: ping, register, event, trace, exception, feedback.
-// Build + reference steps are in gdtracker-sdk-dotnet/README.md.
-
+        return `// Full C# per-feature integration (repo: examples/godot-csharp/GdtrackerIntegration.cs).
+// Build + ProjectReference steps: gdtracker-sdk-dotnet/README.md
+using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Gdtracker;
 using Godot;
 
-public partial class GdtrackerSdkFullExample : Node
+public static class GdtrackerIntegration
 {
-    private readonly GdtrackerClient _client = new(new GdtrackerClientOptions
+    private static GdtrackerClient? _client;
+
+    private static GdtrackerClientOptions DefaultOptions() => new()
     {
         BaseUrl = "${base}",
         GameId = "${gid}",
         IngestToken = "YOUR_INGEST_TOKEN",
-    });
+    };
 
-    public override async void _Ready()
+    private static GdtrackerClient Client => _client ??= new GdtrackerClient(DefaultOptions());
+
+    public static void Configure(GdtrackerClientOptions options)
     {
-        await _client.PingIntegration();
-        var playerId = await _client.RegisterPlayer();
-        GD.Print("GDTracker playerId: ", playerId);
-
-        await _client.CreateEvent("player_died", new Dictionary<string, string>
-        {
-            { "player_id", "123" },
-            { "enemy", "Zombie" },
-            { "map", "proto-dungeon" },
-            { "location", "(35, 22, 17)" },
-        });
-
-        await _client.CreateTrace(location: "(35, 22, 17)", map: "proto-dungeon");
-
-        await _client.CreateException(
-            errorMessage: "NullReferenceException",
-            shortErrorMessage: "NRE",
-            location: "(35, 22, 17)",
-            map: "proto-dungeon",
-            stackTrace: "at Player.Tick()\\n..."
-        );
-
-        await _client.CreateFeedback(
-            title: "Great session",
-            description: "Loved the new level.",
-            meters: new Dictionary<string, int> { { "game_fun", 8 }, { "balance", 6 } }
-        );
+        _client?.Dispose();
+        _client = new GdtrackerClient(options ?? throw new ArgumentNullException(nameof(options)));
     }
+
+    private static string FormatVector3(Vector3 location) =>
+        "(" + location.X + ", " + location.Y + ", " + location.Z + ")";
+
+    public static async Task SafeRun(Func<Task> action)
+    {
+        try
+        {
+            await action().ConfigureAwait(false);
+        }
+        catch (GdtrackerApiException ex)
+        {
+            GD.PushError(
+                "GDTracker API error: " + ((int)ex.StatusCode).ToString() + " " + ex.Message + "\\n" + (ex.ResponseBody ?? "")
+            );
+        }
+    }
+
+    public static Task PingIntegration(CancellationToken ct = default) => Client.PingIntegration(ct);
+
+    public static Task<string> RegisterPlayer(CancellationToken ct = default) => Client.RegisterPlayer(ct);
+
+    public static Task CreateEvent(
+        string eventId,
+        string playerId,
+        string key,
+        string? value,
+        string map,
+        Vector3 location,
+        CancellationToken ct = default)
+    {
+        return Client.CreateEvent(
+            eventId,
+            new Dictionary<string, string>
+            {
+                { "playerId", playerId },
+                { "key", key },
+                { "value", value ?? "" },
+                { "map", map },
+                { "location", FormatVector3(location) },
+            },
+            ct);
+    }
+
+    public static Task CreateTrace(string map, Vector3 location, CancellationToken ct = default) =>
+        Client.CreateTrace(location: FormatVector3(location), map: map, gameEventId: null, ct);
+
+    public static Task CreateException(
+        string? errorMessage,
+        string? shortErrorMessage = null,
+        string? location = null,
+        string? map = null,
+        string? stackTrace = null,
+        CancellationToken ct = default) =>
+        Client.CreateException(errorMessage, shortErrorMessage, location, map, stackTrace, ct);
+
+    public static Task CreateFeedback(
+        string title,
+        string description,
+        Dictionary<string, int>? meters = null,
+        CancellationToken ct = default) =>
+        Client.CreateFeedback(title, description, meters, ct);
 }`
     }, [suggestedBase, gameId])
 
     const gdscriptFullExample = useMemo(() => {
         const base = escapeForGdscriptDoubleQuoted(suggestedBase)
         const gid = escapeForGdscriptDoubleQuoted(gameId)
-        return `# Full GDScript example: ping, register, event, trace, exception, feedback.
-# Setup steps are in godot-addon/gdtracker/README.md.
-
+        return `# Full GDScript per-feature example (repo: examples/gdscript_integration_example.gd).
+# Setup: godot-addon/gdtracker/README.md
 extends Node
 
-@onready var gdtracker := GDTrackerClient.new()
+var _client := GDTrackerClient.new()
 
 func _ready() -> void:
-    gdtracker.api_base_url = "${base}"
-    gdtracker.game_id = "${gid}"
-    gdtracker.ingest_token = "YOUR_INGEST_TOKEN"
+    _configure_client()
 
-    await gdtracker.ping_integration()
-    var player_id := await gdtracker.register_player()
+func _configure_client() -> void:
+    _client.api_base_url = "${base}"
+    _client.game_id = "${gid}"
+    _client.ingest_token = "YOUR_INGEST_TOKEN"
+
+func format_vector3(location: Vector3) -> String:
+    return "(%s, %s, %s)" % [location.x, location.y, location.z]
+
+func example_ping_integration() -> void:
+    await _client.ping_integration()
+
+func example_register_player() -> void:
+    var player_id := await _client.register_player()
     print("GDTracker playerId: ", player_id)
 
-    await gdtracker.create_event("player_died", {
-        "player_id": "123",
-        "enemy": "Zombie",
-        "map": "proto-dungeon",
-        "location": "(35, 22, 17)",
+func example_create_event(
+    event_id: String,
+    player_id: String,
+    key: String,
+    value: String,
+    map_name: String,
+    location: Vector3,
+) -> void:
+    await _client.create_event(event_id, {
+        "playerId": player_id,
+        "key": key,
+        "value": value,
+        "map": map_name,
+        "location": format_vector3(location),
     })
 
-    await gdtracker.create_trace("(35, 22, 17)", "proto-dungeon")
+func example_create_trace(map_name: String, location: Vector3) -> void:
+    await _client.create_trace(format_vector3(location), map_name)
 
-    await gdtracker.create_exception(
+func example_create_exception() -> void:
+    await _client.create_exception(
         "NullReferenceException",
         "NRE",
         "(35, 22, 17)",
         "proto-dungeon",
-        "at Player.tick()\\n..."
+        "at Player.tick()\\n...",
     )
 
-    await gdtracker.create_feedback("Great session", "Loved the new level.", {
+func example_create_feedback() -> void:
+    await _client.create_feedback("Great session", "Loved the new level.", {
         "game_fun": 8,
         "balance": 6,
     })`
@@ -364,13 +428,14 @@ func _ready() -> void:
                             <li>
                                 Use the client methods: <code>PingIntegration</code>, <code>RegisterPlayer</code>,{' '}
                                 <code>CreateEvent</code>, <code>CreateTrace</code>, <code>CreateException</code>,{' '}
-                                <code>CreateFeedback</code>.
+                                <code>CreateFeedback</code>. Copy the per-feature template from{' '}
+                                <code>examples/godot-csharp/GdtrackerIntegration.cs</code>.
                             </li>
                         </ol>
 
                         <div className="integrationCodeBlockWrap">
                             <div className="integrationCodeToolbar">
-                                <span className="integrationCodeHint">Full example (all actions)</span>
+                                <span className="integrationCodeHint">Full per-feature integration (C#)</span>
                                 <button
                                     type="button"
                                     className="authSecondaryButton integrationCopyBtn"
@@ -402,13 +467,14 @@ func _ready() -> void:
                             <li>
                                 Call <code>ping_integration()</code>, then <code>register_player()</code>, then the
                                 create methods: <code>create_event</code>, <code>create_trace</code>,{' '}
-                                <code>create_exception</code>, <code>create_feedback</code>.
+                                <code>create_exception</code>, <code>create_feedback</code>. Per-feature template:{' '}
+                                <code>examples/gdscript_integration_example.gd</code>.
                             </li>
                         </ol>
 
                         <div className="integrationCodeBlockWrap">
                             <div className="integrationCodeToolbar">
-                                <span className="integrationCodeHint">Full example (all actions)</span>
+                                <span className="integrationCodeHint">Full per-feature integration (GDScript)</span>
                                 <button
                                     type="button"
                                     className="authSecondaryButton integrationCopyBtn"

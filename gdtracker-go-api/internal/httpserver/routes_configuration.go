@@ -23,15 +23,16 @@ func (s *Server) registerConfigurationRoutes(mux *http.ServeMux) {
 }
 
 type exceptionTaskTemplatePatchBody struct {
-	TitleTemplate       string  `json:"titleTemplate"`
-	DescriptionTemplate string  `json:"descriptionTemplate"`
-	DefaultCategoryID   *string `json:"defaultCategoryId"`
+	TitleTemplate            string            `json:"titleTemplate"`
+	DescriptionTemplate      string            `json:"descriptionTemplate"`
+	DefaultCategoryID        *string           `json:"defaultCategoryId"`
+	ExamplePlaceholderValues map[string]string `json:"examplePlaceholderValues"`
 }
 
-type gameConfigurationPatchBody struct {
-	FeatureFlags          map[string]bool                 `json:"featureFlags"`
-	Settings              map[string]any                  `json:"settings"`
-	ExceptionTaskTemplate *exceptionTaskTemplatePatchBody `json:"exceptionTaskTemplate"`
+type gameConfigurationPatchRaw struct {
+	FeatureFlags          json.RawMessage `json:"featureFlags"`
+	Settings              json.RawMessage `json:"settings"`
+	ExceptionTaskTemplate json.RawMessage `json:"exceptionTaskTemplate"`
 }
 
 func (s *Server) getGameConfiguration(w http.ResponseWriter, r *http.Request) {
@@ -73,8 +74,8 @@ func (s *Server) patchGameConfiguration(w http.ResponseWriter, r *http.Request) 
 	if _, ok := s.requireOwnedGame(w, r, gameID); !ok {
 		return
 	}
-	var body gameConfigurationPatchBody
-	if err := httpx.ReadJSON(r, &body); err != nil {
+	var rawPatch gameConfigurationPatchRaw
+	if err := httpx.ReadJSON(r, &rawPatch); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
@@ -84,19 +85,49 @@ func (s *Server) patchGameConfiguration(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	_, _, curTpl, err := s.gameConfig.GetJSONColumns(ctx, gameID)
+	curFlags, curSettings, curTpl, err := s.gameConfig.GetJSONColumns(ctx, gameID)
 	if err != nil {
 		log.Printf("get configuration: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	flagsOut := sanitizeFeatureFlagsMap(body.FeatureFlags)
-	settingsOut := sanitizeSettingsMap(body.Settings)
+	flagsJSON := curFlags
+	if len(rawPatch.FeatureFlags) > 0 {
+		var flags map[string]bool
+		if err := json.Unmarshal(rawPatch.FeatureFlags, &flags); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		flagsJSON, err = json.Marshal(sanitizeFeatureFlagsMap(flags))
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
 
-	var tplBytes []byte
-	if body.ExceptionTaskTemplate != nil {
-		tpl, err := s.applyExceptionTemplatePatch(ctx, gameID, body.ExceptionTaskTemplate)
+	settingsJSON := curSettings
+	if len(rawPatch.Settings) > 0 {
+		var settings map[string]any
+		if err := json.Unmarshal(rawPatch.Settings, &settings); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		settingsJSON, err = json.Marshal(sanitizeSettingsMap(settings))
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	tplBytes := curTpl
+	if len(rawPatch.ExceptionTaskTemplate) > 0 {
+		var p exceptionTaskTemplatePatchBody
+		if err := json.Unmarshal(rawPatch.ExceptionTaskTemplate, &p); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		tpl, err := s.applyExceptionTemplatePatch(ctx, gameID, &p, curTpl)
 		if err != nil {
 			var he httpStatusErr
 			if errors.As(err, &he) {
@@ -112,20 +143,8 @@ func (s *Server) patchGameConfiguration(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-	} else {
-		tplBytes = curTpl
 	}
 
-	flagsJSON, err := json.Marshal(flagsOut)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	settingsJSON, err := json.Marshal(settingsOut)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
 	if err := s.gameConfig.UpdateJSONColumns(ctx, gameID, flagsJSON, settingsJSON, tplBytes); err != nil {
 		log.Printf("update configuration: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -141,12 +160,26 @@ func (s *Server) patchGameConfiguration(w http.ResponseWriter, r *http.Request) 
 }
 
 type exceptionTplMap struct {
-	TitleTemplate       string  `json:"titleTemplate"`
-	DescriptionTemplate string  `json:"descriptionTemplate"`
-	DefaultCategoryID   *string `json:"defaultCategoryId"`
+	TitleTemplate            string            `json:"titleTemplate"`
+	DescriptionTemplate      string            `json:"descriptionTemplate"`
+	DefaultCategoryID        *string           `json:"defaultCategoryId"`
+	ExamplePlaceholderValues map[string]string `json:"examplePlaceholderValues"`
 }
 
-func (s *Server) applyExceptionTemplatePatch(ctx context.Context, gameID string, p *exceptionTaskTemplatePatchBody) (exceptionTplMap, error) {
+func (s *Server) applyExceptionTemplatePatch(
+	ctx context.Context,
+	gameID string,
+	p *exceptionTaskTemplatePatchBody,
+	curTplJSON []byte,
+) (exceptionTplMap, error) {
+	var cur exceptionTplMap
+	if len(curTplJSON) > 0 {
+		_ = json.Unmarshal(curTplJSON, &cur)
+	}
+	if cur.ExamplePlaceholderValues == nil {
+		cur.ExamplePlaceholderValues = map[string]string{}
+	}
+
 	title := strings.TrimSpace(p.TitleTemplate)
 	if title == "" {
 		title = defaultExceptionTitleTemplate
@@ -164,11 +197,50 @@ func (s *Server) applyExceptionTemplatePatch(ctx context.Context, gameID string,
 		}
 		catID = &c
 	}
+
+	examples := cur.ExamplePlaceholderValues
+	if p.ExamplePlaceholderValues != nil {
+		examples = sanitizeExamplePlaceholderMap(p.ExamplePlaceholderValues)
+	}
+
 	return exceptionTplMap{
-		TitleTemplate:       title,
-		DescriptionTemplate: desc,
-		DefaultCategoryID:   catID,
+		TitleTemplate:            title,
+		DescriptionTemplate:      desc,
+		DefaultCategoryID:        catID,
+		ExamplePlaceholderValues: examples,
 	}, nil
+}
+
+func sanitizeExamplePlaceholderMap(raw map[string]string) map[string]string {
+	out := make(map[string]string)
+	if raw == nil {
+		return out
+	}
+	for k, v := range raw {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func parseExamplePlaceholderValuesFromTpl(rawTpl map[string]json.RawMessage) map[string]string {
+	out := map[string]string{}
+	if rawTpl == nil {
+		return out
+	}
+	t, ok := rawTpl["examplePlaceholderValues"]
+	if !ok || len(t) == 0 {
+		return out
+	}
+	var m map[string]string
+	if err := json.Unmarshal(t, &m); err != nil {
+		return out
+	}
+	return sanitizeExamplePlaceholderMap(m)
 }
 
 func sanitizeFeatureFlagsMap(raw map[string]bool) map[string]bool {
@@ -258,6 +330,7 @@ func (s *Server) buildGameConfigurationResponse(ctx context.Context, gameID stri
 			defCat = &s
 		}
 	}
+	examples := parseExamplePlaceholderValuesFromTpl(rawTpl)
 	var defSummary any
 	if defCat != nil {
 		c, err := s.categories.FindByIDAndGame(ctx, *defCat, gameID)
@@ -273,10 +346,11 @@ func (s *Server) buildGameConfigurationResponse(ctx context.Context, gameID stri
 		"featureFlags": flags,
 		"settings":     settings,
 		"exceptionTaskTemplate": map[string]any{
-			"titleTemplate":       title,
-			"descriptionTemplate": desc,
-			"defaultCategoryId":   nullStringPtr(defCat),
-			"defaultCategory":     defSummary,
+			"titleTemplate":            title,
+			"descriptionTemplate":      desc,
+			"defaultCategoryId":        nullStringPtr(defCat),
+			"defaultCategory":          defSummary,
+			"examplePlaceholderValues": examples,
 		},
 	}, nil
 }

@@ -554,14 +554,117 @@
 }
 
 .intervalSelect {
+    box-sizing: border-box;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    background: var(--panel);
+    background-color: var(--panel);
     color: var(--text-h);
-    padding: 8px 10px;
+    padding: 8px 36px 8px 10px;
     border-radius: 10px;
+    font: inherit;
     font-size: 13px;
     letter-spacing: 0.2px;
     outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2381819a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+
+.intervalSelect:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--panel) 88%, white 12%);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.intervalSelect:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.selectControl {
+    position: relative;
+    min-width: 0;
+}
+
+.selectControlTrigger {
+    display: block;
+    width: 100%;
+    text-align: left;
+}
+
+.selectControlTriggerLabel {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.selectControlTrigger[data-placeholder='true'] .selectControlTriggerLabel {
+    color: var(--text);
+    font-weight: 500;
+}
+
+.selectControlMenu {
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text-h);
+    box-shadow: var(--shadow);
+    z-index: 3000;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.selectControlOption {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--text-h);
+    cursor: pointer;
+    user-select: none;
+}
+
+.selectControlOption:hover,
+.selectControlOption[data-active='true'] {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--accent-bg);
+}
+
+.selectControlOption[data-selected='true'] {
+    border-color: var(--accent-border);
+    background: color-mix(in srgb, var(--accent-bg) 80%, var(--panel) 20%);
+}
+
+.selectControlOption[data-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.intervalSelect option {
+    background: var(--panel);
+    color: var(--text-h);
+}
+
+@media (prefers-color-scheme: light) {
+    .intervalSelect {
+        border-color: var(--border);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    }
+
+    .intervalSelect:hover:not(:disabled) {
+        background-color: var(--panel-2);
+        border-color: color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+    }
 }
 
 .textInput {
@@ -570,6 +673,7 @@
     color: var(--text-h);
     padding: 8px 10px;
     border-radius: 10px;
+    font: inherit;
     font-size: 13px;
     letter-spacing: 0.2px;
     outline: none;
@@ -587,6 +691,7 @@
     color: var(--text-h);
     padding: 8px 10px;
     border-radius: 10px;
+    font: inherit;
     font-size: 13px;
     letter-spacing: 0.2px;
     cursor: pointer;
@@ -729,18 +834,42 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    background: var(--panel);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    padding: 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
     align-self: start;
+    box-shadow: var(--shadow);
+}
+
+@media (prefers-color-scheme: light) {
+    .tasksFilterPanel {
+        background: var(--panel);
+    }
 }
 
 .tasksFilterPanelTitle {
+    font-family: var(--heading);
     font-size: 13px;
     font-weight: 650;
     color: var(--text-h);
     margin-bottom: 8px;
+}
+
+.tasksFilterMatchRow {
+    margin-bottom: 8px;
+}
+
+.tasksFilterMatchRow .tasksFilterPanelTitle {
+    margin-bottom: 6px;
+}
+
+.tasksFilterMatchRow .intervalSelect {
+    width: 100%;
+}
+
+.excTaskDefaultCatSelect {
+    max-width: 360px;
 }
 
 .tasksFilterList {
@@ -831,6 +960,26 @@
 .filterPillAddSelect {
     width: 100%;
     max-width: 100%;
+    min-height: 34px;
+    padding: 6px 32px 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
+    background-color: color-mix(in srgb, var(--panel) 92%, transparent);
+    background-position: right 8px center;
+}
+
+.filterPillAddSelect:hover:not(:disabled) {
+    color: var(--text-h);
+    border-color: var(--accent-border);
+    background-color: var(--accent-bg);
+}
+
+.filterPillAddSelect:focus,
+.filterPillAddSelect:focus-visible {
+    color: var(--text-h);
 }
 
 .filterItem {
@@ -868,7 +1017,8 @@
     min-height: 0;
 }
 
-.intervalSelect:focus {
+.intervalSelect:focus,
+.intervalSelect:focus-visible {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-bg);
 }
@@ -981,6 +1131,38 @@
     font-size: 12px;
     color: var(--text);
     flex-shrink: 0;
+}
+
+.featureTreeStatusPill {
+    flex-shrink: 0;
+}
+
+.featureModalTaskSection {
+    margin-top: 12px;
+}
+
+.featureModalSectionHeading {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.featureModalSectionDivider {
+    margin: 16px 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
+.featureModalSectionEmpty {
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.modalFieldRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
 
 .dashboardExceptionsStack {
@@ -1438,6 +1620,24 @@
     outline-offset: -2px;
 }
 
+.tableTasksList tbody tr.tasksListRow[data-done='true'] td {
+    background: color-mix(in srgb, #72f5a1 14%, transparent);
+    box-shadow: inset 0 0 0 1px #459544;
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true'][data-odd='true'] td {
+    background: color-mix(in srgb, #72f5a1 18%, transparent);
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true']:hover td {
+    background: color-mix(in srgb, #72f5a1 22%, transparent);
+    box-shadow: inset 0 0 0 1px #459544;
+}
+
+.tableTasksList tbody tr.tasksListRow[data-done='true']:focus-visible {
+    outline-color: color-mix(in srgb, #459544 65%, transparent);
+}
+
 .tableCompact tbody td .textInput,
 .tableCompact tbody td .textArea,
 .tableCompact tbody td .intervalSelect {
@@ -1552,22 +1752,8 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    box-sizing: border-box;
-    appearance: none;
     padding: 10px 36px 10px 14px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2381819a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
     background-position: right 12px center;
-}
-
-.modalCard .intervalSelect option {
-    background: var(--panel);
-    color: var(--text-h);
-}
-
-.modalCard .intervalSelect:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
 .modalCard .textArea {
@@ -2267,7 +2453,7 @@
 
 .ingestTokenRevealValue {
     display: block;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-family: var(--mono);
     font-size: 12px;
     word-break: break-all;
     user-select: all;
@@ -2325,7 +2511,7 @@
 }
 
 .gameEventDefinitionCreateHex {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-family: var(--mono);
     font-size: 12px;
     opacity: 0.75;
 }
@@ -2548,7 +2734,7 @@
 }
 
 .gameEventDefinitionPlaceholderLabel {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-family: var(--mono);
     font-size: 12px;
     opacity: 0.9;
 }

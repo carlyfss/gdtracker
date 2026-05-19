@@ -3,9 +3,10 @@ import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
 import type { Task, TaskStatus } from '../../../api/tasks'
 import { IconTrash } from '../../../components/icons'
+import { SelectControl } from '../../../components/SelectControl'
 import { chipTextColor } from '../../../util/chipTextColor'
 import { normalizeHex6 } from '../../../util/hexColor'
-import { statusLabel } from '../../../util/taskStatus'
+import { isTaskDone, statusLabel } from '../../../util/taskStatus'
 import { directChildProgress, formatChildProgressLabel, type TaskListRow } from '../../../util/taskTree'
 import { IconChevronTaskTree, IconCheck } from './TaskIcons'
 import { categoryMeta, FALLBACK_FEATURE_COLOR, featureMeta, sortedTaskTags, type UiState } from '../tasksPageUtils'
@@ -52,16 +53,17 @@ export function TasksListTable({
                 <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
                     Subtasks
                 </label>
-                <select
+                <SelectControl
                     id="tasks-subtasks-visibility"
-                    className="intervalSelect tasksListToolbarSelect"
+                    className="tasksListToolbarSelect"
                     value={listShowSubtasks ? 'show' : 'hide'}
-                    onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
+                    onChange={(v) => setListShowSubtasks(v === 'show')}
+                    options={[
+                        { value: 'show', label: 'Show subtasks' },
+                        { value: 'hide', label: 'Hide subtasks' },
+                    ]}
                     aria-label="Show or hide subtasks in the list"
-                >
-                    <option value="show">Show subtasks</option>
-                    <option value="hide">Hide subtasks</option>
-                </select>
+                />
             </div>
             <table className="table tableCompact tableTasksList">
                 <thead>
@@ -80,17 +82,18 @@ export function TasksListTable({
                         const t = row.task
                         const { name: fn, color: fc } = featureMeta(t, features)
                         const { name: cn, color: cc } = categoryMeta(t, categories)
-                        const atDone = (t.status as TaskStatus) === 'DONE'
+                        const atDone = isTaskDone(t.status)
                         const busyRow = advancingTaskId === t.id
                         const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
                         const progLabels = formatChildProgressLabel(progDone, progTotal)
-                        const showFeatureCategory = row.depth === 0
+                        const showFeature = row.depth === 0
                         const rowTags = sortedTaskTags(t)
                         const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
                         return (
                             <tr
                                 key={t.id}
                                 className="tasksListRow"
+                                data-done={atDone ? 'true' : undefined}
                                 data-odd={idx % 2 === 1}
                                 role="button"
                                 tabIndex={0}
@@ -160,7 +163,7 @@ export function TasksListTable({
                                 )}
                                 {archiveEmbedded ? null : (
                                     <td>
-                                        {showFeatureCategory ? (
+                                        {showFeature ? (
                                             <span className="filterItemInner">
                                                 <span className="featureSwatch" style={{ backgroundColor: fc }} />
                                                 <span style={{ color: fc }}>{fn}</span>
@@ -171,15 +174,11 @@ export function TasksListTable({
                                     </td>
                                 )}
                                 <td>
-                                    {showFeatureCategory ? (
-                                        cn ? (
-                                            <span className="filterItemInner">
-                                                <span className="featureSwatch" style={{ backgroundColor: cc }} />
-                                                <span style={{ color: cc }}>{cn}</span>
-                                            </span>
-                                        ) : (
-                                            <span className="muted">—</span>
-                                        )
+                                    {cn ? (
+                                        <span className="filterItemInner">
+                                            <span className="featureSwatch" style={{ backgroundColor: cc }} />
+                                            <span style={{ color: cc }}>{cn}</span>
+                                        </span>
                                     ) : (
                                         <span className="muted">—</span>
                                     )}

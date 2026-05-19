@@ -3,6 +3,7 @@ import type { Feature } from '../../../api/features'
 import { createFeature, deleteFeature, listFeatures, updateFeature } from '../../../api/features'
 import type { TaskStatus } from '../../../api/tasks'
 import { IconEdit, IconTrash } from '../../../components/icons'
+import { SelectControl } from '../../../components/SelectControl'
 import { descendantFeatureIds, depthForFeature, orderedFeatureTree } from '../../../util/featureTree'
 import { isHex6, normalizeHex6 } from '../../../util/hexColor'
 import { allStatus, statusLabel } from '../../../util/taskStatus'
@@ -183,18 +184,13 @@ export function GameFeaturesSection({ gameId }: { gameId: string }) {
                             background: 'var(--panel)',
                         }}
                     />
-                    <select
-                        className="intervalSelect featureCreateStatus"
+                    <SelectControl
+                        className="featureCreateStatus"
                         value={createStatus}
-                        onChange={(e) => setCreateStatus(e.target.value as TaskStatus)}
+                        onChange={(v) => setCreateStatus(v as TaskStatus)}
+                        options={allStatus.map((s) => ({ value: s, label: statusLabel(s) }))}
                         aria-label="Feature status"
-                    >
-                        {allStatus.map((s) => (
-                            <option key={s} value={s}>
-                                {statusLabel(s)}
-                            </option>
-                        ))}
-                    </select>
+                    />
                     <button
                         type="button"
                         className="btn btnPrimary featureCreateSubmit"
@@ -210,19 +206,19 @@ export function GameFeaturesSection({ gameId }: { gameId: string }) {
                         onChange={(e) => setCreateDescription(e.target.value)}
                         rows={2}
                     />
-                    <select
-                        className="intervalSelect featureCreateParent"
+                    <SelectControl
+                        className="featureCreateParent"
                         value={createParentId}
-                        onChange={(e) => setCreateParentId(e.target.value)}
+                        onChange={setCreateParentId}
+                        options={[
+                            { value: '', label: 'None (root feature)' },
+                            ...orderedFeatures.map((opt) => ({
+                                value: opt.id,
+                                label: featureParentOptionLabel(opt, features),
+                            })),
+                        ]}
                         aria-label="Parent feature (optional)"
-                    >
-                        <option value="">None (root feature)</option>
-                        {orderedFeatures.map((opt) => (
-                            <option key={opt.id} value={opt.id}>
-                                {featureParentOptionLabel(opt, features)}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </div>
 
                 {features.length === 0 && state.kind !== 'loading' && (
@@ -292,21 +288,20 @@ export function GameFeaturesSection({ gameId }: { gameId: string }) {
                                             </td>
                                             <td>
                                                 {isEditing ? (
-                                                    <select
-                                                        className="intervalSelect"
+                                                    <SelectControl
                                                         value={editingParentId}
-                                                        onChange={(e) => setEditingParentId(e.target.value)}
+                                                        onChange={setEditingParentId}
+                                                        options={[
+                                                            { value: '', label: 'None (root)' },
+                                                            ...orderedFeatures
+                                                                .filter((opt) => !editParentBlocklist.has(opt.id))
+                                                                .map((opt) => ({
+                                                                    value: opt.id,
+                                                                    label: featureParentOptionLabel(opt, features),
+                                                                })),
+                                                        ]}
                                                         aria-label="Parent feature"
-                                                    >
-                                                        <option value="">None (root)</option>
-                                                        {orderedFeatures
-                                                            .filter((opt) => !editParentBlocklist.has(opt.id))
-                                                            .map((opt) => (
-                                                                <option key={opt.id} value={opt.id}>
-                                                                    {featureParentOptionLabel(opt, features)}
-                                                                </option>
-                                                            ))}
-                                                    </select>
+                                                    />
                                                 ) : parentName ? (
                                                     <span className="muted">{parentName}</span>
                                                 ) : (
@@ -329,17 +324,15 @@ export function GameFeaturesSection({ gameId }: { gameId: string }) {
                                             </td>
                                             <td>
                                                 {isEditing ? (
-                                                    <select
-                                                        className="intervalSelect"
+                                                    <SelectControl
                                                         value={editingStatus}
-                                                        onChange={(e) => setEditingStatus(e.target.value as TaskStatus)}
-                                                    >
-                                                        {allStatus.map((s) => (
-                                                            <option key={s} value={s}>
-                                                                {statusLabel(s)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                        onChange={(v) => setEditingStatus(v as TaskStatus)}
+                                                        options={allStatus.map((s) => ({
+                                                            value: s,
+                                                            label: statusLabel(s),
+                                                        }))}
+                                                        aria-label="Feature status"
+                                                    />
                                                 ) : (
                                                     <span>{statusLabel(f.status as TaskStatus)}</span>
                                                 )}

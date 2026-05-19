@@ -44,17 +44,19 @@ The same variable **names** are reassigned in `@media (prefers-color-scheme: lig
 - Default accent matches **`DEFAULT_ACCENT_HEX`** in [`src/theme/defaults.ts`](../src/theme/defaults.ts) and default `--accent` in `:root`.
 - On game dashboard routes, [`GameThemeContext`](../src/context/GameThemeContext.tsx) may set **`document.documentElement` style `--accent`** from game configuration **`settings.THEME_COLOR`** (CSS hex; validated with `parseThemeColorHex` in that context). Configure the key in the **Settings** table on [`ConfigurationPage`](../src/pages/ConfigurationPage.tsx). When set, derived accent variables in CSS still follow `var(--accent)`.
 
-**Form focus:** Shared **`.textInput`**, **`.textArea`**, **`.intervalSelect`**, and **`.authInput`** use **`border-color: var(--accent)`** and **`box-shadow: 0 0 0 3px var(--accent-bg)`** on **`:focus`** in [`App.css`](../src/App.css) so focus rings follow the current accent (including per-game theme).
+**Form focus:** Shared **`.textInput`**, **`.textArea`**, **`.intervalSelect`**, and **`.authInput`** use **`border-color: var(--accent)`** and **`box-shadow: 0 0 0 3px var(--accent-bg)`** on **`:focus`** / **`:focus-visible`** in [`App.css`](../src/App.css) so focus rings follow the current accent (including per-game theme).
 
 ---
 
 ## Typography
 
-| Token       | Use                | Value (from [`index.css`](../src/index.css)) |
-| ----------- | ------------------ | -------------------------------------------- |
-| `--sans`    | UI / body          | `system-ui, 'Segoe UI', Roboto, sans-serif`  |
-| `--heading` | `h1`, `h2`         | Same stack as `--sans`                       |
-| `--mono`    | `code`, `.counter` | `ui-monospace, Consolas, monospace`          |
+**Web font:** [Stack Sans Headline](https://fonts.google.com/specimen/Stack+Sans+Headline) (weights 200–700), loaded in [`index.html`](../index.html).
+
+| Token       | Use                                                              | Value (from [`index.css`](../src/index.css))               |
+| ----------- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| `--sans`    | UI / body                                                        | `'Stack Sans Headline', system-ui, 'Segoe UI', sans-serif` |
+| `--heading` | `h1`, `h2`                                                       | Same stack as `--sans`                                     |
+| `--mono`    | `code`, `.counter`, tokens, stack traces, markdown source editor | `ui-monospace, Consolas, monospace`                        |
 
 | Element / scope | Rules                                                                                                |
 | --------------- | ---------------------------------------------------------------------------------------------------- |
@@ -62,6 +64,8 @@ The same variable **names** are reassigned in `@media (prefers-color-scheme: lig
 | `h1`            | `56px`, weight `500`; **≤1024px**: `36px`, adjusted margins.                                         |
 | `h2`            | `24px`, line-height `118%`; **≤1024px**: `20px`.                                                     |
 | `code`          | `15px`, line-height `135%`, `padding: 4px 8px`, `border-radius: 4px`, `background: var(--code-bg)`.  |
+
+**Form controls:** **`.textInput`**, **`.textArea`**, **`.intervalSelect`**, and **`.authInput`** share panel fill, border radius, and accent focus ring in [`App.css`](../src/App.css). Dropdowns use [`SelectControl`](../src/components/SelectControl.tsx): the trigger is a **`<button class="intervalSelect">`** (custom chevron); the open list is a portaled **`.selectControlMenu`** (rounded panel, accent hover) so option menus match app chrome on all platforms.
 
 ---
 

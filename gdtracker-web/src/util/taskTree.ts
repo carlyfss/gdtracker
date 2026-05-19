@@ -76,7 +76,13 @@ export function flattenTasksForList(
         }
     }
 
-    const roots = byParent.get(null) ?? []
+    const byId = new Map(tasks.map((t) => [t.id, t]))
+    const roots = tasks.filter((t) => {
+        const raw = t.parentTaskId
+        if (raw == null || String(raw).length === 0) return true
+        return !byId.has(String(raw))
+    })
+    roots.sort(compareTasksTreeOrder)
     for (const r of roots) walk(r, 0)
 
     return out

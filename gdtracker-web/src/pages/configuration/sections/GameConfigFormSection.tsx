@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Category } from '../../../api/categories'
-import { listCategories } from '../../../api/categories'
 import { getConfiguration, patchConfiguration } from '../../../api/configuration'
 import { IconTrash } from '../../../components/icons'
 import { useGameTheme } from '../../../context/GameThemeContext'
@@ -41,24 +39,15 @@ function rowsFromSettings(settings: Record<string, string | number | boolean>): 
 export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string; refreshToken: number }) {
     const { refreshTheme } = useGameTheme()
     const [state, setState] = useState<UiState>({ kind: 'idle' })
-    const [categories, setCategories] = useState<Category[]>([])
     const [flagRows, setFlagRows] = useState<FlagRow[]>([])
     const [settingRows, setSettingRows] = useState<SettingRow[]>([])
-    const [exceptionTitleTemplate, setExceptionTitleTemplate] = useState('')
-    const [exceptionDescriptionTemplate, setExceptionDescriptionTemplate] = useState('')
-    const [exceptionTemplateCategoryId, setExceptionTemplateCategoryId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setState({ kind: 'loading', message: 'Loading configuration…' })
         try {
-            const [cfg, cats] = await Promise.all([getConfiguration(gameId), listCategories(gameId)])
-            setCategories(cats)
+            const cfg = await getConfiguration(gameId)
             setFlagRows(rowsFromFlags(cfg.featureFlags ?? {}))
             setSettingRows(rowsFromSettings(cfg.settings ?? {}))
-            const et = cfg.exceptionTaskTemplate
-            setExceptionTitleTemplate(et?.titleTemplate ?? 'Fix Exception #<EXCEPTION_INDEX>')
-            setExceptionDescriptionTemplate(et?.descriptionTemplate ?? '```\n<EXCEPTION_TRACE>\n```')
-            setExceptionTemplateCategoryId(et?.defaultCategoryId ?? null)
             setState({ kind: 'idle' })
         } catch {
             setState({ kind: 'error', message: 'Failed to load configuration.' })
@@ -111,21 +100,9 @@ export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string
             const updated = await patchConfiguration(gameId, {
                 featureFlags,
                 settings,
-                exceptionTaskTemplate: {
-                    titleTemplate: exceptionTitleTemplate,
-                    descriptionTemplate: exceptionDescriptionTemplate,
-                    defaultCategoryId:
-                        exceptionTemplateCategoryId && exceptionTemplateCategoryId.length > 0
-                            ? exceptionTemplateCategoryId
-                            : null,
-                },
             })
             setFlagRows(rowsFromFlags(updated.featureFlags ?? {}))
             setSettingRows(rowsFromSettings(updated.settings ?? {}))
-            const uet = updated.exceptionTaskTemplate
-            setExceptionTitleTemplate(uet?.titleTemplate ?? 'Fix Exception #<EXCEPTION_INDEX>')
-            setExceptionDescriptionTemplate(uet?.descriptionTemplate ?? '```\n<EXCEPTION_TRACE>\n```')
-            setExceptionTemplateCategoryId(uet?.defaultCategoryId ?? null)
             setState({ kind: 'success', message: 'Configuration saved.' })
             refreshTheme()
         } catch {
@@ -284,64 +261,6 @@ export function GameConfigFormSection({ gameId, refreshToken }: { gameId: string
                 </div>
 
                 <GameIngestTokenSection gameId={gameId} />
-
-                <h3 className="configSubheading">Task templates (from game exceptions)</h3>
-                <p className="muted" style={{ marginBottom: 12 }}>
-                    Used when creating tasks from the dashboard exception detail. <strong>Title:</strong>{' '}
-                    <code>&lt;EXCEPTION_INDEX&gt;</code> (server-sequenced per game), <code>&lt;EXCEPTION_ID&gt;</code>,{' '}
-                    <code>&lt;EXCEPTION_SHORT_ID&gt;</code>, <code>&lt;SHORT_ERROR_MESSAGE&gt;</code> (from the
-                    client/ingest field) — <code>&lt;ERROR_MESSAGE&gt;</code> is removed from titles if present.{' '}
-                    <strong>Description:</strong> <code>&lt;EXCEPTION_TRACE&gt;</code> for the stack trace, plus{' '}
-                    <code>&lt;EXCEPTION_ID&gt;</code>, <code>&lt;EXCEPTION_SHORT_ID&gt;</code>,{' '}
-                    <code>&lt;ERROR_MESSAGE&gt;</code>, <code>&lt;SHORT_ERROR_MESSAGE&gt;</code>;{' '}
-                    <code>&lt;EXCEPTION_INDEX&gt;</code> is stripped in descriptions. Add your own markdown fences
-                    around the trace if you want a code block.
-                </p>
-                <div className="modalFormGrid" style={{ marginBottom: 14, maxWidth: 720 }}>
-                    <label className="tasksListToolbarLabel" htmlFor="exc-task-title-tpl">
-                        Title template
-                    </label>
-                    <input
-                        id="exc-task-title-tpl"
-                        className="textInput"
-                        value={exceptionTitleTemplate}
-                        onChange={(e) => setExceptionTitleTemplate(e.target.value)}
-                        autoComplete="off"
-                        aria-label="Title template for exception tasks"
-                    />
-                    <label className="tasksListToolbarLabel" htmlFor="exc-task-desc-tpl">
-                        Description template
-                    </label>
-                    <textarea
-                        id="exc-task-desc-tpl"
-                        className="textArea modalTaskDescArea"
-                        style={{ minHeight: '6rem' }}
-                        value={exceptionDescriptionTemplate}
-                        onChange={(e) => setExceptionDescriptionTemplate(e.target.value)}
-                        aria-label="Description template for exception tasks"
-                    />
-                    <label className="tasksListToolbarLabel" htmlFor="exc-task-default-cat">
-                        Default category for new exception tasks
-                    </label>
-                    <select
-                        id="exc-task-default-cat"
-                        className="intervalSelect"
-                        style={{ maxWidth: 360 }}
-                        value={exceptionTemplateCategoryId ?? ''}
-                        onChange={(e) => {
-                            const v = e.target.value
-                            setExceptionTemplateCategoryId(v.length ? v : null)
-                        }}
-                        aria-label="Default category for tasks created from exceptions"
-                    >
-                        <option value="">None</option>
-                        {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
 
                 <div>
                     <button

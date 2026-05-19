@@ -1,0 +1,5 @@
+/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/Release/netstandard2.1/GdtrackerSdk.GeneratedMSBuildEditorConfig.editorconfig
+/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/Release/netstandard2.1/GdtrackerSdk.AssemblyInfoInputs.cache
+/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/Release/netstandard2.1/GdtrackerSdk.AssemblyInfo.cs
+/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/Release/netstandard2.1/GdtrackerSdk.csproj.CoreCompileInputs.cache
+/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/Release/netstandard2.1/GdtrackerSdk.sourcelink.json

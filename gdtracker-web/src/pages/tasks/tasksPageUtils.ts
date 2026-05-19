@@ -89,7 +89,7 @@ export function emptyDraft(featureId: string, categoryId: string): TaskDraft {
     return {
         title: '',
         description: '',
-        status: 'TODO',
+        status: 'PENDING',
         featureId,
         categoryId,
         parentTaskId: '',
@@ -99,9 +99,47 @@ export function emptyDraft(featureId: string, categoryId: string): TaskDraft {
     }
 }
 
+/** After creating a task, open a fresh create draft for a subtask with shared settings. */
+export function draftForNextSubtask(parentTaskId: string, previous: TaskDraft): TaskDraft {
+    return {
+        title: '',
+        description: '',
+        status: 'PENDING',
+        featureId: previous.featureId,
+        categoryId: previous.categoryId,
+        parentTaskId,
+        tagIds: [...previous.tagIds],
+        sourceGameExceptionId: '',
+        planningDocumentRefs: previous.planningDocumentRefs.map((r) => ({ ...r })),
+    }
+}
+
 export function upsertBodyParentId(d: TaskDraft): string | null {
     const p = d.parentTaskId.trim()
     return p.length > 0 ? p : null
+}
+
+export function featureIdFromParentTask(tasks: Task[], parentTaskId: string): string | null {
+    const pid = parentTaskId.trim()
+    if (!pid) return null
+    const parent = tasks.find((t) => t.id === pid)
+    if (!parent) return null
+    const fid = String(parent.feature?.id ?? parent.featureId ?? '').trim()
+    return fid.length > 0 ? fid : null
+}
+
+export function applyParentTaskDraftPatch(tasks: Task[], patch: Partial<TaskDraft>): Partial<TaskDraft> {
+    if (!Object.prototype.hasOwnProperty.call(patch, 'parentTaskId')) {
+        return patch
+    }
+    const nextParent = patch.parentTaskId ?? ''
+    if (nextParent.trim().length > 0) {
+        const fromParent = featureIdFromParentTask(tasks, nextParent)
+        if (fromParent) {
+            return { ...patch, featureId: fromParent }
+        }
+    }
+    return patch
 }
 
 export function parentTaskPickerOptions(tasks: Task[], draftFeatureId: string, editingTaskId: string | null): Task[] {

@@ -235,8 +235,7 @@ func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "task not found", http.StatusNotFound)
 		return
 	}
-	_ = tr
-	if err := s.tasks.DeleteByID(ctx, taskID); err != nil {
+	if err := s.persistTaskDelete(ctx, gameID, taskID, tr.ParentTaskID); err != nil {
 		log.Printf("delete task: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -324,7 +323,7 @@ func (s *Server) writeTaskCreate(w http.ResponseWriter, ctx context.Context, gam
 		TagIDs:                tagList,
 		PlanningNodeIDs:       planningIDs,
 	}
-	if err := s.tasks.Insert(ctx, ins); err != nil {
+	if err := s.persistTaskCreate(ctx, gameID, ins); err != nil {
 		return err
 	}
 	s.writeTaskResponse(w, ctx, gameID, ins.ID, http.StatusCreated)
@@ -415,7 +414,7 @@ func (s *Server) writeTaskUpdate(w http.ResponseWriter, ctx context.Context, gam
 		TagIDs:                tagUpdate,
 		PlanningNodeIDs:       planningUpdate,
 	}
-	if err := s.tasks.Update(ctx, u); err != nil {
+	if err := s.persistTaskUpdate(ctx, gameID, u, existing.ParentTaskID); err != nil {
 		return err
 	}
 	s.writeTaskResponse(w, ctx, gameID, taskID, http.StatusOK)

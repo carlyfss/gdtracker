@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { GameEvent, GameEventDefinition, GameEventPage } from '../api/gameEvents'
 import { listGameEventDefinitions, searchGameEvents } from '../api/gameEvents'
 import { getLocationHeatmap, getLocationHeatmapForPlayer } from '../api/trace'
 import { FilterPillAddGroup, type FilterPillItem } from '../components/FilterPillAddGroup'
+import { SelectControl } from '../components/SelectControl'
 import { useGameId } from '../context/GameIdContext'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import { isHex6, normalizeHex6 } from '../util/hexColor'
@@ -20,6 +21,7 @@ import {
 } from 'recharts'
 
 import type { GameEventTraceEntry } from '../api/trace'
+import { readHeatmapFilters, writeHeatmapFilters } from '../util/screenFilterPreferences'
 
 const EVENTS_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
 
@@ -181,6 +183,9 @@ export function HeatmapPage() {
     const [eventsPage, setEventsPage] = useState(0)
     const [eventsSize, setEventsSize] = useState(10)
 
+    const heatmapFiltersRestored = useRef(false)
+    const skipPersistHeatmapFilters = useRef(true)
+
     const eventDefinitionCodes = useMemo(
         () => eventDefinitions.map((d) => d.code).sort((a, b) => a.localeCompare(b)),
         [eventDefinitions]
@@ -190,6 +195,63 @@ export function HeatmapPage() {
         () => [...eventDefinitions].sort((a, b) => a.code.localeCompare(b.code)),
         [eventDefinitions]
     )
+
+    useEffect(() => {
+        heatmapFiltersRestored.current = false
+        skipPersistHeatmapFilters.current = true
+    }, [gameId])
+
+    useEffect(() => {
+        if (heatmapFiltersRestored.current) return
+        heatmapFiltersRestored.current = true
+        const id = window.setTimeout(() => {
+            const stored = readHeatmapFilters(gameId)
+            if (!stored) return
+            setSelectedMap(stored.selectedMap)
+            setHeatmapEventCodeFilter(stored.heatmapEventCodeFilter)
+            setRangeXMin(stored.rangeXMin)
+            setRangeXMax(stored.rangeXMax)
+            setRangeYMin(stored.rangeYMin)
+            setRangeYMax(stored.rangeYMax)
+            setPlayerIdInput(stored.playerIdInput)
+            setPlayerIdDebounced(stored.playerIdInput.trim())
+            setEventCodeFilter(stored.eventCodeFilter)
+            setEventsSize(stored.eventsSize)
+        }, 0)
+        return () => window.clearTimeout(id)
+    }, [gameId])
+
+    useEffect(() => {
+        if (skipPersistHeatmapFilters.current) {
+            skipPersistHeatmapFilters.current = false
+            return
+        }
+        const timer = window.setTimeout(() => {
+            writeHeatmapFilters(gameId, {
+                selectedMap,
+                heatmapEventCodeFilter,
+                rangeXMin,
+                rangeXMax,
+                rangeYMin,
+                rangeYMax,
+                playerIdInput,
+                eventCodeFilter,
+                eventsSize,
+            })
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [
+        gameId,
+        selectedMap,
+        heatmapEventCodeFilter,
+        rangeXMin,
+        rangeXMax,
+        rangeYMin,
+        rangeYMax,
+        playerIdInput,
+        eventCodeFilter,
+        eventsSize,
+    ])
 
     useEffect(() => {
         const t = window.setTimeout(() => setEventSearchDebounced(eventSearchInput.trim()), 300)
@@ -896,18 +958,15 @@ export function HeatmapPage() {
                             <span className="muted" style={{ fontSize: 12 }}>
                                 Page size
                             </span>
-                            <select
-                                className="intervalSelect"
-                                value={eventsSize}
-                                onChange={(e) => onChangeEventsSize(Number(e.target.value))}
+                            <SelectControl
+                                value={String(eventsSize)}
+                                onChange={(v) => onChangeEventsSize(Number(v))}
+                                options={EVENTS_PAGE_SIZE_OPTIONS.map((opt) => ({
+                                    value: String(opt),
+                                    label: String(opt),
+                                }))}
                                 aria-label="Game events page size"
-                            >
-                                {EVENTS_PAGE_SIZE_OPTIONS.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                        {opt}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </label>
                     </div>
                     {eventsError && <div className="banner bannerError">{eventsError}</div>}

@@ -1,4 +1,5 @@
 import { useId, useMemo } from 'react'
+import { SelectControl } from './SelectControl'
 
 export type FilterPillItem = {
     value: string
@@ -20,10 +21,6 @@ export type FilterPillAddGroupProps = {
     className?: string
 }
 
-function selectedKey(items: FilterPillItem[]) {
-    return items.map((x) => x.value).join('\u0000')
-}
-
 export function FilterPillAddGroup({
     title,
     selected,
@@ -38,10 +35,13 @@ export function FilterPillAddGroup({
     const baseId = useId()
     const listId = `${baseId}-pills`
     const addId = `${baseId}-add`
-    const sk = useMemo(() => selectedKey(selected), [selected])
-
     const regionLabel = ariaLabel ?? (title.trim() ? title : 'Filters')
     const canAdd = addOptions.length > 0
+
+    const addSelectOptions = useMemo(
+        () => addOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+        [addOptions]
+    )
 
     return (
         <div className={`filterPillAddGroup${className ? ` ${className}` : ''}`.trim()}>
@@ -82,25 +82,19 @@ export function FilterPillAddGroup({
                     ))}
                 </ul>
                 {canAdd ? (
-                    <select
-                        key={`${sk}:${addOptions.map((o) => o.value).join('\u0001')}`}
+                    <SelectControl
                         id={addId}
-                        className="intervalSelect filterPillAddSelect"
-                        defaultValue=""
-                        aria-label={title.trim() ? `Add ${title}` : `Add ${regionLabel}`}
-                        onChange={(e) => {
-                            const v = e.target.value
+                        className="filterPillAddSelect"
+                        value=""
+                        placeholder={addPlaceholder}
+                        resetAfterChange
+                        options={addSelectOptions}
+                        onChange={(v) => {
                             if (!v) return
                             onAdd(v)
                         }}
-                    >
-                        <option value="">{addPlaceholder}</option>
-                        {addOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
+                        aria-label={title.trim() ? `Add ${title}` : `Add ${regionLabel}`}
+                    />
                 ) : null}
             </div>
         </div>

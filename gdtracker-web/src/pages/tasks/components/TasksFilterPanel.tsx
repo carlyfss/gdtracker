@@ -5,6 +5,7 @@ import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
 import type { TaskStatus } from '../../../api/tasks'
 import { FilterPillAddGroup, type FilterPillItem } from '../../../components/FilterPillAddGroup'
+import { SelectControl } from '../../../components/SelectControl'
 import { normalizeHex6 } from '../../../util/hexColor'
 import { allStatus, statusLabel } from '../../../util/taskStatus'
 import { FALLBACK_FEATURE_COLOR, type UiState } from '../tasksPageUtils'
@@ -202,19 +203,20 @@ export function TasksFilterPanel({
                 </div>
             )}
             {allTags.length >= 2 && selectedFilterTagIds.length >= 2 && (
-                <div style={{ marginBottom: 8 }}>
-                    <label className="tasksFilterPanelTitle" style={{ marginBottom: 4, display: 'block' }}>
+                <div className="tasksFilterMatchRow">
+                    <label className="tasksFilterPanelTitle" htmlFor="tasks-tag-filter-mode">
                         Match
                     </label>
-                    <select
-                        className="intervalSelect"
+                    <SelectControl
+                        id="tasks-tag-filter-mode"
                         value={tagFilterMode}
-                        onChange={(e) => setTagFilterMode(e.target.value as 'ANY' | 'ALL')}
+                        onChange={(v) => setTagFilterMode(v as 'ANY' | 'ALL')}
+                        options={[
+                            { value: 'ANY', label: 'Any selected tag' },
+                            { value: 'ALL', label: 'All selected tags' },
+                        ]}
                         aria-label="Match any or all selected tags"
-                    >
-                        <option value="ANY">Any selected tag</option>
-                        <option value="ALL">All selected tags</option>
-                    </select>
+                    />
                 </div>
             )}
             {allTags.length > 0 && (

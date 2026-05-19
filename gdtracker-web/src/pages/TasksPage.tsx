@@ -12,13 +12,17 @@ import { listFeatures } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
 import { archiveTask, createTask, deleteTask, listTasks, unarchiveTask, updateTask } from '../api/tasks'
 import { nextTaskStatus, statusLabel } from '../util/taskStatus'
+import { readTasksFilters, writeTasksFilters, type TasksFilters } from '../util/screenFilterPreferences'
+import { readLastTaskFeatureId, writeLastTaskFeatureId } from '../util/taskUiPreferences'
 import { flattenTasksForList } from '../util/taskTree'
 import { TaskModal } from './tasks/components/TaskModal'
 import { TasksFilterPanel } from './tasks/components/TasksFilterPanel'
 import { TasksListTable } from './tasks/components/TasksListTable'
 import {
     type CreateFromExceptionState,
+    applyParentTaskDraftPatch,
     draftFromTask,
+    draftForNextSubtask,
     emptyDraft,
     normalizeTitle,
     parentTaskPickerOptions as _parentTaskPickerOptions,
@@ -67,6 +71,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const [tagBrowseModalTag, setTagBrowseModalTag] = useState<Tag | null>(null)
 
     const skipFilterRefreshOnce = useRef(true)
+    const skipPersistFiltersOnce = useRef(true)
     /** After first bootstrap completes; state (not a ref) so `createFromException` effect re-runs when this flips true. */
     const [taskPageBootstrapDone, setTaskPageBootstrapDone] = useState(false)
 
@@ -105,11 +110,19 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         featuresSnapshot?: Feature[]
         categoriesSnapshot?: Category[]
         tagsSnapshot?: Tag[]
+        filters?: TasksFilters
     }) => {
-        const effectiveFeatureId = forcedFeatureId ?? (selectedFeatureId !== '__all__' ? selectedFeatureId : undefined)
-        const categoryId = selectedCategoryId !== '__all__' ? selectedCategoryId : undefined
-        const status = selectedStatus !== '__all__' ? selectedStatus : undefined
-        const tagIds = selectedFilterTagIds.length > 0 ? selectedFilterTagIds : undefined
+        const f = opts?.filters
+        const featureSel = f?.featureId ?? selectedFeatureId
+        const categorySel = f?.categoryId ?? selectedCategoryId
+        const statusSel = f?.status ?? selectedStatus
+        const tagIdsSel = f?.tagIds ?? selectedFilterTagIds
+        const tagModeSel = f?.tagMode ?? tagFilterMode
+
+        const effectiveFeatureId = forcedFeatureId ?? (featureSel !== '__all__' ? featureSel : undefined)
+        const categoryId = categorySel !== '__all__' ? categorySel : undefined
+        const status = statusSel !== '__all__' ? statusSel : undefined
+        const tagIds = tagIdsSel.length > 0 ? tagIdsSel : undefined
         try {
             const data = await listTasks(gameId, {
                 featureId: effectiveFeatureId ?? undefined,
@@ -119,7 +132,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 ...(tagIds
                     ? {
                           tagIds,
-                          ...(tagIds.length >= 2 ? { tagMode: tagFilterMode } : {}),
+                          ...(tagIds.length >= 2 ? { tagMode: tagModeSel } : {}),
                       }
                     : {}),
             })
@@ -185,7 +198,33 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                     } catch {
                         setGameDefaultCategoryId(null)
                     }
-                    await refreshTasks({ featuresSnapshot: f, categoriesSnapshot: cats, tagsSnapshot: tagsSnap })
+
+                    let storedFilters: TasksFilters | null = null
+                    if (!archivedOnly && forcedFeatureId == null) {
+                        const urlFeature = searchParams.get('feature')
+                        const urlTask = searchParams.get('task')
+                        if (!urlFeature && !urlTask) {
+                            storedFilters = readTasksFilters(gameId, {
+                                featureIds: f.map((x) => x.id),
+                                categoryIds: cats.map((c) => c.id),
+                                tagIds: tagsSnap.map((t) => t.id),
+                            })
+                            if (storedFilters) {
+                                setSelectedFeatureId(storedFilters.featureId)
+                                setSelectedCategoryId(storedFilters.categoryId)
+                                setSelectedStatus(storedFilters.status)
+                                setSelectedFilterTagIds(storedFilters.tagIds)
+                                setTagFilterMode(storedFilters.tagMode)
+                            }
+                        }
+                    }
+
+                    await refreshTasks({
+                        featuresSnapshot: f,
+                        categoriesSnapshot: cats,
+                        tagsSnapshot: tagsSnap,
+                        filters: storedFilters ?? undefined,
+                    })
                     setState({ kind: 'idle' })
                 } catch {
                     setState({ kind: 'error', message: 'Failed to load tasks.' })
@@ -279,10 +318,13 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         if (!taskPageBootstrapDone) return
         if (features.length === 0) return
 
+        const featureIds = features.map((f) => f.id)
+        const storedFeature = readLastTaskFeatureId(gameId, featureIds)
         const featureId =
-            selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)
+            storedFeature ??
+            (selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)
                 ? selectedFeatureId
-                : features[0]!.id
+                : features[0]!.id)
 
         let catId = ''
         if (c.categoryId && categories.some((x) => x.id === c.categoryId)) {
@@ -299,7 +341,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 draft: {
                     title: c.title,
                     description: c.description,
-                    status: 'TODO',
+                    status: 'PENDING',
                     featureId,
                     categoryId: catId,
                     parentTaskId: '',
@@ -319,6 +361,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         categories,
         gameDefaultCategoryId,
         selectedFeatureId,
+        gameId,
         navigate,
         archivedOnly,
         taskPageBootstrapDone,
@@ -348,6 +391,33 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     ])
 
     useEffect(() => {
+        if (archivedOnly || forcedFeatureId != null) return
+        if (skipPersistFiltersOnce.current) {
+            skipPersistFiltersOnce.current = false
+            return
+        }
+        const timer = window.setTimeout(() => {
+            writeTasksFilters(gameId, {
+                featureId: selectedFeatureId,
+                categoryId: selectedCategoryId,
+                status: selectedStatus,
+                tagIds: selectedFilterTagIds,
+                tagMode: tagFilterMode,
+            })
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [
+        gameId,
+        archivedOnly,
+        forcedFeatureId,
+        selectedFeatureId,
+        selectedCategoryId,
+        selectedStatus,
+        selectedFilterTagIds,
+        tagFilterMode,
+    ])
+
+    useEffect(() => {
         if (!modalOpen) return
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setModal({ kind: 'closed' })
@@ -358,19 +428,21 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
 
     const defaultFeatureIdForCreate = useMemo(() => {
         if (features.length === 0) return ''
+        const featureIds = features.map((f) => f.id)
+        const stored = readLastTaskFeatureId(gameId, featureIds)
+        if (stored) return stored
         if (selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)) {
             return selectedFeatureId
         }
         return features[0]!.id
-    }, [features, selectedFeatureId])
+    }, [features, selectedFeatureId, gameId])
 
-    const defaultCategoryIdForCreate = useMemo(() => {
-        if (categories.length === 0) return ''
-        if (gameDefaultCategoryId && categories.some((c) => c.id === gameDefaultCategoryId)) {
-            return gameDefaultCategoryId
+    const onFilterFeatureChange = (featureId: string) => {
+        setSelectedFeatureId(featureId)
+        if (featureId !== '__all__') {
+            writeLastTaskFeatureId(gameId, featureId)
         }
-        return categories[0]!.id
-    }, [categories, gameDefaultCategoryId])
+    }
 
     const canSubmitDraft = (d: TaskDraft) => normalizeTitle(d.title).length > 0 && d.featureId.length > 0
 
@@ -378,7 +450,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         if (features.length === 0) return
         setModal({
             kind: 'create',
-            draft: emptyDraft(defaultFeatureIdForCreate, defaultCategoryIdForCreate),
+            draft: emptyDraft(defaultFeatureIdForCreate, ''),
         })
     }
 
@@ -391,8 +463,22 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const patchDraft = (patch: Partial<TaskDraft>) => {
         setModal((prev) => {
             if (prev.kind === 'closed') return prev
-            return { ...prev, draft: { ...prev.draft, ...patch } }
+            const merged = applyParentTaskDraftPatch(tasks, patch)
+            let nextDraft: TaskDraft = { ...prev.draft, ...merged }
+            if (
+                Object.prototype.hasOwnProperty.call(merged, 'featureId') &&
+                merged.featureId !== prev.draft.featureId &&
+                prev.draft.parentTaskId.trim().length === 0
+            ) {
+                nextDraft = { ...nextDraft, parentTaskId: '' }
+            }
+            return { ...prev, draft: nextDraft }
         })
+    }
+
+    const onModalFeatureChange = (featureId: string) => {
+        patchDraft({ featureId })
+        writeLastTaskFeatureId(gameId, featureId)
     }
 
     const toggleDraftTagId = (tagId: string) => {
@@ -431,27 +517,63 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         })
     }
 
+    const buildCreateTaskBody = (draft: TaskDraft, title: string) => {
+        const sid = draft.sourceGameExceptionId.trim()
+        return {
+            title,
+            description: draft.description.trim().length ? draft.description : null,
+            status: draft.status,
+            featureId: draft.featureId,
+            categoryId: draft.categoryId.trim().length > 0 ? draft.categoryId.trim() : null,
+            tagIds: draft.tagIds,
+            parentTaskId: upsertBodyParentId(draft),
+            planningNodeIds: draft.planningDocumentRefs.map((r) => r.id),
+            ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
+        }
+    }
+
     const onCreate = async () => {
         if (modal.kind !== 'create') return
         const title = normalizeTitle(modal.draft.title)
         if (!title || !modal.draft.featureId) return
         setState({ kind: 'loading', message: 'Creating task…' })
         try {
-            const sid = modal.draft.sourceGameExceptionId.trim()
-            await createTask(gameId, {
-                title,
-                description: modal.draft.description.trim().length ? modal.draft.description : null,
-                status: modal.draft.status,
-                featureId: modal.draft.featureId,
-                categoryId: modal.draft.categoryId.trim().length > 0 ? modal.draft.categoryId.trim() : null,
-                tagIds: modal.draft.tagIds,
-                parentTaskId: upsertBodyParentId(modal.draft),
-                planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
-                ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
-            })
+            await createTask(gameId, buildCreateTaskBody(modal.draft, title))
+            writeLastTaskFeatureId(gameId, modal.draft.featureId)
             closeModal()
             await refreshTasks()
             setState({ kind: 'success', message: 'Task created.' })
+        } catch {
+            setState({ kind: 'error', message: 'Failed to create task.' })
+        }
+    }
+
+    const onStartCreateSubtask = () => {
+        if (modal.kind !== 'task') return
+        const parentTask = tasks.find((t) => t.id === modal.taskId)
+        const parentFeatureId = String(parentTask?.feature?.id ?? parentTask?.featureId ?? modal.draft.featureId ?? '')
+        let nextDraft = draftForNextSubtask(modal.taskId, modal.draft)
+        if (parentFeatureId.length > 0) {
+            nextDraft = { ...nextDraft, featureId: parentFeatureId, parentTaskId: modal.taskId }
+        }
+        setModal({ kind: 'create', draft: nextDraft })
+    }
+
+    const onCreateAndAddSubtask = async () => {
+        if (modal.kind !== 'create') return
+        const previousDraft = modal.draft
+        const title = normalizeTitle(previousDraft.title)
+        if (!title || !previousDraft.featureId) return
+        setState({ kind: 'loading', message: 'Creating task…' })
+        try {
+            const created = await createTask(gameId, buildCreateTaskBody(previousDraft, title))
+            writeLastTaskFeatureId(gameId, previousDraft.featureId)
+            await refreshTasks()
+            const parentFeatureId = String(created.feature?.id ?? created.featureId ?? previousDraft.featureId)
+            let nextDraft = draftForNextSubtask(created.id, previousDraft)
+            nextDraft = { ...nextDraft, featureId: parentFeatureId, parentTaskId: created.id }
+            setModal({ kind: 'create', draft: nextDraft })
+            setState({ kind: 'success', message: 'Task created. Add a subtask.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to create task.' })
         }
@@ -474,6 +596,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 sourceGameExceptionId: modal.draft.sourceGameExceptionId.trim(),
                 planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
             })
+            writeLastTaskFeatureId(gameId, modal.draft.featureId)
             setModal({
                 kind: 'task',
                 taskId: updated.id,
@@ -620,7 +743,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                     categories={categories}
                     allTags={allTags}
                     selectedFeatureId={selectedFeatureId}
-                    setSelectedFeatureId={setSelectedFeatureId}
+                    setSelectedFeatureId={onFilterFeatureChange}
                     selectedCategoryId={selectedCategoryId}
                     setSelectedCategoryId={setSelectedCategoryId}
                     selectedFilterTagIds={selectedFilterTagIds}
@@ -701,8 +824,11 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 toggleTaskSurface={toggleTaskSurface}
                 cancelEditToView={cancelEditToView}
                 patchDraft={patchDraft}
+                onModalFeatureChange={onModalFeatureChange}
                 toggleDraftTagId={toggleDraftTagId}
                 onCreate={onCreate}
+                onCreateAndAddSubtask={onCreateAndAddSubtask}
+                onStartCreateSubtask={onStartCreateSubtask}
                 onSaveTask={onSaveTask}
                 onArchiveTask={archivedOnly ? onUnarchiveTask : onArchiveTask}
                 featureNameById={featureNameById}

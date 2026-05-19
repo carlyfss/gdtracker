@@ -1,0 +1,142 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/tests/GdtrackerSdk.Tests/GdtrackerSdk.Tests.csproj": {}
+  },
+  "projects": {
+    "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/GdtrackerSdk.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/GdtrackerSdk.csproj",
+        "projectName": "GdtrackerSdk",
+        "projectPath": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/GdtrackerSdk.csproj",
+        "packagesPath": "/home/carlyfss/.nuget/packages/",
+        "outputPath": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/carlyfss/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netstandard2.1"
+        ],
+        "sources": {
+          "/usr/lib/dotnet/library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netstandard2.1": {
+            "targetAlias": "netstandard2.1",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "netstandard2.1": {
+          "targetAlias": "netstandard2.1",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "NETStandard.Library": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/10.0.107/RuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/tests/GdtrackerSdk.Tests/GdtrackerSdk.Tests.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/tests/GdtrackerSdk.Tests/GdtrackerSdk.Tests.csproj",
+        "projectName": "GdtrackerSdk.Tests",
+        "projectPath": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/tests/GdtrackerSdk.Tests/GdtrackerSdk.Tests.csproj",
+        "packagesPath": "/home/carlyfss/.nuget/packages/",
+        "outputPath": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/tests/GdtrackerSdk.Tests/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/carlyfss/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "/usr/lib/dotnet/library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/GdtrackerSdk.csproj": {
+                "projectPath": "/home/carlyfss/gdtracker/gdtracker-sdk-dotnet/src/GdtrackerSdk/GdtrackerSdk.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.26, 8.0.26]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.26, 8.0.26]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/10.0.107/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

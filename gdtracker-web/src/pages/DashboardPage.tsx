@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
+import { SelectControl } from '../components/SelectControl'
 import { FeatureTasksModal } from '../components/FeatureTasksModal'
 import type { Feature } from '../api/features'
 import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } from '../api/features'
@@ -15,6 +16,7 @@ import {
 } from '../api/gameExceptions'
 import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
+import { readDashboardFilters, writeDashboardFilters } from '../util/screenFilterPreferences'
 import { flattenFeaturesForList } from '../util/featureTree'
 import { applyExceptionTaskDescriptionTemplate, applyExceptionTaskTitleTemplate } from '../util/exceptionTaskTemplate'
 import { ExceptionDetailPanel } from './dashboard/components/ExceptionDetailPanel'
@@ -104,6 +106,7 @@ export function DashboardPage() {
     const [featureModal, setFeatureModal] = useState<Feature | null>(null)
     const [listShowSubfeatures, setListShowSubfeatures] = useState(true)
     const [collapsedFeatureIds, setCollapsedFeatureIds] = useState<Set<string>>(() => new Set())
+    const skipPersistDashboardFilters = useRef(true)
     const [exceptionDeepLinkError, setExceptionDeepLinkError] = useState<string | null>(null)
     const [createTaskFromExceptionBusy, setCreateTaskFromExceptionBusy] = useState(false)
     const [linkedExceptionTaskId, setLinkedExceptionTaskId] = useState<string | null>(null)
@@ -167,7 +170,17 @@ export function DashboardPage() {
             setFeaturesPanelLoading(true)
             setFeaturesError(null)
             try {
-                setFeatures(await listFeatures(gameId))
+                const loaded = await listFeatures(gameId)
+                setFeatures(loaded)
+                const stored = readDashboardFilters(
+                    gameId,
+                    loaded.map((f) => f.id)
+                )
+                if (stored) {
+                    setExceptionBucket(stored.exceptionBucket)
+                    setListShowSubfeatures(stored.listShowSubfeatures)
+                    setCollapsedFeatureIds(new Set(stored.collapsedFeatureIds))
+                }
             } catch {
                 setFeatures([])
                 setFeaturesError('Failed to load features.')
@@ -188,6 +201,21 @@ export function DashboardPage() {
             }
         })()
     }, [gameId])
+
+    useEffect(() => {
+        if (skipPersistDashboardFilters.current) {
+            skipPersistDashboardFilters.current = false
+            return
+        }
+        const timer = window.setTimeout(() => {
+            writeDashboardFilters(gameId, {
+                exceptionBucket,
+                listShowSubfeatures,
+                collapsedFeatureIds: [...collapsedFeatureIds],
+            })
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [gameId, exceptionBucket, listShowSubfeatures, collapsedFeatureIds])
 
     const progressById = useMemo(() => {
         const m = new Map<string, FeatureTaskProgressRow>()
@@ -434,17 +462,17 @@ export function DashboardPage() {
                         )}
                         <div className="dashboardExceptionsToolbar">
                             <h3 className="dashboardSubheading">Exceptions</h3>
-                            <select
-                                className="intervalSelect"
+                            <SelectControl
                                 value={exceptionBucket}
-                                onChange={(e) => setExceptionBucket(e.target.value as TimeBucket)}
+                                onChange={(v) => setExceptionBucket(v as TimeBucket)}
+                                options={[
+                                    { value: 'minute', label: 'Per minute' },
+                                    { value: 'halfHour', label: 'Per 30 minutes' },
+                                    { value: 'hour', label: 'Hourly' },
+                                    { value: 'day', label: 'Per day' },
+                                ]}
                                 aria-label="Exception occurrences interval"
-                            >
-                                <option value="minute">Per minute</option>
-                                <option value="halfHour">Per 30 minutes</option>
-                                <option value="hour">Hourly</option>
-                                <option value="day">Per day</option>
-                            </select>
+                            />
                         </div>
 
                         <div className="dashboardExceptionsRightStack">
@@ -586,8 +614,13 @@ export function DashboardPage() {
                 onClose={() => setFeatureModal(null)}
                 gameId={gameId}
                 feature={featureModal}
+                features={features}
                 progress={modalProgress}
                 onAfterArchiveOrUnarchive={refreshFeaturePanels}
+                onFeatureUpdated={(updated) => {
+                    setFeatureModal(updated)
+                    setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)))
+                }}
             />
         </div>
     )

@@ -10,6 +10,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "lint": "eslint .",
+        "test": "node --experimental-strip-types --test src/util/*.test.ts",
         "preview": "vite preview"
     },
     "dependencies": {
