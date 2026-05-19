@@ -5,15 +5,21 @@ import { TaskDescriptionMarkdown } from './TaskDescriptionMarkdown'
 import type { Category } from '../api/categories'
 import { listCategories } from '../api/categories'
 import type { Feature } from '../api/features'
-import { archiveFeature, unarchiveFeature } from '../api/features'
+import { archiveFeature, unarchiveFeature, updateFeature } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
 import { listTasks } from '../api/tasks'
 import { categoryMeta } from '../pages/tasks/tasksPageUtils'
+import { immediateChildFeatures } from '../util/featureTree'
 import { normalizeHex6 } from '../util/hexColor'
-import { statusLabel } from '../util/taskStatus'
+import { allStatus, statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
 
 const FALLBACK_FEATURE_COLOR = '#94a3b8'
+
+type TaskSection = {
+    feature: Feature
+    tasks: Task[]
+}
 
 function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
     return (
@@ -38,15 +44,151 @@ function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
     )
 }
 
+type FeatureModalTaskTableProps = {
+    tasks: Task[]
+    categories: Category[]
+    listShowSubtasks: boolean
+    collapsedTaskIds: ReadonlySet<string>
+    onToggleTaskRowCollapsed: (taskId: string) => void
+    onOpenTask: (t: Task) => void
+}
+
+function FeatureModalTaskTable({
+    tasks,
+    categories,
+    listShowSubtasks,
+    collapsedTaskIds,
+    onToggleTaskRowCollapsed,
+    onOpenTask,
+}: FeatureModalTaskTableProps) {
+    const listRows = useMemo(
+        () =>
+            flattenTasksForList(tasks, {
+                showSubtasks: listShowSubtasks,
+                collapsedParentIds: collapsedTaskIds,
+            }),
+        [tasks, listShowSubtasks, collapsedTaskIds]
+    )
+
+    if (tasks.length === 0) {
+        return <div className="emptyState featureModalSectionEmpty">No tasks</div>
+    }
+
+    return (
+        <div className="tableWrap featureModalSectionTable">
+            <table className="table tableCompact tableTasksList">
+                <thead>
+                    <tr>
+                        <th className="tasksListTitleCol">Title</th>
+                        <th className="tasksListProgressCol">Progress</th>
+                        <th className="tasksListStatusCol">Status</th>
+                        <th className="tasksListCategoryCol">Category</th>
+                        <th className="tasksListActionsCol" aria-label="Actions" />
+                    </tr>
+                </thead>
+                <tbody>
+                    {listRows.map((row) => {
+                        const t = row.task
+                        const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
+                        const progLabels = formatChildProgressLabel(progDone, progTotal)
+                        const { name: cn, color: cc } = categoryMeta(t, categories)
+                        const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
+                        return (
+                            <tr
+                                key={t.id}
+                                className="tasksListRow"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Open task: ${t.title}`}
+                                onClick={() => onOpenTask(t)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        onOpenTask(t)
+                                    }
+                                }}
+                            >
+                                <td
+                                    style={{
+                                        paddingLeft: 10 + row.depth * 14,
+                                    }}
+                                >
+                                    <span
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            minWidth: 0,
+                                        }}
+                                    >
+                                        {row.hasChildren && listShowSubtasks ? (
+                                            <button
+                                                type="button"
+                                                className="iconBtn tasksTaskTreeToggle"
+                                                title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
+                                                aria-expanded={rowExpanded}
+                                                aria-label={
+                                                    rowExpanded
+                                                        ? `Collapse subtasks for ${t.title}`
+                                                        : `Expand subtasks for ${t.title}`
+                                                }
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onToggleTaskRowCollapsed(t.id)
+                                                }}
+                                            >
+                                                <IconChevronTaskTree expanded={rowExpanded} />
+                                            </button>
+                                        ) : (
+                                            <span className="tasksTaskTreeSpacer" aria-hidden />
+                                        )}
+                                        <span style={{ minWidth: 0 }}>{t.title}</span>
+                                    </span>
+                                </td>
+                                <td className="tasksListProgressCol">
+                                    {progTotal > 0 ? (
+                                        <span title="Subtasks done / total (status DONE)">
+                                            <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
+                                            <span className="muted">{progLabels.ratio}</span>
+                                        </span>
+                                    ) : null}
+                                </td>
+                                <td className="tasksListStatusCol">
+                                    <span className="tasksStatusPill" data-status={(t.status ?? 'TODO') as TaskStatus}>
+                                        {statusLabel((t.status ?? 'TODO') as TaskStatus)}
+                                    </span>
+                                </td>
+                                <td>
+                                    {cn ? (
+                                        <span className="filterItemInner">
+                                            <span className="featureSwatch" style={{ backgroundColor: cc }} />
+                                            <span style={{ color: cc }}>{cn}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="muted">—</span>
+                                    )}
+                                </td>
+                                <td className="tasksListActionsCol" />
+                            </tr>
+                        )
+                    })}
+                </tbody>
+            </table>
+        </div>
+    )
+}
+
 type Props = {
     open: boolean
     onClose: () => void
     gameId: string
     feature: Feature | null
+    features: Feature[]
     progress: { done: number; total: number } | null
     /** Active lists omit archived tasks; archived scope loads archive-visible tasks and links to /archive. */
     taskListScope?: 'active' | 'archived'
     onAfterArchiveOrUnarchive?: () => void | Promise<void>
+    onFeatureUpdated?: (feature: Feature) => void
 }
 
 export function FeatureTasksModal({
@@ -54,15 +196,19 @@ export function FeatureTasksModal({
     onClose,
     gameId,
     feature,
+    features,
     progress,
     taskListScope = 'active',
     onAfterArchiveOrUnarchive,
+    onFeatureUpdated,
 }: Props) {
     const navigate = useNavigate()
-    const [tasks, setTasks] = useState<Task[]>([])
+    const [sections, setSections] = useState<TaskSection[]>([])
     const [categories, setCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [statusSaving, setStatusSaving] = useState(false)
+    const [statusError, setStatusError] = useState<string | null>(null)
     const [listShowSubtasks, setListShowSubtasks] = useState(true)
     const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(() => new Set())
 
@@ -72,21 +218,31 @@ export function FeatureTasksModal({
         void (async () => {
             setLoading(true)
             setError(null)
+            const childFeatures = immediateChildFeatures(feature.id, features)
+            const sectionFeatures = [feature, ...childFeatures]
+            const taskListParams = taskListScope === 'archived' ? ({ archivedOnly: true } as const) : ({} as const)
             try {
-                const [data, cats] = await Promise.all([
-                    listTasks(gameId, {
-                        featureId: feature.id,
-                        ...(taskListScope === 'archived' ? { archivedOnly: true } : {}),
-                    }),
+                const [cats, ...taskResults] = await Promise.all([
                     listCategories(gameId),
+                    ...sectionFeatures.map((f) =>
+                        listTasks(gameId, {
+                            featureId: f.id,
+                            ...taskListParams,
+                        })
+                    ),
                 ])
                 if (!cancelled) {
-                    setTasks(data)
                     setCategories(cats)
+                    setSections(
+                        sectionFeatures.map((f, i) => ({
+                            feature: f,
+                            tasks: taskResults[i] ?? [],
+                        }))
+                    )
                 }
             } catch {
                 if (!cancelled) {
-                    setTasks([])
+                    setSections([])
                     setError('Failed to load tasks.')
                 }
             } finally {
@@ -96,16 +252,7 @@ export function FeatureTasksModal({
         return () => {
             cancelled = true
         }
-    }, [open, feature, gameId, taskListScope])
-
-    const listRows = useMemo(
-        () =>
-            flattenTasksForList(tasks, {
-                showSubtasks: listShowSubtasks,
-                collapsedParentIds: collapsedTaskIds,
-            }),
-        [tasks, listShowSubtasks, collapsedTaskIds]
-    )
+    }, [open, feature, gameId, taskListScope, features])
 
     const toggleTaskRowCollapsed = (taskId: string) => {
         setCollapsedTaskIds((prev) => {
@@ -119,6 +266,7 @@ export function FeatureTasksModal({
     if (!open || !feature) return null
 
     const fc = normalizeHex6(feature.color, FALLBACK_FEATURE_COLOR)
+    const featureStatus = (feature.status ?? 'TODO') as TaskStatus
 
     const openTaskOnTasksPage = (t: Task) => {
         onClose()
@@ -129,6 +277,27 @@ export function FeatureTasksModal({
     }
 
     const isArchivedFeature = taskListScope === 'archived' || feature.archived === true
+    const canEditStatus = !isArchivedFeature
+
+    const onStatusChange = async (next: TaskStatus) => {
+        if (!canEditStatus || next === featureStatus) return
+        setStatusSaving(true)
+        setStatusError(null)
+        try {
+            const updated = await updateFeature(gameId, feature.id, {
+                name: feature.name,
+                status: next,
+                description: feature.description ?? null,
+                color: feature.color,
+                parentId: feature.parentId ?? null,
+            })
+            onFeatureUpdated?.(updated)
+        } catch {
+            setStatusError('Could not update feature status.')
+        } finally {
+            setStatusSaving(false)
+        }
+    }
 
     const onArchiveOrUnarchiveFeature = async () => {
         if (!feature) return
@@ -150,6 +319,8 @@ export function FeatureTasksModal({
             window.alert(isArchivedFeature ? 'Could not unarchive feature.' : 'Could not archive feature.')
         }
     }
+
+    const totalTaskCount = sections.reduce((n, s) => n + s.tasks.length, 0)
 
     return createPortal(
         <div className="modalBackdrop" onClick={onClose} role="presentation">
@@ -183,6 +354,33 @@ export function FeatureTasksModal({
                             {progress.done}/{progress.total} completed)
                         </p>
                     )}
+                    <div className="modalFieldRow" style={{ marginBottom: 12 }}>
+                        <span className="modalFieldLabel">Status</span>
+                        {canEditStatus ? (
+                            <select
+                                className="intervalSelect"
+                                value={featureStatus}
+                                disabled={statusSaving}
+                                onChange={(e) => void onStatusChange(e.target.value as TaskStatus)}
+                                aria-label="Feature status"
+                            >
+                                {allStatus.map((s) => (
+                                    <option key={s} value={s}>
+                                        {statusLabel(s)}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <span className="tasksStatusPill" data-status={featureStatus}>
+                                {statusLabel(featureStatus)}
+                            </span>
+                        )}
+                        {statusError && (
+                            <span className="banner bannerError" style={{ marginTop: 6, display: 'block' }}>
+                                {statusError}
+                            </span>
+                        )}
+                    </div>
                     {typeof feature.description === 'string' && feature.description.trim().length > 0 ? (
                         <div style={{ marginBottom: 12 }}>
                             <span className="modalFieldLabel">Description</span>
@@ -196,131 +394,51 @@ export function FeatureTasksModal({
                     <span className="modalFieldLabel">Tasks</span>
                     {error && <div className="banner bannerError">{error}</div>}
                     {loading && <div className="emptyState">Loading tasks…</div>}
-                    {!loading && tasks.length === 0 && !error && (
-                        <div className="emptyState">No tasks for this feature.</div>
-                    )}
-                    {!loading && tasks.length > 0 && (
-                        <div className="tableWrap" style={{ marginTop: 8 }}>
-                            <div className="tasksListToolbar">
-                                <label htmlFor="feature-modal-subtasks-visibility" className="tasksListToolbarLabel">
-                                    Subtasks
-                                </label>
-                                <select
-                                    id="feature-modal-subtasks-visibility"
-                                    className="intervalSelect tasksListToolbarSelect"
-                                    value={listShowSubtasks ? 'show' : 'hide'}
-                                    onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
-                                    aria-label="Show or hide subtasks in the list"
-                                >
-                                    <option value="show">Show subtasks</option>
-                                    <option value="hide">Hide subtasks</option>
-                                </select>
-                            </div>
-                            <table className="table tableCompact tableTasksList">
-                                <thead>
-                                    <tr>
-                                        <th className="tasksListTitleCol">Title</th>
-                                        <th className="tasksListProgressCol">Progress</th>
-                                        <th className="tasksListStatusCol">Status</th>
-                                        <th className="tasksListCategoryCol">Category</th>
-                                        <th className="tasksListActionsCol" aria-label="Actions" />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {listRows.map((row) => {
-                                        const t = row.task
-                                        const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
-                                        const progLabels = formatChildProgressLabel(progDone, progTotal)
-                                        const { name: cn, color: cc } = categoryMeta(t, categories)
-                                        const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
-                                        return (
-                                            <tr
-                                                key={t.id}
-                                                className="tasksListRow"
-                                                role="button"
-                                                tabIndex={0}
-                                                aria-label={`Open task: ${t.title}`}
-                                                onClick={() => openTaskOnTasksPage(t)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault()
-                                                        openTaskOnTasksPage(t)
-                                                    }
-                                                }}
-                                            >
-                                                <td
-                                                    style={{
-                                                        paddingLeft: 10 + row.depth * 14,
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                            minWidth: 0,
-                                                        }}
-                                                    >
-                                                        {row.hasChildren && listShowSubtasks ? (
-                                                            <button
-                                                                type="button"
-                                                                className="iconBtn tasksTaskTreeToggle"
-                                                                title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
-                                                                aria-expanded={rowExpanded}
-                                                                aria-label={
-                                                                    rowExpanded
-                                                                        ? `Collapse subtasks for ${t.title}`
-                                                                        : `Expand subtasks for ${t.title}`
-                                                                }
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    toggleTaskRowCollapsed(t.id)
-                                                                }}
-                                                            >
-                                                                <IconChevronTaskTree expanded={rowExpanded} />
-                                                            </button>
-                                                        ) : (
-                                                            <span className="tasksTaskTreeSpacer" aria-hidden />
-                                                        )}
-                                                        <span style={{ minWidth: 0 }}>{t.title}</span>
-                                                    </span>
-                                                </td>
-                                                <td className="tasksListProgressCol">
-                                                    {progTotal > 0 ? (
-                                                        <span title="Subtasks done / total (status DONE)">
-                                                            <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
-                                                            <span className="muted">{progLabels.ratio}</span>
-                                                        </span>
-                                                    ) : null}
-                                                </td>
-                                                <td className="tasksListStatusCol">
-                                                    <span
-                                                        className="tasksStatusPill"
-                                                        data-status={(t.status ?? 'TODO') as TaskStatus}
-                                                    >
-                                                        {statusLabel((t.status ?? 'TODO') as TaskStatus)}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {cn ? (
-                                                        <span className="filterItemInner">
-                                                            <span
-                                                                className="featureSwatch"
-                                                                style={{ backgroundColor: cc }}
-                                                            />
-                                                            <span style={{ color: cc }}>{cn}</span>
-                                                        </span>
-                                                    ) : (
-                                                        <span className="muted">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="tasksListActionsCol" />
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                    {!loading && !error && (
+                        <>
+                            {totalTaskCount > 0 && (
+                                <div className="tasksListToolbar" style={{ marginTop: 8 }}>
+                                    <label
+                                        htmlFor="feature-modal-subtasks-visibility"
+                                        className="tasksListToolbarLabel"
+                                    >
+                                        Subtasks
+                                    </label>
+                                    <select
+                                        id="feature-modal-subtasks-visibility"
+                                        className="intervalSelect tasksListToolbarSelect"
+                                        value={listShowSubtasks ? 'show' : 'hide'}
+                                        onChange={(e) => setListShowSubtasks(e.target.value === 'show')}
+                                        aria-label="Show or hide subtasks in the list"
+                                    >
+                                        <option value="show">Show subtasks</option>
+                                        <option value="hide">Hide subtasks</option>
+                                    </select>
+                                </div>
+                            )}
+                            {sections.map((section, index) => {
+                                const sc = normalizeHex6(section.feature.color, FALLBACK_FEATURE_COLOR)
+                                return (
+                                    <div key={section.feature.id} className="featureModalTaskSection">
+                                        {index > 0 && <hr className="featureModalSectionDivider" />}
+                                        <h4 className="featureModalSectionHeading" style={{ color: sc }}>
+                                            {section.feature.name}
+                                        </h4>
+                                        <FeatureModalTaskTable
+                                            tasks={section.tasks}
+                                            categories={categories}
+                                            listShowSubtasks={listShowSubtasks}
+                                            collapsedTaskIds={collapsedTaskIds}
+                                            onToggleTaskRowCollapsed={toggleTaskRowCollapsed}
+                                            onOpenTask={openTaskOnTasksPage}
+                                        />
+                                    </div>
+                                )
+                            })}
+                            {sections.length === 0 && !loading && (
+                                <div className="emptyState">No tasks for this feature.</div>
+                            )}
+                        </>
                     )}
                 </div>
                 <div className="modalFooter">

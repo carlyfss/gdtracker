@@ -160,8 +160,13 @@ export function ArchivePage() {
                 onClose={() => setFeatureModal(null)}
                 gameId={gameId}
                 feature={featureModal}
+                features={features}
                 progress={modalProgress}
                 taskListScope="archived"
+                onFeatureUpdated={(updated) => {
+                    setFeatureModal(updated)
+                    setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)))
+                }}
                 onAfterArchiveOrUnarchive={async () => {
                     try {
                         const loaded = await listFeatures(gameId, { archived: true })

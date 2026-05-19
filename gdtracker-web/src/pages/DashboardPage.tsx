@@ -613,8 +613,13 @@ export function DashboardPage() {
                 onClose={() => setFeatureModal(null)}
                 gameId={gameId}
                 feature={featureModal}
+                features={features}
                 progress={modalProgress}
                 onAfterArchiveOrUnarchive={refreshFeaturePanels}
+                onFeatureUpdated={(updated) => {
+                    setFeatureModal(updated)
+                    setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)))
+                }}
             />
         </div>
     )

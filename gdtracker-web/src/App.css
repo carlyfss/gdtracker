@@ -983,6 +983,38 @@
     flex-shrink: 0;
 }
 
+.featureTreeStatusPill {
+    flex-shrink: 0;
+}
+
+.featureModalTaskSection {
+    margin-top: 12px;
+}
+
+.featureModalSectionHeading {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.featureModalSectionDivider {
+    margin: 16px 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
+.featureModalSectionEmpty {
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.modalFieldRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
 .dashboardExceptionsStack {
     min-width: 0;
     display: flex;

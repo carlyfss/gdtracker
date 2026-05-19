@@ -53,6 +53,11 @@ export function descendantFeatureIds(rootId: string, features: Feature[]): Set<s
     return out
 }
 
+/** Immediate children of a feature, sorted by name (dashboard modal sections). */
+export function immediateChildFeatures(parentId: string, features: Feature[]): Feature[] {
+    return features.filter((f) => f.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export function depthForFeature(featureId: string, features: Feature[]): number {
     const byId = new Map(features.map((f) => [f.id, f]))
     let d = 0

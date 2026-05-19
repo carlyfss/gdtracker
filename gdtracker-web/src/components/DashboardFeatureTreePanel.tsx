@@ -1,7 +1,9 @@
 import type { Feature, FeatureTaskProgressRow } from '../api/features'
+import type { TaskStatus } from '../api/tasks'
 import { DEFAULT_ACCENT_HEX } from '../theme/defaults'
 import type { FeatureTreeRow } from '../util/featureTree'
 import { normalizeHex6 } from '../util/hexColor'
+import { statusLabel } from '../util/taskStatus'
 
 function featureRowColor(f: Feature) {
     return normalizeHex6(f.color, DEFAULT_ACCENT_HEX)
@@ -175,6 +177,13 @@ export function DashboardFeatureTreePanel({
                                                     title="Tasks directly on this feature (done/total)"
                                                 >
                                                     {directLabel}
+                                                </span>
+                                                <span
+                                                    className="tasksStatusPill featureTreeStatusPill"
+                                                    data-status={(f.status ?? 'TODO') as TaskStatus}
+                                                    title="Feature status"
+                                                >
+                                                    {statusLabel((f.status ?? 'TODO') as TaskStatus)}
                                                 </span>
                                             </span>
                                         </div>
