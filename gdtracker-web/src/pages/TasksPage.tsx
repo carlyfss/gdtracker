@@ -12,12 +12,14 @@ import { listFeatures } from '../api/features'
 import type { Task, TaskStatus } from '../api/tasks'
 import { archiveTask, createTask, deleteTask, listTasks, unarchiveTask, updateTask } from '../api/tasks'
 import { nextTaskStatus, statusLabel } from '../util/taskStatus'
+import { readLastTaskFeatureId, writeLastTaskFeatureId } from '../util/taskUiPreferences'
 import { flattenTasksForList } from '../util/taskTree'
 import { TaskModal } from './tasks/components/TaskModal'
 import { TasksFilterPanel } from './tasks/components/TasksFilterPanel'
 import { TasksListTable } from './tasks/components/TasksListTable'
 import {
     type CreateFromExceptionState,
+    applyParentTaskDraftPatch,
     draftFromTask,
     emptyDraft,
     normalizeTitle,
@@ -279,10 +281,13 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         if (!taskPageBootstrapDone) return
         if (features.length === 0) return
 
+        const featureIds = features.map((f) => f.id)
+        const storedFeature = readLastTaskFeatureId(gameId, featureIds)
         const featureId =
-            selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)
+            storedFeature ??
+            (selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)
                 ? selectedFeatureId
-                : features[0]!.id
+                : features[0]!.id)
 
         let catId = ''
         if (c.categoryId && categories.some((x) => x.id === c.categoryId)) {
@@ -319,6 +324,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         categories,
         gameDefaultCategoryId,
         selectedFeatureId,
+        gameId,
         navigate,
         archivedOnly,
         taskPageBootstrapDone,
@@ -358,19 +364,21 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
 
     const defaultFeatureIdForCreate = useMemo(() => {
         if (features.length === 0) return ''
+        const featureIds = features.map((f) => f.id)
+        const stored = readLastTaskFeatureId(gameId, featureIds)
+        if (stored) return stored
         if (selectedFeatureId !== '__all__' && features.some((f) => f.id === selectedFeatureId)) {
             return selectedFeatureId
         }
         return features[0]!.id
-    }, [features, selectedFeatureId])
+    }, [features, selectedFeatureId, gameId])
 
-    const defaultCategoryIdForCreate = useMemo(() => {
-        if (categories.length === 0) return ''
-        if (gameDefaultCategoryId && categories.some((c) => c.id === gameDefaultCategoryId)) {
-            return gameDefaultCategoryId
+    const onFilterFeatureChange = (featureId: string) => {
+        setSelectedFeatureId(featureId)
+        if (featureId !== '__all__') {
+            writeLastTaskFeatureId(gameId, featureId)
         }
-        return categories[0]!.id
-    }, [categories, gameDefaultCategoryId])
+    }
 
     const canSubmitDraft = (d: TaskDraft) => normalizeTitle(d.title).length > 0 && d.featureId.length > 0
 
@@ -378,7 +386,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         if (features.length === 0) return
         setModal({
             kind: 'create',
-            draft: emptyDraft(defaultFeatureIdForCreate, defaultCategoryIdForCreate),
+            draft: emptyDraft(defaultFeatureIdForCreate, ''),
         })
     }
 
@@ -391,8 +399,22 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const patchDraft = (patch: Partial<TaskDraft>) => {
         setModal((prev) => {
             if (prev.kind === 'closed') return prev
-            return { ...prev, draft: { ...prev.draft, ...patch } }
+            const merged = applyParentTaskDraftPatch(tasks, patch)
+            let nextDraft: TaskDraft = { ...prev.draft, ...merged }
+            if (
+                Object.prototype.hasOwnProperty.call(merged, 'featureId') &&
+                merged.featureId !== prev.draft.featureId &&
+                prev.draft.parentTaskId.trim().length === 0
+            ) {
+                nextDraft = { ...nextDraft, parentTaskId: '' }
+            }
+            return { ...prev, draft: nextDraft }
         })
+    }
+
+    const onModalFeatureChange = (featureId: string) => {
+        patchDraft({ featureId })
+        writeLastTaskFeatureId(gameId, featureId)
     }
 
     const toggleDraftTagId = (tagId: string) => {
@@ -449,6 +471,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
                 ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
             })
+            writeLastTaskFeatureId(gameId, modal.draft.featureId)
             closeModal()
             await refreshTasks()
             setState({ kind: 'success', message: 'Task created.' })
@@ -474,6 +497,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 sourceGameExceptionId: modal.draft.sourceGameExceptionId.trim(),
                 planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
             })
+            writeLastTaskFeatureId(gameId, modal.draft.featureId)
             setModal({
                 kind: 'task',
                 taskId: updated.id,
@@ -620,7 +644,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                     categories={categories}
                     allTags={allTags}
                     selectedFeatureId={selectedFeatureId}
-                    setSelectedFeatureId={setSelectedFeatureId}
+                    setSelectedFeatureId={onFilterFeatureChange}
                     selectedCategoryId={selectedCategoryId}
                     setSelectedCategoryId={setSelectedCategoryId}
                     selectedFilterTagIds={selectedFilterTagIds}
@@ -701,6 +725,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 toggleTaskSurface={toggleTaskSurface}
                 cancelEditToView={cancelEditToView}
                 patchDraft={patchDraft}
+                onModalFeatureChange={onModalFeatureChange}
                 toggleDraftTagId={toggleDraftTagId}
                 onCreate={onCreate}
                 onSaveTask={onSaveTask}

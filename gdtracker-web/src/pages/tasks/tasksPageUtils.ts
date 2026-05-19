@@ -104,6 +104,29 @@ export function upsertBodyParentId(d: TaskDraft): string | null {
     return p.length > 0 ? p : null
 }
 
+export function featureIdFromParentTask(tasks: Task[], parentTaskId: string): string | null {
+    const pid = parentTaskId.trim()
+    if (!pid) return null
+    const parent = tasks.find((t) => t.id === pid)
+    if (!parent) return null
+    const fid = String(parent.feature?.id ?? parent.featureId ?? '').trim()
+    return fid.length > 0 ? fid : null
+}
+
+export function applyParentTaskDraftPatch(tasks: Task[], patch: Partial<TaskDraft>): Partial<TaskDraft> {
+    if (!Object.prototype.hasOwnProperty.call(patch, 'parentTaskId')) {
+        return patch
+    }
+    const nextParent = patch.parentTaskId ?? ''
+    if (nextParent.trim().length > 0) {
+        const fromParent = featureIdFromParentTask(tasks, nextParent)
+        if (fromParent) {
+            return { ...patch, featureId: fromParent }
+        }
+    }
+    return patch
+}
+
 export function parentTaskPickerOptions(tasks: Task[], draftFeatureId: string, editingTaskId: string | null): Task[] {
     return tasks
         .filter((t) => {

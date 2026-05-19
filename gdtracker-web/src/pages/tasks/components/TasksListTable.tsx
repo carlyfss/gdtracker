@@ -84,7 +84,7 @@ export function TasksListTable({
                         const busyRow = advancingTaskId === t.id
                         const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
                         const progLabels = formatChildProgressLabel(progDone, progTotal)
-                        const showFeatureCategory = row.depth === 0
+                        const showFeature = row.depth === 0
                         const rowTags = sortedTaskTags(t)
                         const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
                         return (
@@ -160,7 +160,7 @@ export function TasksListTable({
                                 )}
                                 {archiveEmbedded ? null : (
                                     <td>
-                                        {showFeatureCategory ? (
+                                        {showFeature ? (
                                             <span className="filterItemInner">
                                                 <span className="featureSwatch" style={{ backgroundColor: fc }} />
                                                 <span style={{ color: fc }}>{fn}</span>
@@ -171,15 +171,11 @@ export function TasksListTable({
                                     </td>
                                 )}
                                 <td>
-                                    {showFeatureCategory ? (
-                                        cn ? (
-                                            <span className="filterItemInner">
-                                                <span className="featureSwatch" style={{ backgroundColor: cc }} />
-                                                <span style={{ color: cc }}>{cn}</span>
-                                            </span>
-                                        ) : (
-                                            <span className="muted">—</span>
-                                        )
+                                    {cn ? (
+                                        <span className="filterItemInner">
+                                            <span className="featureSwatch" style={{ backgroundColor: cc }} />
+                                            <span style={{ color: cc }}>{cn}</span>
+                                        </span>
                                     ) : (
                                         <span className="muted">—</span>
                                     )}

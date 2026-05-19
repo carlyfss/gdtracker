@@ -166,6 +166,7 @@ export type TaskModalProps = {
     toggleTaskSurface: () => void
     cancelEditToView: () => void
     patchDraft: (patch: Partial<TaskDraft>) => void
+    onModalFeatureChange: (featureId: string) => void
     toggleDraftTagId: (tagId: string) => void
     onCreate: () => void | Promise<void>
     onSaveTask: () => void | Promise<void>
@@ -190,6 +191,7 @@ export function TaskModal(props: TaskModalProps) {
         toggleTaskSurface,
         cancelEditToView,
         patchDraft,
+        onModalFeatureChange,
         toggleDraftTagId,
         onCreate,
         onSaveTask,
@@ -236,6 +238,8 @@ export function TaskModal(props: TaskModalProps) {
     const viewParentTask = viewParentId ? tasks.find((t) => t.id === viewParentId) : undefined
 
     if (modal.kind === 'closed') return null
+
+    const featureFieldLocked = modal.draft.parentTaskId.trim().length > 0
 
     return createPortal(
         <div className="modalBackdrop" onClick={closeModal} role="presentation">
@@ -308,13 +312,11 @@ export function TaskModal(props: TaskModalProps) {
                                             id="task-modal-feature"
                                             className="intervalSelect"
                                             value={modal.draft.featureId}
-                                            onChange={(e) =>
-                                                patchDraft({
-                                                    featureId: e.target.value,
-                                                    parentTaskId: '',
-                                                })
+                                            onChange={(e) => onModalFeatureChange(e.target.value)}
+                                            disabled={features.length === 0 || featureFieldLocked}
+                                            aria-describedby={
+                                                featureFieldLocked ? 'task-modal-feature-hint' : undefined
                                             }
-                                            disabled={features.length === 0}
                                         >
                                             {features.map((f) => (
                                                 <option key={f.id} value={f.id}>
@@ -322,6 +324,15 @@ export function TaskModal(props: TaskModalProps) {
                                                 </option>
                                             ))}
                                         </select>
+                                        {featureFieldLocked ? (
+                                            <span
+                                                id="task-modal-feature-hint"
+                                                className="muted"
+                                                style={{ fontSize: 12, display: 'block', marginTop: 4 }}
+                                            >
+                                                Inherited from parent task
+                                            </span>
+                                        ) : null}
                                     </div>
                                     <div className="modalMetaCell">
                                         <label className="modalFieldLabel" htmlFor="task-modal-category">
@@ -623,11 +634,10 @@ export function TaskModal(props: TaskModalProps) {
                                                     id="task-edit-feature"
                                                     className="intervalSelect"
                                                     value={modal.draft.featureId}
-                                                    onChange={(e) =>
-                                                        patchDraft({
-                                                            featureId: e.target.value,
-                                                            parentTaskId: '',
-                                                        })
+                                                    onChange={(e) => onModalFeatureChange(e.target.value)}
+                                                    disabled={featureFieldLocked}
+                                                    aria-describedby={
+                                                        featureFieldLocked ? 'task-edit-feature-hint' : undefined
                                                     }
                                                 >
                                                     {features.map((f) => (
@@ -636,6 +646,15 @@ export function TaskModal(props: TaskModalProps) {
                                                         </option>
                                                     ))}
                                                 </select>
+                                                {featureFieldLocked ? (
+                                                    <span
+                                                        id="task-edit-feature-hint"
+                                                        className="muted"
+                                                        style={{ fontSize: 12, display: 'block', marginTop: 4 }}
+                                                    >
+                                                        Inherited from parent task
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <div className="modalMetaCell">
                                                 <label className="modalFieldLabel" htmlFor="task-edit-category">
