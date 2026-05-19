@@ -1532,6 +1532,10 @@ components:
         descriptionTemplate: { type: string }
         defaultCategoryId: { type: string, nullable: true }
         defaultCategory: { $ref: "#/components/schemas/CategorySummary", nullable: true }
+        examplePlaceholderValues:
+          type: object
+          additionalProperties: { type: string }
+          description: Sample values for configuration preview (not used when creating real tasks from exceptions).
     GameConfiguration:
       type: object
       properties:
@@ -1548,8 +1552,13 @@ components:
         titleTemplate: { type: string }
         descriptionTemplate: { type: string }
         defaultCategoryId: { type: string, nullable: true }
+        examplePlaceholderValues:
+          type: object
+          additionalProperties: { type: string }
+          description: Sample values for configuration preview. Omit on patch to keep existing examples.
     GameConfigurationPatchRequest:
       type: object
+      description: Omitted top-level fields are left unchanged (partial update).
       properties:
         featureFlags:
           type: object

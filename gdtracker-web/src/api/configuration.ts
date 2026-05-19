@@ -11,6 +11,7 @@ export type ExceptionTaskTemplate = {
     descriptionTemplate: string
     defaultCategoryId: string | null
     defaultCategory: CategorySummary | null
+    examplePlaceholderValues?: Record<string, string>
 }
 
 export type GameConfiguration = {
@@ -23,12 +24,13 @@ export type ExceptionTaskTemplatePatchBody = {
     titleTemplate: string
     descriptionTemplate: string
     defaultCategoryId: string | null
+    examplePlaceholderValues?: Record<string, string>
 }
 
 export type GameConfigurationPatchBody = {
-    featureFlags: Record<string, boolean>
-    settings: Record<string, string | number | boolean>
-    exceptionTaskTemplate: ExceptionTaskTemplatePatchBody
+    featureFlags?: Record<string, boolean>
+    settings?: Record<string, string | number | boolean>
+    exceptionTaskTemplate?: ExceptionTaskTemplatePatchBody
 }
 
 function base(gameId: string) {

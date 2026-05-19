@@ -89,13 +89,28 @@ export function emptyDraft(featureId: string, categoryId: string): TaskDraft {
     return {
         title: '',
         description: '',
-        status: 'TODO',
+        status: 'PENDING',
         featureId,
         categoryId,
         parentTaskId: '',
         tagIds: [],
         sourceGameExceptionId: '',
         planningDocumentRefs: [],
+    }
+}
+
+/** After creating a task, open a fresh create draft for a subtask with shared settings. */
+export function draftForNextSubtask(parentTaskId: string, previous: TaskDraft): TaskDraft {
+    return {
+        title: '',
+        description: '',
+        status: 'PENDING',
+        featureId: previous.featureId,
+        categoryId: previous.categoryId,
+        parentTaskId,
+        tagIds: [...previous.tagIds],
+        sourceGameExceptionId: '',
+        planningDocumentRefs: previous.planningDocumentRefs.map((r) => ({ ...r })),
     }
 }
 

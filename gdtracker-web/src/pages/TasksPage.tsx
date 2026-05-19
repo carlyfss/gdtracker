@@ -22,6 +22,7 @@ import {
     type CreateFromExceptionState,
     applyParentTaskDraftPatch,
     draftFromTask,
+    draftForNextSubtask,
     emptyDraft,
     normalizeTitle,
     parentTaskPickerOptions as _parentTaskPickerOptions,
@@ -340,7 +341,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 draft: {
                     title: c.title,
                     description: c.description,
-                    status: 'TODO',
+                    status: 'PENDING',
                     featureId,
                     categoryId: catId,
                     parentTaskId: '',
@@ -516,28 +517,63 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         })
     }
 
+    const buildCreateTaskBody = (draft: TaskDraft, title: string) => {
+        const sid = draft.sourceGameExceptionId.trim()
+        return {
+            title,
+            description: draft.description.trim().length ? draft.description : null,
+            status: draft.status,
+            featureId: draft.featureId,
+            categoryId: draft.categoryId.trim().length > 0 ? draft.categoryId.trim() : null,
+            tagIds: draft.tagIds,
+            parentTaskId: upsertBodyParentId(draft),
+            planningNodeIds: draft.planningDocumentRefs.map((r) => r.id),
+            ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
+        }
+    }
+
     const onCreate = async () => {
         if (modal.kind !== 'create') return
         const title = normalizeTitle(modal.draft.title)
         if (!title || !modal.draft.featureId) return
         setState({ kind: 'loading', message: 'Creating task…' })
         try {
-            const sid = modal.draft.sourceGameExceptionId.trim()
-            await createTask(gameId, {
-                title,
-                description: modal.draft.description.trim().length ? modal.draft.description : null,
-                status: modal.draft.status,
-                featureId: modal.draft.featureId,
-                categoryId: modal.draft.categoryId.trim().length > 0 ? modal.draft.categoryId.trim() : null,
-                tagIds: modal.draft.tagIds,
-                parentTaskId: upsertBodyParentId(modal.draft),
-                planningNodeIds: modal.draft.planningDocumentRefs.map((r) => r.id),
-                ...(sid.length > 0 ? { sourceGameExceptionId: sid } : {}),
-            })
+            await createTask(gameId, buildCreateTaskBody(modal.draft, title))
             writeLastTaskFeatureId(gameId, modal.draft.featureId)
             closeModal()
             await refreshTasks()
             setState({ kind: 'success', message: 'Task created.' })
+        } catch {
+            setState({ kind: 'error', message: 'Failed to create task.' })
+        }
+    }
+
+    const onStartCreateSubtask = () => {
+        if (modal.kind !== 'task') return
+        const parentTask = tasks.find((t) => t.id === modal.taskId)
+        const parentFeatureId = String(parentTask?.feature?.id ?? parentTask?.featureId ?? modal.draft.featureId ?? '')
+        let nextDraft = draftForNextSubtask(modal.taskId, modal.draft)
+        if (parentFeatureId.length > 0) {
+            nextDraft = { ...nextDraft, featureId: parentFeatureId, parentTaskId: modal.taskId }
+        }
+        setModal({ kind: 'create', draft: nextDraft })
+    }
+
+    const onCreateAndAddSubtask = async () => {
+        if (modal.kind !== 'create') return
+        const previousDraft = modal.draft
+        const title = normalizeTitle(previousDraft.title)
+        if (!title || !previousDraft.featureId) return
+        setState({ kind: 'loading', message: 'Creating task…' })
+        try {
+            const created = await createTask(gameId, buildCreateTaskBody(previousDraft, title))
+            writeLastTaskFeatureId(gameId, previousDraft.featureId)
+            await refreshTasks()
+            const parentFeatureId = String(created.feature?.id ?? created.featureId ?? previousDraft.featureId)
+            let nextDraft = draftForNextSubtask(created.id, previousDraft)
+            nextDraft = { ...nextDraft, featureId: parentFeatureId, parentTaskId: created.id }
+            setModal({ kind: 'create', draft: nextDraft })
+            setState({ kind: 'success', message: 'Task created. Add a subtask.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to create task.' })
         }
@@ -791,6 +827,8 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 onModalFeatureChange={onModalFeatureChange}
                 toggleDraftTagId={toggleDraftTagId}
                 onCreate={onCreate}
+                onCreateAndAddSubtask={onCreateAndAddSubtask}
+                onStartCreateSubtask={onStartCreateSubtask}
                 onSaveTask={onSaveTask}
                 onArchiveTask={archivedOnly ? onUnarchiveTask : onArchiveTask}
                 featureNameById={featureNameById}

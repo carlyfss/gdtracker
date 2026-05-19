@@ -2,22 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { TaskDescriptionMarkdown } from './TaskDescriptionMarkdown'
+import type { Category } from '../api/categories'
+import { listCategories } from '../api/categories'
 import type { Feature } from '../api/features'
-import type { Task, TaskStatus } from '../api/tasks'
 import { archiveFeature, unarchiveFeature } from '../api/features'
+import type { Task, TaskStatus } from '../api/tasks'
 import { listTasks } from '../api/tasks'
+import { categoryMeta } from '../pages/tasks/tasksPageUtils'
 import { normalizeHex6 } from '../util/hexColor'
 import { statusLabel } from '../util/taskStatus'
 import { directChildProgress, flattenTasksForList, formatChildProgressLabel } from '../util/taskTree'
 
 const FALLBACK_FEATURE_COLOR = '#94a3b8'
-
-function categoryLabel(t: Task) {
-    const c = t.category
-    if (c?.name) return c.name
-    if (t.categoryId) return t.categoryId
-    return '—'
-}
 
 function IconChevronTaskTree({ expanded }: { expanded: boolean }) {
     return (
@@ -64,6 +60,7 @@ export function FeatureTasksModal({
 }: Props) {
     const navigate = useNavigate()
     const [tasks, setTasks] = useState<Task[]>([])
+    const [categories, setCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [listShowSubtasks, setListShowSubtasks] = useState(true)
@@ -76,11 +73,17 @@ export function FeatureTasksModal({
             setLoading(true)
             setError(null)
             try {
-                const data = await listTasks(gameId, {
-                    featureId: feature.id,
-                    ...(taskListScope === 'archived' ? { archivedOnly: true } : {}),
-                })
-                if (!cancelled) setTasks(data)
+                const [data, cats] = await Promise.all([
+                    listTasks(gameId, {
+                        featureId: feature.id,
+                        ...(taskListScope === 'archived' ? { archivedOnly: true } : {}),
+                    }),
+                    listCategories(gameId),
+                ])
+                if (!cancelled) {
+                    setTasks(data)
+                    setCategories(cats)
+                }
             } catch {
                 if (!cancelled) {
                     setTasks([])
@@ -228,7 +231,7 @@ export function FeatureTasksModal({
                                         const t = row.task
                                         const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
                                         const progLabels = formatChildProgressLabel(progDone, progTotal)
-                                        const showCategory = row.depth === 0
+                                        const { name: cn, color: cc } = categoryMeta(t, categories)
                                         const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
                                         return (
                                             <tr
@@ -299,7 +302,17 @@ export function FeatureTasksModal({
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {showCategory ? categoryLabel(t) : <span className="muted">—</span>}
+                                                    {cn ? (
+                                                        <span className="filterItemInner">
+                                                            <span
+                                                                className="featureSwatch"
+                                                                style={{ backgroundColor: cc }}
+                                                            />
+                                                            <span style={{ color: cc }}>{cn}</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="muted">—</span>
+                                                    )}
                                                 </td>
                                                 <td className="tasksListActionsCol" />
                                             </tr>

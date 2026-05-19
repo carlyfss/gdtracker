@@ -169,6 +169,8 @@ export type TaskModalProps = {
     onModalFeatureChange: (featureId: string) => void
     toggleDraftTagId: (tagId: string) => void
     onCreate: () => void | Promise<void>
+    onCreateAndAddSubtask: () => void | Promise<void>
+    onStartCreateSubtask: () => void
     onSaveTask: () => void | Promise<void>
     onArchiveTask: () => void | Promise<void>
     featureNameById: (id: string) => string
@@ -194,6 +196,8 @@ export function TaskModal(props: TaskModalProps) {
         onModalFeatureChange,
         toggleDraftTagId,
         onCreate,
+        onCreateAndAddSubtask,
+        onStartCreateSubtask,
         onSaveTask,
         onArchiveTask,
         featureNameById,
@@ -205,13 +209,9 @@ export function TaskModal(props: TaskModalProps) {
         return tasks.filter((t) => String(t.parentTaskId ?? '') === modal.taskId)
     }, [tasks, modal])
 
-    const activeDirectSubtasks = useMemo(
-        () => directSubtasks.filter((t) => t.archived !== true),
-        [directSubtasks]
-    )
+    const activeDirectSubtasks = useMemo(() => directSubtasks.filter((t) => t.archived !== true), [directSubtasks])
 
-    const statusLockedBySubtasks =
-        modal.kind === 'task' && modal.surface === 'edit' && activeDirectSubtasks.length > 0
+    const statusLockedBySubtasks = modal.kind === 'task' && modal.surface === 'edit' && activeDirectSubtasks.length > 0
 
     const [planningNodeList, setPlanningNodeList] = useState<PlanningNodeMeta[]>([])
     const planningFetchKey =
@@ -457,6 +457,14 @@ export function TaskModal(props: TaskModalProps) {
                                 </button>
                                 <button
                                     type="button"
+                                    className="btn"
+                                    disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
+                                    onClick={() => void onCreateAndAddSubtask()}
+                                >
+                                    Create &amp; add subtask
+                                </button>
+                                <button
+                                    type="button"
                                     className="btn btnPrimary"
                                     disabled={!canSubmitDraft(modal.draft) || state.kind === 'loading'}
                                     onClick={() => void onCreate()}
@@ -604,6 +612,14 @@ export function TaskModal(props: TaskModalProps) {
                                     onClick={() => void onArchiveTask()}
                                 >
                                     {archivedOnly ? 'Unarchive' : 'Archive'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    disabled={state.kind === 'loading'}
+                                    onClick={onStartCreateSubtask}
+                                >
+                                    Add subtask
                                 </button>
                                 {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
                                     <Link
@@ -809,6 +825,14 @@ export function TaskModal(props: TaskModalProps) {
                                     onClick={() => void onArchiveTask()}
                                 >
                                     {archivedOnly ? 'Unarchive' : 'Archive'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    disabled={state.kind === 'loading'}
+                                    onClick={onStartCreateSubtask}
+                                >
+                                    Add subtask
                                 </button>
                                 {modal.draft.sourceGameExceptionId.trim().length > 0 ? (
                                     <Link
