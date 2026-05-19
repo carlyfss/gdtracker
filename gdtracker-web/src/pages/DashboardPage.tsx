@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashboardFeatureTreePanel } from '../components/DashboardFeatureTreePanel'
@@ -15,6 +15,7 @@ import {
 } from '../api/gameExceptions'
 import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
+import { readDashboardFilters, writeDashboardFilters } from '../util/screenFilterPreferences'
 import { flattenFeaturesForList } from '../util/featureTree'
 import { applyExceptionTaskDescriptionTemplate, applyExceptionTaskTitleTemplate } from '../util/exceptionTaskTemplate'
 import { ExceptionDetailPanel } from './dashboard/components/ExceptionDetailPanel'
@@ -104,6 +105,7 @@ export function DashboardPage() {
     const [featureModal, setFeatureModal] = useState<Feature | null>(null)
     const [listShowSubfeatures, setListShowSubfeatures] = useState(true)
     const [collapsedFeatureIds, setCollapsedFeatureIds] = useState<Set<string>>(() => new Set())
+    const skipPersistDashboardFilters = useRef(true)
     const [exceptionDeepLinkError, setExceptionDeepLinkError] = useState<string | null>(null)
     const [createTaskFromExceptionBusy, setCreateTaskFromExceptionBusy] = useState(false)
     const [linkedExceptionTaskId, setLinkedExceptionTaskId] = useState<string | null>(null)
@@ -167,7 +169,17 @@ export function DashboardPage() {
             setFeaturesPanelLoading(true)
             setFeaturesError(null)
             try {
-                setFeatures(await listFeatures(gameId))
+                const loaded = await listFeatures(gameId)
+                setFeatures(loaded)
+                const stored = readDashboardFilters(
+                    gameId,
+                    loaded.map((f) => f.id)
+                )
+                if (stored) {
+                    setExceptionBucket(stored.exceptionBucket)
+                    setListShowSubfeatures(stored.listShowSubfeatures)
+                    setCollapsedFeatureIds(new Set(stored.collapsedFeatureIds))
+                }
             } catch {
                 setFeatures([])
                 setFeaturesError('Failed to load features.')
@@ -188,6 +200,21 @@ export function DashboardPage() {
             }
         })()
     }, [gameId])
+
+    useEffect(() => {
+        if (skipPersistDashboardFilters.current) {
+            skipPersistDashboardFilters.current = false
+            return
+        }
+        const timer = window.setTimeout(() => {
+            writeDashboardFilters(gameId, {
+                exceptionBucket,
+                listShowSubfeatures,
+                collapsedFeatureIds: [...collapsedFeatureIds],
+            })
+        }, 300)
+        return () => window.clearTimeout(timer)
+    }, [gameId, exceptionBucket, listShowSubfeatures, collapsedFeatureIds])
 
     const progressById = useMemo(() => {
         const m = new Map<string, FeatureTaskProgressRow>()
