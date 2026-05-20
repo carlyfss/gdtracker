@@ -63,3 +63,15 @@ Restart **both** the Go API and `npm run dev` after changing env (Vite bakes `VI
 If (1) works but (3) is **401**, check `AUTH0_AUDIENCE` matches the API identifier and `AUTH_MODE=auth0` on the API.
 
 See also [`AUTH.md`](AUTH.md).
+
+---
+
+## Production (Docker — gdtracker.krondevrasp.com)
+
+| Auth0 SPA setting | Value |
+|-------------------|--------|
+| Allowed Callback URLs | `https://gdtracker.krondevrasp.com` |
+| Allowed Logout URLs | `https://gdtracker.krondevrasp.com/login` |
+| Allowed Web Origins | `https://gdtracker.krondevrasp.com` |
+
+Deploy steps, Jenkins `VITE_*` checklist, and PWA cache: [`../../docs/DEPLOY_AUTH0.md`](../../docs/DEPLOY_AUTH0.md).

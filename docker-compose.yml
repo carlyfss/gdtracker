@@ -56,6 +56,9 @@ services:
         networks:
             - gdtracker
 
+    # VITE_* build args are baked into the nginx image. After changing env, rebuild:
+    #   docker compose build --no-cache frontend
+    # Production: docs/DEPLOY_AUTH0.md and docker-compose.prod.yml
     frontend:
         build:
             context: ./gdtracker-web
