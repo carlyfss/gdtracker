@@ -37,7 +37,7 @@ description: >-
 - **golang-backend-developer**: Go work under `gdtracker-go-api/` (handlers/services/repos/OpenAPI).
 - **vite-frontend-developer**: Vite/React work under `gdtracker-web/` (UI, API integration, charts).
 - **code-reviewer**: read-only review of delivered code; route fixes to the right owner.
-- **release-manager**: [`release-manager`](../release-manager/SKILL.md) persona—per-app SemVer, branch create/switch, tags, GitHub releases, commit-message suggestions. Does not implement product code. **Executes git** when implementation starts (Phase 0) or when cutting a release.
+- **release-manager**: [`release-manager`](../release-manager/SKILL.md) persona—per-app SemVer, branch create/switch, trigger-file bumps, CI release verification, commit-message suggestions. Does not implement product code. **Executes git** when implementation starts (Phase 0) or when cutting a release (bump trigger file → merge `main` → CI tags).
 - **infra**: [`infra`](../infra/SKILL.md) persona—Docker, Docker Compose (volumes, networks, services), image build files, Jenkins pipelines/jobs, deploy topology as code in this repo. Production secrets, cloud IAM, and org-specific Jenkins **credential IDs/naming** may still need human confirmation outside the repo.
 - **sdk (human)**: Godot SDK deliverables in C# + GDScript (API client, auth handling, models, examples).
 
@@ -62,8 +62,8 @@ description: >-
 - Only add detail when it changes decisions or prevents rework (no long explanations).
 - When the plan includes a **release cut**, add an optional final TODO:
   - **Owner**: release-manager
-  - **Deliverable**: version bump + tag `<app>/vX.Y.Z` + GitHub release for affected app(s)
-  - **Acceptance**: tag matches version file; release notes list breaking changes and cross-app compatibility if any
+  - **Deliverable**: bump trigger file(s) for affected app(s), merge to `main`; CI creates tag `<app>/vX.Y.Z` + GitHub release
+  - **Acceptance**: Actions **Release tag** succeeded; tag matches trigger file; release notes list breaking changes and cross-app compatibility if any
 
 #### Infra impact gate (mandatory every time)
 - While drafting TODOs, **classify infra impact**. Treat as **yes** if any touched path matches or implies: `Dockerfile*`, `docker-compose*.yml`, `docker-compose*.yaml`, `Jenkinsfile*`, `.jenkins/**`, or TODOs that mention container images, Compose services, volumes/networks, CI/CD, Jenkins jobs/pipelines, or deploy hooks. Also treat as **yes** when the plan obviously introduces a **new port, service, or env var** that Compose or deploy config would need even if no infra path is listed yet.
