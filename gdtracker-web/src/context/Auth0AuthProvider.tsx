@@ -33,6 +33,7 @@ export function Auth0AuthProvider({ children }: { children: ReactNode }) {
                 setUser(null)
                 return
             }
+            await getAccessTokenSilently()
             const me = await getMe()
             setUser(me)
         } catch {
@@ -40,7 +41,7 @@ export function Auth0AuthProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoadingProfile(false)
         }
-    }, [isAuthenticated])
+    }, [isAuthenticated, getAccessTokenSilently])
 
     useEffect(() => {
         if (isLoading) {

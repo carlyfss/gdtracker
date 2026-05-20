@@ -7,7 +7,12 @@ import { ApiUnauthorizedBridge } from './components/ApiUnauthorizedBridge'
 import { AuthRootProvider } from './context/AuthRootProvider'
 import './index.css'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+        void updateSW(true)
+    },
+})
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

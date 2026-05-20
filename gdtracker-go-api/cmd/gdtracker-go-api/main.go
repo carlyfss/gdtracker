@@ -94,7 +94,12 @@ func run(ctx context.Context, logger *log.Logger) error {
 			return err
 		}
 		mux.Handle("/api/", srv.APIHandler(corsOrigins))
-		logger.Printf("api: /api mounted (AUTH_MODE=%s, CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)", authMode)
+		if authMode == httpserver.AuthModeAuth0 {
+			logger.Printf("api: /api mounted (AUTH_MODE=auth0, AUTH0_AUDIENCE=%s, CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)",
+				strings.TrimSpace(os.Getenv("AUTH0_AUDIENCE")))
+		} else {
+			logger.Printf("api: /api mounted (AUTH_MODE=%s, CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)", authMode)
+		}
 	}
 
 	server := &http.Server{

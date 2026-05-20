@@ -26,6 +26,10 @@ ARG VITE_AUTH0_AUDIENCE=""
 ENV VITE_AUTH0_AUDIENCE=$VITE_AUTH0_AUDIENCE
 
 COPY . .
+RUN if [ "$VITE_AUTH_MODE" = "auth0" ]; then \
+      test -n "$VITE_AUTH0_DOMAIN" && test -n "$VITE_AUTH0_CLIENT_ID" && test -n "$VITE_AUTH0_AUDIENCE" \
+        || (echo "ERROR: VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, and VITE_AUTH0_AUDIENCE are required when VITE_AUTH_MODE=auth0" >&2; exit 1); \
+    fi
 RUN npm run build
 
 # ---------- Stage 2: serve the bundle with nginx ----------

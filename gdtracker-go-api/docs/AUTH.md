@@ -48,7 +48,8 @@ When `AUTH_MODE=auth0`, session login/register/logout/CSRF routes are **not** mo
 2. Name: `GDTracker Web`
 3. Settings:
    - **Allowed Callback URLs**: `https://gdtracker.krondevrasp.com`, `http://localhost:5173` (dev Auth0 testing)
-   - **Allowed Logout URLs**: production origin; for Vite dev use `http://localhost:5173/login` (SPA `returnTo` includes `/login`)
+   - **Allowed Logout URLs**: `https://gdtracker.krondevrasp.com/login` (production); `http://localhost:5173/login` (Vite dev)
+   - Docker deploy + PWA: [`../../docs/DEPLOY_AUTH0.md`](../../docs/DEPLOY_AUTH0.md)
    - **Allowed Web Origins**: same origins as callbacks (origins only, no path)
    - Local checklist: [`AUTH0_LOCAL_DEV.md`](AUTH0_LOCAL_DEV.md)
 4. Copy **Domain** and **Client ID** into frontend env (`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`).
