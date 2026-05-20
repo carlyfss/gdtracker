@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/auth"
+	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/auth/jwtauth"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpx"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/repository"
 	"github.com/google/uuid"
@@ -39,26 +40,54 @@ type Server struct {
 	feedbacks            *repository.GameFeedbackRepository
 	planning             *repository.PlanningRepository
 	store                *sessions.CookieStore
+	jwtValidator         *jwtauth.Validator
+	authMode             AuthMode
 	cookieDomain         string
 	cookieSecure         bool
 }
 
 // Config for New.
 type Config struct {
+	AuthMode      AuthMode
 	SessionSecret string
+	Auth0Domain   string
+	Auth0Audience string
 	DB            *sql.DB
 	CookieDomain  string
 	CookieSecure  bool
 }
 
-// New builds a Server. SessionSecret is always required when mounting /api (use a dev value in tests).
+// New builds a Server.
 func New(cfg Config) (*Server, error) {
-	if strings.TrimSpace(cfg.SessionSecret) == "" {
-		return nil, fmt.Errorf("GDTRACKER_SESSION_SECRET is required")
+	if cfg.AuthMode == "" {
+		cfg.AuthMode = AuthModeSession
 	}
-	st, err := newSessionStore(cfg.SessionSecret, cfg.CookieDomain, cfg.CookieSecure)
-	if err != nil {
-		return nil, err
+
+	var (
+		st           *sessions.CookieStore
+		jwtValidator *jwtauth.Validator
+		err          error
+	)
+
+	switch cfg.AuthMode {
+	case AuthModeAuth0:
+		jwtValidator, err = jwtauth.NewValidator(jwtauth.Config{
+			Domain:   cfg.Auth0Domain,
+			Audience: cfg.Auth0Audience,
+		})
+		if err != nil {
+			return nil, err
+		}
+	case AuthModeSession:
+		if strings.TrimSpace(cfg.SessionSecret) == "" {
+			return nil, fmt.Errorf("GDTRACKER_SESSION_SECRET is required in session mode")
+		}
+		st, err = newSessionStore(cfg.SessionSecret, cfg.CookieDomain, cfg.CookieSecure)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported AUTH_MODE %q", cfg.AuthMode)
 	}
 	var (
 		users                *repository.UserRepository
@@ -118,6 +147,8 @@ func New(cfg Config) (*Server, error) {
 		feedbacks:            feedbacks,
 		planning:             planning,
 		store:                st,
+		jwtValidator:         jwtValidator,
+		authMode:             cfg.AuthMode,
 		cookieDomain:         cfg.CookieDomain,
 		cookieSecure:         cfg.CookieSecure,
 	}, nil
@@ -126,10 +157,12 @@ func New(cfg Config) (*Server, error) {
 // APIHandler returns the /api subtree (mount at "/api/").
 func (s *Server) APIHandler(corsEnv string) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /csrf", s.getCSRF)
-	mux.HandleFunc("POST /auth/register", s.postRegister)
-	mux.HandleFunc("POST /auth/login", s.postLogin)
-	mux.HandleFunc("POST /auth/logout", s.postLogout)
+	if s.authMode == AuthModeSession {
+		mux.HandleFunc("GET /csrf", s.getCSRF)
+		mux.HandleFunc("POST /auth/register", s.postRegister)
+		mux.HandleFunc("POST /auth/login", s.postLogin)
+		mux.HandleFunc("POST /auth/logout", s.postLogout)
+	}
 	mux.HandleFunc("GET /auth/me", s.getMe)
 
 	s.registerGameRoutes(mux)
@@ -146,7 +179,11 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 	s.registerPlanningRoutes(mux)
 
 	strip := http.StripPrefix("/api", mux)
-	return CorsMiddleware(corsEnv)(CsrfMiddleware(s.cookieDomain, s.cookieSecure)(strip))
+	h := CorsMiddleware(corsEnv)(strip)
+	if s.authMode == AuthModeSession {
+		h = CsrfMiddleware(s.cookieDomain, s.cookieSecure)(h)
+	}
+	return h
 }
 
 func (s *Server) noDB(w http.ResponseWriter) {
@@ -332,6 +369,15 @@ func (s *Server) postLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
+	if s.authMode == AuthModeAuth0 {
+		uid, name, ok := s.auth0User(w, r)
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"id": uid, "username": name})
+		return
+	}
 	uid, name, ok := s.sessionUser(r)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)

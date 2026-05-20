@@ -1,9 +1,18 @@
 import axios, { isAxiosError } from 'axios'
+import { isAuth0Mode } from '../config/authMode'
 import { notifyApiUnauthorized } from './apiUnauthorized'
 
 let csrfTokenOverride: string | null = null
+let accessTokenGetter: (() => Promise<string | null>) | null = null
+
+export function setAccessTokenGetter(fn: (() => Promise<string | null>) | null): void {
+    accessTokenGetter = fn
+}
 
 async function primeCsrf(): Promise<void> {
+    if (isAuth0Mode()) {
+        return
+    }
     try {
         const res = await api.get<{ token: string }>('/api/csrf')
         csrfTokenOverride = res.data?.token ?? null
@@ -34,12 +43,14 @@ if (!import.meta.env.DEV && !productionBaseURL) {
 
 export const api = axios.create({
     baseURL: import.meta.env.DEV ? '' : productionBaseURL,
-    withCredentials: true,
+    withCredentials: !isAuth0Mode(),
 })
 
-// In cross-subdomain deployments (e.g. dashboard.* -> api.*), the SPA cannot read the API's XSRF cookie via document.cookie.
-// Prime once so subsequent mutating requests can send the header even when the cookie isn't readable on the SPA origin.
-void primeCsrf()
+if (!isAuth0Mode()) {
+    // In cross-subdomain deployments (e.g. dashboard.* -> api.*), the SPA cannot read the API's XSRF cookie via document.cookie.
+    // Prime once so subsequent mutating requests can send the header even when the cookie isn't readable on the SPA origin.
+    void primeCsrf()
+}
 
 function shouldNotifyUnauthorized(url: string): boolean {
     if (!url.startsWith('/api/')) {
@@ -70,7 +81,18 @@ api.interceptors.response.use(
     }
 )
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+    if (isAuth0Mode()) {
+        if (accessTokenGetter) {
+            const token = await accessTokenGetter()
+            if (token) {
+                config.headers = config.headers ?? {}
+                config.headers.Authorization = `Bearer ${token}`
+            }
+        }
+        return config
+    }
+
     const url = config.url ?? ''
     const isAuthEndpoint = url === '/api/auth/login' || url === '/api/auth/register'
 

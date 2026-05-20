@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS uk_users_auth0_sub;
+
+ALTER TABLE users DROP COLUMN IF EXISTS auth0_sub;

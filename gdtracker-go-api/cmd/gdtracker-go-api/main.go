@@ -67,24 +67,34 @@ func run(ctx context.Context, logger *log.Logger) error {
 	})
 
 	if sqlDB != nil {
-		secret := strings.TrimSpace(os.Getenv("GDTRACKER_SESSION_SECRET"))
-		if secret == "" {
-			return errors.New("GDTRACKER_SESSION_SECRET is required when DB_URL is set")
-		}
+		authMode := httpserver.AuthModeFromEnv(os.Getenv("AUTH_MODE"))
 		corsOrigins := os.Getenv("GDTRACKER_CORS_ALLOWED_ORIGINS")
 		cookieDomain := strings.TrimSpace(os.Getenv("GDTRACKER_COOKIE_DOMAIN"))
 		cookieSecure := strings.TrimSpace(os.Getenv("GDTRACKER_COOKIE_SECURE")) == "true"
-		srv, err := httpserver.New(httpserver.Config{
+
+		cfg := httpserver.Config{
+			AuthMode:      authMode,
 			DB:            sqlDB,
-			SessionSecret: secret,
 			CookieDomain:  cookieDomain,
 			CookieSecure:  cookieSecure,
-		})
+			Auth0Domain:   strings.TrimSpace(os.Getenv("AUTH0_DOMAIN")),
+			Auth0Audience: strings.TrimSpace(os.Getenv("AUTH0_AUDIENCE")),
+		}
+
+		if authMode == httpserver.AuthModeSession {
+			secret := strings.TrimSpace(os.Getenv("GDTRACKER_SESSION_SECRET"))
+			if secret == "" {
+				return errors.New("GDTRACKER_SESSION_SECRET is required when AUTH_MODE=session")
+			}
+			cfg.SessionSecret = secret
+		}
+
+		srv, err := httpserver.New(cfg)
 		if err != nil {
 			return err
 		}
 		mux.Handle("/api/", srv.APIHandler(corsOrigins))
-		logger.Printf("api: /api mounted (CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)")
+		logger.Printf("api: /api mounted (AUTH_MODE=%s, CORS from GDTRACKER_CORS_ALLOWED_ORIGINS)", authMode)
 	}
 
 	server := &http.Server{

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { setApiUnauthorizedHandler } from '../api/apiUnauthorized'
 import { useAuth } from '../context/AuthContext'
 
-/** Wires session expiry from API 401 responses to client state + login route (see `api/client.ts`). */
+/** Wires API 401 responses to client state + login route (see `api/client.ts`). */
 export function ApiUnauthorizedBridge() {
     const navigate = useNavigate()
-    const { logout } = useAuth()
+    const { logout, recoverSession } = useAuth()
     const handling = useRef(false)
 
     useEffect(() => {
@@ -17,18 +17,26 @@ export function ApiUnauthorizedBridge() {
             handling.current = true
             void (async () => {
                 try {
+                    if (recoverSession) {
+                        const recovered = await recoverSession()
+                        if (recovered) {
+                            handling.current = false
+                            return
+                        }
+                    }
                     await logout()
                 } catch {
                     /* ignore */
                 } finally {
                     navigate('/login', { replace: true })
+                    handling.current = false
                 }
             })()
         })
         return () => {
             setApiUnauthorizedHandler(null)
         }
-    }, [logout, navigate])
+    }, [logout, navigate, recoverSession])
 
     return null
 }

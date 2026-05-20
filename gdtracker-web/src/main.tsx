@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App.tsx'
 import { ApiUnauthorizedBridge } from './components/ApiUnauthorizedBridge'
-import { AuthProvider } from './context/AuthContext'
+import { AuthRootProvider } from './context/AuthRootProvider'
 import './index.css'
 
 registerSW({ immediate: true })
@@ -12,10 +12,10 @@ registerSW({ immediate: true })
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <BrowserRouter>
-            <AuthProvider>
+            <AuthRootProvider>
                 <ApiUnauthorizedBridge />
                 <App />
-            </AuthProvider>
+            </AuthRootProvider>
         </BrowserRouter>
     </StrictMode>
 )
