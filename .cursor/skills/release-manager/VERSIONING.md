@@ -10,7 +10,7 @@ Per-app semantic versioning. Each app bumps independently.
 | `gdtracker-go-api` | `gdtracker-go-api/docs/openapi.yaml` | `info.version` |
 | `gdtracker-api` (deprecated) | `gdtracker-api/pom.xml` | `<version>` (project) |
 
-**Baseline (2026):** web `0.1.0`, go-api `0.5.0`, spring-api `0.0.1-SNAPSHOT` (spring-api not tagged).
+**Baseline (2026):** web `0.1.1`, go-api `0.5.0`, spring-api `0.0.1-SNAPSHOT` (spring-api not tagged).
 
 There is no root `VERSION` file. OpenAPI `info.version` is the canonical version for the Go API until a dedicated file is added.
 
