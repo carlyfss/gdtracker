@@ -1,0 +1,37 @@
+# Auto-create per-app semver tags and GitHub releases when version files change on main.
+# Manual fallback: see .cursor/skills/release-manager/VERSIONING.md
+name: Release tag
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - gdtracker-web/package.json
+            - gdtracker-go-api/docs/openapi.yaml
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+concurrency:
+    group: release-tag-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    tag-releases:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Create missing release tags
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bash .github/scripts/create-release-tags.sh
