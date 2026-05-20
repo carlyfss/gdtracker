@@ -29,7 +29,6 @@ services:
         image: gdtracker-go-api:local
         container_name: gdtracker-go-api
         restart: unless-stopped
-        env_file: .env
         depends_on:
             postgres:
                 condition: service_healthy
