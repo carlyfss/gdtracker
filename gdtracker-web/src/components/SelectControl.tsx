@@ -126,7 +126,7 @@ export function SelectControl({
             closeMenu()
         }
 
-        const onDocKeyDown = (e: KeyboardEvent) => {
+        const onDocKeyDown = (e: globalThis.KeyboardEvent) => {
             if (e.key === 'Escape') {
                 e.preventDefault()
                 closeMenu()
