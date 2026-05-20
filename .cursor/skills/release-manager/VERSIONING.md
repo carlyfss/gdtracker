@@ -2,13 +2,17 @@
 
 Per-app semantic versioning. Each app bumps independently.
 
-## Version sources
+## Trigger files (CI)
 
-| App | File | Field |
-|-----|------|-------|
-| `gdtracker-web` | `gdtracker-web/package.json` | `"version"` |
-| `gdtracker-go-api` | `gdtracker-go-api/docs/openapi.yaml` | `info.version` |
-| `gdtracker-api` (deprecated) | `gdtracker-api/pom.xml` | `<version>` (project) |
+To cut a release, change **only** these files for the affected app(s). Merging to **`main`** triggers [automated tagging](#automated-tagging-github-actions).
+
+| App | Trigger file (only) | Field | Tag created by CI |
+|-----|---------------------|-------|-------------------|
+| `gdtracker-web` | `gdtracker-web/package.json` | `"version"` | `gdtracker-web/vX.Y.Z` |
+| `gdtracker-go-api` | `gdtracker-go-api/docs/openapi.yaml` | `info.version` | `gdtracker-go-api/vX.Y.Z` |
+| `gdtracker-api` (deprecated) | `gdtracker-api/pom.xml` | `<version>` (project) | Not automated |
+
+**Do not edit** `.github/workflows/release-tag.yml` or `.github/scripts/create-release-tags.sh` for routine releases.
 
 **Baseline (2026):** web `0.1.1`, go-api `0.5.0`, spring-api `0.0.1-SNAPSHOT` (spring-api not tagged).
 
@@ -25,16 +29,16 @@ Examples:
 
 Pre-release: `gdtracker-go-api/v0.6.0-beta.1`
 
-## Bump checklist
-
-Before tagging:
+## Bump checklist (CI-first)
 
 - [ ] Identify which app(s) changed in this release.
 - [ ] Choose MAJOR / MINOR / PATCH per app (see release-manager skill).
-- [ ] Update only the version file(s) for changed apps.
+- [ ] Update **trigger file(s) only** for changed apps.
 - [ ] Run relevant tests/build for touched apps.
-- [ ] Write release notes (features, fixes, breaking changes, compatible app versions).
-- [ ] Tag matches version in file (no drift).
+- [ ] Commit: `chore(release): bump <app> to X.Y.Z`
+- [ ] Merge to `dev`, then merge **`dev` → `main`** (or bump directly on `main`).
+- [ ] Verify GitHub Actions **Release tag** created the expected tag(s).
+- [ ] Edit GitHub release notes (features, fixes, breaking changes, cross-app compatibility).
 - [ ] No secrets in commits (check `.env`, local notes files).
 
 ## Cross-app compatibility
@@ -50,7 +54,7 @@ When a frontend release requires a minimum API version, state it in release note
 
 1. Delete remote tag (if pushed): `git push origin --delete <tag>`
 2. Delete local tag: `git tag -d <tag>`
-3. Revert the version-bump commit or restore previous version in the version file.
+3. Revert the version-bump commit or restore previous version in the trigger file.
 4. Delete GitHub release: `gh release delete <tag>`
 
 ## Branch → commit type quick reference
@@ -65,7 +69,9 @@ When a frontend release requires a minimum API version, state it in release note
 
 Default integration branch in this repo: **`dev`** (confirm with `git branch -a` if unsure). Create feature branches from an up-to-date `dev` unless the user specifies otherwise.
 
-**Production tags** are created from **`main`**: merge the version-bump commit to `main` to trigger automation (below). Day-to-day work stays on `dev`; cut releases by merging `dev` → `main` (or cherry-pick the bump commit).
+**Production tags** are created from **`main`**: merge the version-bump commit to `main` to trigger automation. Day-to-day work stays on `dev`; cut releases by merging `dev` → `main` (or cherry-pick the bump commit).
+
+A version bump on `dev` **does not** create a tag until that commit is on `main`.
 
 ## Automated tagging (GitHub Actions)
 
@@ -76,12 +82,12 @@ Default integration branch in this repo: **`dev`** (confirm with `git branch -a`
 
 **When it runs**
 
-- Push to **`main`** that changes `gdtracker-web/package.json` or `gdtracker-go-api/docs/openapi.yaml`
+- Push to **`main`** that changes a [trigger file](#trigger-files-ci)
 - Manual: Actions → **Release tag** → **Run workflow**
 
 **What it does**
 
-1. Read semver from **gdtracker-web** and **gdtracker-go-api** version files at `HEAD`
+1. Read semver from **gdtracker-web** and **gdtracker-go-api** trigger files at `HEAD`
 2. Skip `*-SNAPSHOT` and invalid semver
 3. If tag `<app>/vX.Y.Z` does not exist → create annotated tag, push, open GitHub release
 4. Idempotent: existing tags are skipped
@@ -90,10 +96,10 @@ Default integration branch in this repo: **`dev`** (confirm with `git branch -a`
 
 **Release flow (recommended)**
 
-1. Bump version on a branch; merge feature/fix to `dev`
-2. Merge `dev` → `main` (or merge bump directly to `main`)
-3. CI creates tag + release — no manual `git tag` / `git push origin <tag>` unless automation failed
-4. Edit release notes on GitHub if needed (generated body is minimal)
+1. Bump trigger file on a branch; merge feature/fix to `dev`
+2. Merge `dev` → `main`
+3. CI creates tag + release — no manual `git tag` unless automation failed
+4. Edit release notes on GitHub if needed
 
 **Manual fallback**
 
