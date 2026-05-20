@@ -64,3 +64,44 @@ When a frontend release requires a minimum API version, state it in release note
 ## Integration branch
 
 Default integration branch in this repo: **`dev`** (confirm with `git branch -a` if unsure). Create feature branches from an up-to-date `dev` unless the user specifies otherwise.
+
+**Production tags** are created from **`main`**: merge the version-bump commit to `main` to trigger automation (below). Day-to-day work stays on `dev`; cut releases by merging `dev` → `main` (or cherry-pick the bump commit).
+
+## Automated tagging (GitHub Actions)
+
+| Item | Path |
+|------|------|
+| Workflow | [`.github/workflows/release-tag.yml`](../../.github/workflows/release-tag.yml) |
+| Script | [`.github/scripts/create-release-tags.sh`](../../.github/scripts/create-release-tags.sh) |
+
+**When it runs**
+
+- Push to **`main`** that changes `gdtracker-web/package.json` or `gdtracker-go-api/docs/openapi.yaml`
+- Manual: Actions → **Release tag** → **Run workflow**
+
+**What it does**
+
+1. Read semver from **gdtracker-web** and **gdtracker-go-api** version files at `HEAD`
+2. Skip `*-SNAPSHOT` and invalid semver
+3. If tag `<app>/vX.Y.Z` does not exist → create annotated tag, push, open GitHub release
+4. Idempotent: existing tags are skipped
+
+**Not automated:** `gdtracker-api` (deprecated, SNAPSHOT) — manual only if ever needed.
+
+**Release flow (recommended)**
+
+1. Bump version on a branch; merge feature/fix to `dev`
+2. Merge `dev` → `main` (or merge bump directly to `main`)
+3. CI creates tag + release — no manual `git tag` / `git push origin <tag>` unless automation failed
+4. Edit release notes on GitHub if needed (generated body is minimal)
+
+**Manual fallback**
+
+```bash
+git switch main && git pull
+bash .github/scripts/create-release-tags.sh
+```
+
+Requires `gh` authenticated and permission to push tags.
+
+**Permissions:** workflow uses `contents: write` (tags + releases). Default `GITHUB_TOKEN` is sufficient for same-repo releases.
