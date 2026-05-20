@@ -119,6 +119,10 @@ The combined workspace (frontend, API, and orchestration files at this root) is 
 
 Contributions: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
+## Releases and versioning
+
+Per-app semantic versioning, branch naming, tags, and release checklist: [`.cursor/skills/release-manager/VERSIONING.md`](./.cursor/skills/release-manager/VERSIONING.md).
+
 ## Project guidance docs
 
 Each app keeps its own developer guidance under `docs/`:
