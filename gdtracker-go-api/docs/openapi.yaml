@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     Go backend for GDTracker. Supports two auth modes via `AUTH_MODE` (see `docs/AUTH.md`):
     **session** (default) — cookie `JSESSIONID` + CSRF; **auth0** — `Authorization: Bearer` access token validated via JWKS.
