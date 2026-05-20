@@ -39,7 +39,7 @@ When `AUTH_MODE=auth0`, session login/register/logout/CSRF routes are **not** mo
 
 1. **Applications → APIs → Create API**
 2. Name: `GDTracker API`
-3. Identifier (audience): e.g. `https://api.gdtracker.example` — must match `AUTH0_AUDIENCE` on the Go API.
+3. Identifier (audience): e.g. `https://api.gdtracker.local` — must match `AUTH0_AUDIENCE` on the Go API.
 4. Signing algorithm: RS256.
 
 ### 4. SPA application (gdtracker-web)
@@ -48,8 +48,9 @@ When `AUTH_MODE=auth0`, session login/register/logout/CSRF routes are **not** mo
 2. Name: `GDTracker Web`
 3. Settings:
    - **Allowed Callback URLs**: `https://gdtracker.krondevrasp.com`, `http://localhost:5173` (dev Auth0 testing)
-   - **Allowed Logout URLs**: same origins
-   - **Allowed Web Origins**: same origins
+   - **Allowed Logout URLs**: production origin; for Vite dev use `http://localhost:5173/login` (SPA `returnTo` includes `/login`)
+   - **Allowed Web Origins**: same origins as callbacks (origins only, no path)
+   - Local checklist: [`AUTH0_LOCAL_DEV.md`](AUTH0_LOCAL_DEV.md)
 4. Copy **Domain** and **Client ID** into frontend env (`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`).
 5. Under **APIs**, authorize this SPA for the GDTracker API.
 
@@ -82,7 +83,7 @@ Set `app_metadata.gdtracker_user_id` on each imported user to their Postgres `us
 |----------|-------|---------|
 | `AUTH_MODE` | Go API | `auth0` |
 | `AUTH0_DOMAIN` | Go API | `gdtracker-prod.us.auth0.com` |
-| `AUTH0_AUDIENCE` | Go API | `https://api.gdtracker.example` |
+| `AUTH0_AUDIENCE` | Go API | `https://api.gdtracker.local` |
 | `VITE_AUTH_MODE` | Frontend build | `auth0` |
 | `VITE_AUTH0_DOMAIN` | Frontend build | `gdtracker-prod.us.auth0.com` |
 | `VITE_AUTH0_CLIENT_ID` | Frontend build | SPA client id |
