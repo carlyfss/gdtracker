@@ -7,6 +7,9 @@ import (
 )
 
 func (s *Server) requireUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if s.authMode == AuthModeAuth0 {
+		return s.requireUserIDAuth0(w, r)
+	}
 	uid, _, ok := s.sessionUser(r)
 	if !ok {
 		http.Error(w, "not authenticated", http.StatusUnauthorized)

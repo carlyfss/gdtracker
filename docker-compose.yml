@@ -37,7 +37,10 @@ services:
             DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/gdtracker?sslmode=disable}
             DB_USERNAME: ${DB_USERNAME:-gdtracker}
             DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
-            GDTRACKER_SESSION_SECRET: ${GDTRACKER_SESSION_SECRET:?GDTRACKER_SESSION_SECRET is required for gdtracker-go-api (see .env.example)}
+            GDTRACKER_SESSION_SECRET: ${GDTRACKER_SESSION_SECRET:-dev-session-local-only}
+            AUTH_MODE: ${AUTH_MODE:-session}
+            AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+            AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
             GDTRACKER_CORS_ALLOWED_ORIGINS: ${GDTRACKER_CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-4173}}
             GDTRACKER_COOKIE_DOMAIN: ${GDTRACKER_COOKIE_DOMAIN:-}
             GDTRACKER_COOKIE_SECURE: ${GDTRACKER_COOKIE_SECURE:-false}
@@ -59,6 +62,10 @@ services:
             dockerfile: Dockerfile
             args:
                 VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:${SERVER_PORT:-8080}}
+                VITE_AUTH_MODE: ${VITE_AUTH_MODE:-session}
+                VITE_AUTH0_DOMAIN: ${VITE_AUTH0_DOMAIN:-}
+                VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID:-}
+                VITE_AUTH0_AUDIENCE: ${VITE_AUTH0_AUDIENCE:-}
         image: gdtracker-web:local
         container_name: gdtracker-web
         restart: unless-stopped

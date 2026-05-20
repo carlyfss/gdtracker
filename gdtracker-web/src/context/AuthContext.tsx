@@ -2,18 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { AuthUser } from '../api/auth'
 import { getMe, login as apiLogin, logout as apiLogout, register as apiRegister } from '../api/auth'
 
-type AuthContextValue = {
+export type AuthContextValue = {
     user: AuthUser | null
     loading: boolean
     refresh: () => Promise<void>
     login: (username: string, password: string) => Promise<AuthUser>
     register: (username: string, password: string) => Promise<AuthUser>
     logout: () => Promise<void>
+    /** Auth0 mode: try silent token refresh before forced logout. */
+    recoverSession?: () => Promise<boolean>
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+export const AuthContext = createContext<AuthContextValue | null>(null)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function SessionAuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -67,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextValue {
     const ctx = useContext(AuthContext)
     if (!ctx) {
-        throw new Error('useAuth must be used within AuthProvider')
+        throw new Error('useAuth must be used within an auth provider')
     }
     return ctx
 }

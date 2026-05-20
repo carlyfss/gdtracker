@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { listGames } from '../api/games'
+import { isAuth0Mode } from '../config/authMode'
 import { useAuth } from '../context/AuthContext'
 
 export function LoginPage() {
@@ -14,6 +15,41 @@ export function LoginPage() {
 
     if (!loading && user) {
         return <Navigate to="/games" replace />
+    }
+
+    const afterAuth = async () => {
+        const games = await listGames()
+        if (games.length === 0) {
+            navigate('/games/new', { replace: true })
+        } else {
+            navigate('/games', { replace: true })
+        }
+    }
+
+    const onAuth0SignIn = async () => {
+        setError(null)
+        setBusy(true)
+        try {
+            await login('', '')
+            await afterAuth()
+        } catch {
+            /* Auth0 redirect in progress */
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const onAuth0Register = async () => {
+        setError(null)
+        setBusy(true)
+        try {
+            await register('', '')
+            await afterAuth()
+        } catch {
+            /* Auth0 redirect in progress */
+        } finally {
+            setBusy(false)
+        }
     }
 
     const onSubmit = async (e: React.FormEvent) => {
@@ -32,12 +68,7 @@ export function LoginPage() {
             } else {
                 await register(u, p)
             }
-            const games = await listGames()
-            if (games.length === 0) {
-                navigate('/games/new', { replace: true })
-            } else {
-                navigate('/games', { replace: true })
-            }
+            await afterAuth()
         } catch {
             setError(mode === 'login' ? 'Login failed.' : 'Registration failed (username may be taken).')
         } finally {
@@ -49,6 +80,40 @@ export function LoginPage() {
         return (
             <div className="fullScreenGate">
                 <p className="fullScreenGateText">Loading…</p>
+            </div>
+        )
+    }
+
+    if (isAuth0Mode()) {
+        return (
+            <div className="fullScreenGate">
+                <div className="authSurface">
+                    <h1 className="authTitle">{mode === 'login' ? 'Sign in' : 'Create account'}</h1>
+                    <p className="authSubtitle">
+                        Production sign-in uses Auth0 (username and password). You will be redirected to the login page.
+                    </p>
+                    {error && <p className="authError">{error}</p>}
+                    <div className="authActions">
+                        <button
+                            type="button"
+                            className="authPrimaryButton"
+                            disabled={busy}
+                            onClick={() => void (mode === 'login' ? onAuth0SignIn() : onAuth0Register())}
+                        >
+                            {mode === 'login' ? 'Sign in' : 'Register'}
+                        </button>
+                        <button
+                            type="button"
+                            className="authSecondaryButton"
+                            onClick={() => {
+                                setMode(mode === 'login' ? 'register' : 'login')
+                                setError(null)
+                            }}
+                        >
+                            {mode === 'login' ? 'Need an account? Register' : 'Have an account? Sign in'}
+                        </button>
+                    </div>
+                </div>
             </div>
         )
     }
