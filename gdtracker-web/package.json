@@ -1,7 +1,7 @@
 {
     "name": "gdtracker-web",
     "private": true,
-    "version": "0.1.1",
+    "version": "0.2.0",
     "license": "GPL-3.0-only",
     "type": "module",
     "scripts": {
@@ -14,6 +14,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@auth0/auth0-react": "^2.16.2",
         "@excalidraw/excalidraw": "^0.18.0",
         "axios": "^1.15.2",
         "react": "^19.2.5",

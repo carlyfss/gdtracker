@@ -1,16 +1,17 @@
 openapi: 3.0.3
 info:
   title: GDTracker Go API
-  version: 0.5.0
+  version: 0.6.0
   description: |
-    Go backend for GDTracker. Session auth and CSRF mirror the Spring API contract (see `docs/AUTH.md`).
+    Go backend for GDTracker. Supports two auth modes via `AUTH_MODE` (see `docs/AUTH.md`):
+    **session** (default) — cookie `JSESSIONID` + CSRF; **auth0** — `Authorization: Bearer` access token validated via JWKS.
     Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, game exceptions,
     ingest plane (players, integration ping), game events (definitions + ingest), traces (heatmap), feedback, and planning nodes.
 servers:
   - url: http://localhost:8080
 tags:
   - name: Auth
-    description: Register, login, logout, current user, CSRF priming.
+    description: Session register/login/logout/CSRF (AUTH_MODE=session) or Bearer /auth/me (AUTH_MODE=auth0).
   - name: Health
     description: Liveness and readiness.
   - name: Games
@@ -1402,6 +1403,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: ingest-token
+    auth0Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 access token (AUTH_MODE=auth0 dashboard routes).
   schemas:
     HealthzResponse:
       type: object
