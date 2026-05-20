@@ -1,0 +1,11 @@
+# Production override for Auth0 + krondevrasp.com deploy.
+# Usage (Jenkins secrets must export VITE_* into the job env before build):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache frontend
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate backend frontend
+
+services:
+    frontend:
+        build:
+            args:
+                VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.krondevrasp.com}
+                VITE_AUTH_MODE: ${VITE_AUTH_MODE:-auth0}

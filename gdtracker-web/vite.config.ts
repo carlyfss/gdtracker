@@ -57,10 +57,13 @@ export default defineConfig(({ mode }) => {
                     navigateFallback: 'index.html',
                     navigateFallbackDenylist: [/^\/api/],
                     cleanupOutdatedCaches: true,
+                    skipWaiting: true,
+                    clientsClaim: true,
+                    globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest}'],
+                    maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
                     /*
                      * Online-first: no runtime caching for `/api/*` (see denylist above).
-                     * For future offline/static caching, add `runtimeCaching` entries here
-                     * only for idempotent URLs — never cache authenticated API JSON by accident.
+                     * skipWaiting + clientsClaim: new deploy activates immediately (see main.tsx reload).
                      */
                 },
             }),
