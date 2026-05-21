@@ -49,9 +49,7 @@ export function ListPaginationBar({
                 />
             </label>
             <div className="listPaginationInfo">
-                {totalElements === 0
-                    ? '0 results'
-                    : `Showing ${showingFrom}–${showingTo} of ${totalElements}`}
+                {totalElements === 0 ? '0 results' : `Showing ${showingFrom}–${showingTo} of ${totalElements}`}
             </div>
             <div className="listPaginationControls">
                 <button

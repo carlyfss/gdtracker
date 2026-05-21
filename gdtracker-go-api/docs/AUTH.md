@@ -146,6 +146,23 @@ Existing `games.user_id` FKs remain unchanged because internal UUIDs are preserv
 | Ingest tokens | `golang.org/x/crypto/bcrypt` (unchanged). |
 | CSRF | Session mode only; manual cookie + header check. |
 
+## HTTP rate limiting
+
+All `/api/**` routes pass through rate-limit middleware (disable with `RATE_LIMIT_ENABLED=false`).
+
+| Variable | Default | Applies to |
+|----------|---------|------------|
+| `RATE_LIMIT_ENABLED` | `true` | Set `false` or `0` to disable |
+| `RATE_LIMIT_READ_PER_MIN` | `180` (`900` when `GDTRACKER_ENV=dev` and unset) | `GET` / `HEAD` |
+| `RATE_LIMIT_READ_BURST` | `max(360, readPerMin)`, capped at `readPerMin×3` | Burst size for read tier (SPA navigation) |
+| `RATE_LIMIT_WRITE_PER_MIN` | `90` | Other mutating methods |
+| `RATE_LIMIT_INGEST_PER_MIN` | `90` | `POST …/ingest` (per game + client IP) |
+| `GDTRACKER_ENV` | — | `dev` / `local` / `development` raises default read limit when `RATE_LIMIT_READ_PER_MIN` unset |
+
+When exceeded, the API returns **429** with `Retry-After` (seconds) and JSON `{"error":"rate limit exceeded"}`. Keys are **user id** (session or Auth0) when authenticated, else **client IP**. `OPTIONS`, `GET /api/csrf`, and `POST /api/auth/login|register` are exempt.
+
+---
+
 ## Environment
 
 See [`README.md`](README.md) and [`.env.example`](../.env.example).

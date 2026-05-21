@@ -8,7 +8,7 @@ info:
     Routes mirror `gdtracker-api` for games, categories, tags, tasks, features, game configuration, archives, game exceptions,
     ingest plane (players, integration ping), game events (definitions + ingest), traces (heatmap), feedback, and planning nodes.
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8000
 tags:
   - name: Auth
     description: Session register/login/logout/CSRF (AUTH_MODE=session) or Bearer /auth/me (AUTH_MODE=auth0).
@@ -879,6 +879,45 @@ paths:
           description: Not authenticated
         "404":
           description: Game not found or not owned
+  /api/games/{gameId}/game-exceptions/since:
+    get:
+      tags: [GameExceptions]
+      operationId: listGameExceptionsSince
+      summary: List exceptions newer than sinceMs (dashboard polling)
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: sinceMs
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, latestMs]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GameException"
+                  latestMs:
+                    type: integer
+                    format: int64
+                    description: Max timestamp in items, or sinceMs when empty
+        "400":
+          description: Invalid sinceMs or limit
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+        "429":
+          description: Rate limit exceeded
   /api/games/{gameId}/game-exceptions/interval:
     get:
       tags: [GameExceptions]

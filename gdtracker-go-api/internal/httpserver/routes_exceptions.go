@@ -16,12 +16,29 @@ import (
 
 func (s *Server) registerExceptionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /games/{gameId}/game-exceptions/interval", s.getGameExceptionsInterval)
+	mux.HandleFunc("GET /games/{gameId}/game-exceptions/since", s.getGameExceptionsSince)
 	mux.HandleFunc("GET /games/{gameId}/game-exceptions/search", s.getGameExceptionsSearch)
 	mux.HandleFunc("POST /games/{gameId}/game-exceptions/ingest", s.postGameExceptionIngest)
 	mux.HandleFunc("GET /games/{gameId}/game-exceptions/{exceptionId}", s.getGameException)
 	mux.HandleFunc("POST /games/{gameId}/game-exceptions/{exceptionId}/reserve-task-index", s.postReserveExceptionTaskIndex)
 	mux.HandleFunc("GET /games/{gameId}/game-exceptions", s.getGameExceptions)
 	mux.HandleFunc("POST /games/{gameId}/game-exceptions", s.postGameException)
+}
+
+func parseGameExceptionsSinceLimit(raw string) (limit int, badRequest bool, err error) {
+	limit = 200
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return limit, false, nil
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 1 {
+		return 0, true, err
+	}
+	if parsed > 500 {
+		parsed = 500
+	}
+	return parsed, false, nil
 }
 
 func gameExceptionToMap(e repository.GameExceptionRow) map[string]any {
@@ -99,6 +116,47 @@ func (s *Server) getGameExceptionsInterval(w http.ResponseWriter, r *http.Reques
 		out = append(out, gameExceptionToMap(e))
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) getGameExceptionsSince(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.gameExceptions == nil {
+		s.noDB(w)
+		return
+	}
+	gameID := r.PathValue("gameId")
+	if _, ok := s.requireOwnedGame(w, r, gameID); !ok {
+		return
+	}
+	sinceMs, err := strconv.ParseInt(r.URL.Query().Get("sinceMs"), 10, 64)
+	if err != nil {
+		http.Error(w, "sinceMs is required", http.StatusBadRequest)
+		return
+	}
+	limit, badReq, _ := parseGameExceptionsSinceLimit(r.URL.Query().Get("limit"))
+	if badReq {
+		http.Error(w, "limit must be between 1 and 500", http.StatusBadRequest)
+		return
+	}
+	since := time.UnixMilli(sinceMs).UTC()
+	list, err := s.gameExceptions.ListByGameSinceTimestamp(r.Context(), gameID, since, limit)
+	if err != nil {
+		log.Printf("list exceptions since: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	items := make([]map[string]any, 0, len(list))
+	latestMs := sinceMs
+	for _, e := range list {
+		items = append(items, gameExceptionToMap(e))
+		ms := e.Timestamp.UTC().UnixMilli()
+		if ms > latestMs {
+			latestMs = ms
+		}
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"items":    items,
+		"latestMs": latestMs,
+	})
 }
 
 func (s *Server) getGameExceptionsSearch(w http.ResponseWriter, r *http.Request) {

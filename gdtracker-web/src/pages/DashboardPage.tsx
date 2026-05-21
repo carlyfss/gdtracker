@@ -9,11 +9,11 @@ import { listFeatureTaskProgress, listFeatures, type FeatureTaskProgressRow } fr
 import { getConfiguration } from '../api/configuration'
 import {
     getGameException,
-    listGameExceptions,
     listGameExceptionsInterval,
     reserveExceptionTaskIndex,
     type GameException,
 } from '../api/gameExceptions'
+import { useGameExceptionsSyncContext } from '../context/GameExceptionsSyncContext'
 import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
 import { readDashboardFilters, writeDashboardFilters } from '../util/screenFilterPreferences'
@@ -89,8 +89,7 @@ export function DashboardPage() {
     const gameId = useGameId()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
-    const [exceptions, setExceptions] = useState<GameException[]>([])
-    const [loading, setLoading] = useState(true)
+    const { exceptions, loading, syncMessage, syncGeneration } = useGameExceptionsSyncContext()
     const [exceptionBucket, setExceptionBucket] = useState<TimeBucket>('minute')
     const [selectedBucketStartMs, setSelectedBucketStartMs] = useState<number | null>(null)
     const [selectedIntervalExceptions, setSelectedIntervalExceptions] = useState<GameException[]>([])
@@ -157,13 +156,6 @@ export function DashboardPage() {
             window.clearTimeout(timer)
         }
     }, [exceptionQueryId, gameId, exceptionBucket, setSearchParams])
-
-    useEffect(() => {
-        listGameExceptions(gameId)
-            .then((data) => setExceptions(data))
-            .catch(() => setExceptions([]))
-            .finally(() => setLoading(false))
-    }, [gameId])
 
     useEffect(() => {
         void (async () => {
@@ -301,12 +293,17 @@ export function DashboardPage() {
             .then((data) => setSelectedIntervalExceptions(data))
             .catch(() => setSelectedIntervalExceptions([]))
             .finally(() => setSelectedIntervalLoading(false))
-    }, [selectedBucketRange, gameId])
+    }, [selectedBucketRange, gameId, exceptions])
 
     const selectedException = useMemo<GameException | null>(() => {
+        if (pickedException?.id) {
+            const id = String(pickedException.id)
+            const fresh = exceptions.find((e) => e.id != null && String(e.id) === id)
+            return fresh ?? pickedException
+        }
         if (pickedException) return pickedException
         return selectedIntervalExceptions[0] ?? null
-    }, [pickedException, selectedIntervalExceptions])
+    }, [pickedException, selectedIntervalExceptions, exceptions])
 
     const selectedExceptionId = selectedException?.id ? String(selectedException.id) : null
 
@@ -461,7 +458,14 @@ export function DashboardPage() {
                             </div>
                         )}
                         <div className="dashboardExceptionsToolbar">
-                            <h3 className="dashboardSubheading">Exceptions</h3>
+                            <div className="dashboardExceptionsToolbarTitle">
+                                <h3 className="dashboardSubheading">Exceptions</h3>
+                                {syncMessage && (
+                                    <span className="dashboardSyncStatus" role="status">
+                                        {syncMessage}
+                                    </span>
+                                )}
+                            </div>
                             <SelectControl
                                 value={exceptionBucket}
                                 onChange={(v) => setExceptionBucket(v as TimeBucket)}
@@ -598,6 +602,7 @@ export function DashboardPage() {
                         gameId={gameId}
                         selectedExceptionId={selectedExceptionId}
                         onSelect={setPickedException}
+                        syncGeneration={syncGeneration}
                     />
                     <ExceptionDetailPanel
                         selectedException={selectedException}

@@ -180,6 +180,8 @@ func (s *Server) APIHandler(corsEnv string) http.Handler {
 
 	strip := http.StripPrefix("/api", mux)
 	h := CorsMiddleware(corsEnv)(strip)
+	rlCfg := loadRateLimitConfig()
+	h = RateLimitMiddleware(s, rlCfg)(h)
 	if s.authMode == AuthModeSession {
 		h = CsrfMiddleware(s.cookieDomain, s.cookieSecure)(h)
 	}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getIngestTokenStatus } from '../api/gameEvents'
 import { getIntegrationStatus } from '../api/integration'
 import { useGameId } from '../context/GameIdContext'
+import { useIntervalPoll } from '../hooks/useIntervalPoll'
 
 const VALIDATION_BODY_JSON = '{"validation":"ok"}'
 
@@ -72,30 +73,25 @@ export function IntegrationPage() {
         })()
     }, [gameId])
 
-    useEffect(() => {
-        if (!listening || successAt != null) {
-            return
+    const pollIntegrationStatus = useCallback(async () => {
+        const s = await getIntegrationStatus(gameId)
+        if (isValidatedAfter(s.lastValidatedAt, baselineAt)) {
+            setSuccessAt(s.lastValidatedAt ?? null)
+            setListening(false)
+            setPollError(null)
         }
+    }, [gameId, baselineAt])
 
-        const tick = () => {
-            void (async () => {
-                try {
-                    const s = await getIntegrationStatus(gameId)
-                    if (isValidatedAfter(s.lastValidatedAt, baselineAt)) {
-                        setSuccessAt(s.lastValidatedAt ?? null)
-                        setListening(false)
-                        setPollError(null)
-                    }
-                } catch {
-                    setPollError('Could not poll integration status.')
-                }
-            })()
-        }
-
-        tick()
-        const handle = window.setInterval(tick, 2000)
-        return () => window.clearInterval(handle)
-    }, [listening, successAt, gameId, baselineAt])
+    useIntervalPoll({
+        enabled: listening && successAt == null,
+        intervalMs: 2000,
+        poll: pollIntegrationStatus,
+        onRateLimited: (retryAfterSec) => {
+            const sec = retryAfterSec ?? 30
+            setPollError(`Rate limited — retrying in ${sec}s`)
+        },
+        onError: () => setPollError('Could not poll integration status.'),
+    })
 
     const panelState: 'idle' | 'waiting' | 'ok' = successAt != null ? 'ok' : listening ? 'waiting' : 'idle'
 

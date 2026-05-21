@@ -10,9 +10,16 @@ type ExceptionSearchPanelProps = {
     gameId: string
     selectedExceptionId: string | null
     onSelect: (ex: GameException) => void
+    /** Bumps when the dashboard sync receives new exceptions (refetch search when idle). */
+    syncGeneration?: number
 }
 
-export function ExceptionSearchPanel({ gameId, selectedExceptionId, onSelect }: ExceptionSearchPanelProps) {
+export function ExceptionSearchPanel({
+    gameId,
+    selectedExceptionId,
+    onSelect,
+    syncGeneration = 0,
+}: ExceptionSearchPanelProps) {
     const [queryInput, setQueryInput] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
     const [page, setPage] = useState(0)
@@ -55,7 +62,7 @@ export function ExceptionSearchPanel({ gameId, selectedExceptionId, onSelect }: 
         return () => {
             cancelled = true
         }
-    }, [gameId, debouncedQuery, page, size])
+    }, [gameId, debouncedQuery, page, size, syncGeneration])
 
     const onChangeSize = (next: number) => {
         setSize(next)
