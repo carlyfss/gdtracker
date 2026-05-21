@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Multi-arch (arm64/arm) via golang:alpine; minimal scratch runtime for Raspberry Pi and small servers.
 
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 
 RUN apk add --no-cache ca-certificates
