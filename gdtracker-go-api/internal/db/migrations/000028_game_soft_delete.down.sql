@@ -1,0 +1,22 @@
+DROP INDEX IF EXISTS idx_games_user_id_active;
+
+ALTER TABLE archived_tasks DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE archived_features DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE task_tags DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE task_planning_document_refs DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE planning_nodes DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_feedback DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_feedback_meter_definitions DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_players DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_events DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_event_definitions DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_event_traces DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_exception_task_sequences_per_game DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_exception_task_sequences DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_exceptions DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE game_configurations DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE tags DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE categories DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE tasks DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE features DROP COLUMN IF EXISTS deleted_at;
+ALTER TABLE games DROP COLUMN IF EXISTS deleted_at;
