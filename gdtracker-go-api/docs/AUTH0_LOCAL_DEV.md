@@ -62,6 +62,8 @@ Restart **both** the Go API and `npm run dev` after changing env (Vite bakes `VI
 
 If (1) works but (3) is **401**, check `AUTH0_AUDIENCE` matches the API identifier and `AUTH_MODE=auth0` on the API.
 
+If redirect returns `?code=…` but **`POST …/oauth/token` → 401 `access_denied`**, authorize the SPA for **GDTracker API** (step 2 above) and confirm Application Type = SPA with Token Endpoint Authentication = None.
+
 See also [`AUTH.md`](AUTH.md).
 
 ---
