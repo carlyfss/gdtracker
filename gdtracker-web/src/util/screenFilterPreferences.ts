@@ -47,12 +47,16 @@ function pickNumber(v: unknown): number | undefined {
 
 const TASK_STATUSES: TaskStatus[] = ['PENDING', 'TODO', 'IN_PROGRESS', 'COMPLETED', 'DONE']
 
+export const TASKS_LIST_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+export const TASKS_LIST_PAGE_SIZE_DEFAULT = 25
+
 export type TasksFilters = {
     featureId: string
     categoryId: string
     status: TaskStatus | '__all__'
     tagIds: string[]
     tagMode: 'ANY' | 'ALL'
+    listPageSize?: number
 }
 
 export type TasksFiltersValidators = {
@@ -83,11 +87,25 @@ export function readTasksFilters(gameId: string, v: TasksFiltersValidators): Tas
 
     const tagMode = data.tagMode === 'ALL' ? 'ALL' : 'ANY'
 
-    if (featureId === '__all__' && categoryId === '__all__' && status === '__all__' && tagIds.length === 0) {
+    let listPageSize: number | undefined
+    const rawSize = pickNumber(data.listPageSize)
+    if (rawSize != null && TASKS_LIST_PAGE_SIZE_OPTIONS.includes(rawSize as (typeof TASKS_LIST_PAGE_SIZE_OPTIONS)[number])) {
+        listPageSize = rawSize
+    }
+
+    if (
+        featureId === '__all__' &&
+        categoryId === '__all__' &&
+        status === '__all__' &&
+        tagIds.length === 0 &&
+        listPageSize == null
+    ) {
         return null
     }
 
-    return { featureId, categoryId, status, tagIds, tagMode }
+    const out: TasksFilters = { featureId, categoryId, status, tagIds, tagMode }
+    if (listPageSize != null) out.listPageSize = listPageSize
+    return out
 }
 
 export function writeTasksFilters(gameId: string, filters: TasksFilters): void {
@@ -96,7 +114,8 @@ export function writeTasksFilters(gameId: string, filters: TasksFilters): void {
         filters.featureId === '__all__' &&
         filters.categoryId === '__all__' &&
         filters.status === '__all__' &&
-        filters.tagIds.length === 0
+        filters.tagIds.length === 0 &&
+        (filters.listPageSize == null || filters.listPageSize === TASKS_LIST_PAGE_SIZE_DEFAULT)
     const key = storageKey('tasks', gameId)
     if (isDefault) {
         try {

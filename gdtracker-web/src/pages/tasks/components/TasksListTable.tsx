@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Category } from '../../../api/categories'
 import type { Feature } from '../../../api/features'
 import type { Tag } from '../../../api/tags'
@@ -27,6 +28,9 @@ export type TasksListTableProps = {
     onDelete: (t: Task) => void | Promise<void>
     onTagChipClick: (tag: Tag) => void
     mode?: 'default' | 'archiveEmbedded'
+    listLoading?: boolean
+    listEmpty?: boolean
+    pagination?: ReactNode
 }
 
 export function TasksListTable({
@@ -45,6 +49,9 @@ export function TasksListTable({
     onDelete,
     onTagChipClick,
     mode = 'default',
+    listLoading = false,
+    listEmpty = false,
+    pagination = null,
 }: TasksListTableProps) {
     const archiveEmbedded = mode === 'archiveEmbedded'
     return (
@@ -64,21 +71,37 @@ export function TasksListTable({
                     ]}
                     aria-label="Show or hide subtasks in the list"
                 />
+                {pagination}
             </div>
-            <table className="table tableCompact tableTasksList">
-                <thead>
-                    <tr>
-                        <th className="tasksListTitleCol">Title</th>
-                        <th className="tasksListProgressCol">Progress</th>
-                        {archiveEmbedded ? null : <th className="tasksListStatusCol">Status</th>}
-                        {archiveEmbedded ? null : <th className="tasksListFeatureCol">Feature</th>}
-                        <th className="tasksListCategoryCol">Category</th>
-                        <th className="tasksListTagCol">Tag</th>
-                        <th className="tasksListActionsCol" aria-label="Actions" />
-                    </tr>
-                </thead>
-                <tbody>
-                    {listRows.map((row, idx) => {
+            <div className="tasksTableScroll">
+                <table className="table tableCompact tableTasksList">
+                    <thead>
+                        <tr>
+                            <th className="tasksListTitleCol">Title</th>
+                            <th className="tasksListProgressCol">Progress</th>
+                            {archiveEmbedded ? null : <th className="tasksListStatusCol">Status</th>}
+                            {archiveEmbedded ? null : <th className="tasksListFeatureCol">Feature</th>}
+                            <th className="tasksListCategoryCol">Category</th>
+                            <th className="tasksListTagCol">Tag</th>
+                            <th className="tasksListActionsCol" aria-label="Actions" />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {listLoading && listRows.length === 0 ? (
+                            <tr>
+                                <td colSpan={archiveEmbedded ? 5 : 7}>
+                                    <div className="emptyState">Loading…</div>
+                                </td>
+                            </tr>
+                        ) : null}
+                        {!listLoading && listEmpty ? (
+                            <tr>
+                                <td colSpan={archiveEmbedded ? 5 : 7}>
+                                    <div className="emptyState">No tasks match your filters.</div>
+                                </td>
+                            </tr>
+                        ) : null}
+                        {listRows.map((row, idx) => {
                         const t = row.task
                         const { name: fn, color: fc } = featureMeta(t, features)
                         const { name: cn, color: cc } = categoryMeta(t, categories)
@@ -246,8 +269,9 @@ export function TasksListTable({
                             </tr>
                         )
                     })}
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
     )
 }

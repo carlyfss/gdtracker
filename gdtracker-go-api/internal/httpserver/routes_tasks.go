@@ -12,6 +12,7 @@ import (
 
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/httpx"
 	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/repository"
+	"github.com/carlyfss/gdtracker/gdtracker-go-api/internal/tasktree"
 	"github.com/google/uuid"
 )
 
@@ -84,6 +85,7 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 	if tm := strings.TrimSpace(q.Get("tagMode")); strings.EqualFold(tm, "ALL") {
 		f.TagModeAll = true
 	}
+	paged, pageQ := parseTasksListPageQuery(q)
 	ctx := r.Context()
 	rows, err := s.tasks.ListFiltered(ctx, f)
 	if err != nil {
@@ -91,6 +93,60 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	taskMaps, err := s.buildTaskMapsForList(ctx, rows)
+	if err != nil {
+		log.Printf("list tasks enrich: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !paged {
+		out := make([]map[string]any, 0, len(rows))
+		for _, tr := range rows {
+			out = append(out, taskMaps[tr.TaskID])
+		}
+		httpx.WriteJSON(w, http.StatusOK, out)
+		return
+	}
+	nodes := make([]tasktree.Node, 0, len(rows))
+	for _, tr := range rows {
+		parent := ""
+		if tr.ParentTaskID.Valid {
+			parent = tr.ParentTaskID.String
+		}
+		nodes = append(nodes, tasktree.Node{
+			ID:           tr.TaskID,
+			Title:        tr.Title,
+			ParentTaskID: parent,
+			CreatedAt:    tr.CreatedAt,
+		})
+	}
+	flat := tasktree.FlattenForList(nodes, tasktree.FlattenOptions{
+		ShowSubtasks:       pageQ.IncludeSubtasks,
+		CollapsedParentIDs: pageQ.CollapsedParentIDs,
+	})
+	pageRows, totalElements, totalPages, number := tasktree.PageSlice(flat, pageQ.Page, pageQ.Size)
+	content := make([]map[string]any, 0, len(pageRows))
+	for _, dr := range pageRows {
+		tm, ok := taskMaps[dr.Node.ID]
+		if !ok {
+			continue
+		}
+		content = append(content, map[string]any{
+			"task":        tm,
+			"depth":       dr.Depth,
+			"hasChildren": dr.HasChildren,
+		})
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"content":       content,
+		"totalElements": totalElements,
+		"totalPages":    totalPages,
+		"number":        number,
+		"size":          pageQ.Size,
+	})
+}
+
+func (s *Server) buildTaskMapsForList(ctx context.Context, rows []repository.TaskListRow) (map[string]map[string]any, error) {
 	taskIDs := make([]string, 0, len(rows))
 	catIDs := make([]string, 0)
 	seenCat := map[string]struct{}{}
@@ -106,23 +162,17 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	tagMap, err := s.tasks.LoadTagsForTasks(ctx, taskIDs)
 	if err != nil {
-		log.Printf("load task tags: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	planningRefMap, err := s.tasks.LoadPlanningDocumentRefsForTasks(ctx, taskIDs)
 	if err != nil {
-		log.Printf("load task planning refs: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	catMap, err := s.categories.MapByIDs(ctx, catIDs)
 	if err != nil {
-		log.Printf("load categories: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
-	out := make([]map[string]any, 0, len(rows))
+	out := make(map[string]map[string]any, len(rows))
 	for _, tr := range rows {
 		tags := tagMap[tr.TaskID]
 		var cat *repository.Category
@@ -131,9 +181,9 @@ func (s *Server) getTasks(w http.ResponseWriter, r *http.Request) {
 				cat = &c
 			}
 		}
-		out = append(out, taskRowToMap(tr, tags, cat, planningRefMap[tr.TaskID]))
+		out[tr.TaskID] = taskRowToMap(tr, tags, cat, planningRefMap[tr.TaskID])
 	}
-	httpx.WriteJSON(w, http.StatusOK, out)
+	return out, nil
 }
 
 func normalizeTagIDsQuery(raw []string) []string {

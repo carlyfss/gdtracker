@@ -9,12 +9,26 @@ import { listTags } from '../api/tags'
 import { getConfiguration } from '../api/configuration'
 import type { Feature } from '../api/features'
 import { listFeatures } from '../api/features'
-import type { Task, TaskStatus } from '../api/tasks'
-import { archiveTask, createTask, deleteTask, listTasks, unarchiveTask, updateTask } from '../api/tasks'
+import type { Task, TaskListPage, TaskStatus } from '../api/tasks'
+import {
+    archiveTask,
+    createTask,
+    deleteTask,
+    listTasks,
+    listTasksPage,
+    unarchiveTask,
+    updateTask,
+} from '../api/tasks'
+import { ListPaginationBar } from '../components/ListPaginationBar'
 import { nextTaskStatus, statusLabel } from '../util/taskStatus'
-import { readTasksFilters, writeTasksFilters, type TasksFilters } from '../util/screenFilterPreferences'
+import {
+    readTasksFilters,
+    TASKS_LIST_PAGE_SIZE_DEFAULT,
+    writeTasksFilters,
+    type TasksFilters,
+} from '../util/screenFilterPreferences'
 import { readLastTaskFeatureId, writeLastTaskFeatureId } from '../util/taskUiPreferences'
-import { flattenTasksForList } from '../util/taskTree'
+import { flattenTasksForList, type TaskListRow } from '../util/taskTree'
 import { TaskModal } from './tasks/components/TaskModal'
 import { TasksFilterPanel } from './tasks/components/TasksFilterPanel'
 import { TasksListTable } from './tasks/components/TasksListTable'
@@ -57,6 +71,18 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const [gameDefaultCategoryId, setGameDefaultCategoryId] = useState<string | null>(null)
     const [tasks, setTasks] = useState<Task[]>([])
     const [state, setState] = useState<UiState>({ kind: 'idle' })
+    const [listLoading, setListLoading] = useState(false)
+    const [listPageData, setListPageData] = useState<TaskListPage>({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: TASKS_LIST_PAGE_SIZE_DEFAULT,
+    })
+    const [listPageIndex, setListPageIndex] = useState(0)
+    const [listPageSize, setListPageSize] = useState(TASKS_LIST_PAGE_SIZE_DEFAULT)
+
+    const usePagedList = layout === 'page'
 
     const [selectedFeatureId, setSelectedFeatureId] = useState<string>(() => searchParams.get('feature') ?? '__all__')
     const [selectedCategoryId, setSelectedCategoryId] = useState<string>('__all__')
@@ -71,13 +97,14 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const [tagBrowseModalTag, setTagBrowseModalTag] = useState<Tag | null>(null)
 
     const skipFilterRefreshOnce = useRef(true)
+    const skipPagedRefreshOnce = useRef(true)
     const skipPersistFiltersOnce = useRef(true)
     /** After first bootstrap completes; state (not a ref) so `createFromException` effect re-runs when this flips true. */
     const [taskPageBootstrapDone, setTaskPageBootstrapDone] = useState(false)
 
     const modalOpen = modal.kind !== 'closed'
 
-    const listRows = useMemo(
+    const embeddedListRows = useMemo(
         () =>
             flattenTasksForList(tasks, {
                 showSubtasks: listShowSubtasks,
@@ -86,6 +113,14 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         [tasks, listShowSubtasks, collapsedTaskIds]
     )
 
+    const listRows: TaskListRow[] = usePagedList
+        ? listPageData.content.map((row) => ({
+              task: row.task,
+              depth: row.depth,
+              hasChildren: row.hasChildren,
+          }))
+        : embeddedListRows
+
     const toggleTaskRowCollapsed = (taskId: string) => {
         setCollapsedTaskIds((prev) => {
             const next = new Set(prev)
@@ -93,6 +128,11 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             else next.add(taskId)
             return next
         })
+    }
+
+    const onListShowSubtasksChange = (v: boolean) => {
+        setListShowSubtasks(v)
+        if (usePagedList) setListPageIndex(0)
     }
 
     const refreshFeatures = async () => {
@@ -106,72 +146,141 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         }
     }
 
-    const refreshTasks = async (opts?: {
-        featuresSnapshot?: Feature[]
-        categoriesSnapshot?: Category[]
-        tagsSnapshot?: Tag[]
-        filters?: TasksFilters
-    }) => {
+    const hydrateTasks = (
+        data: Task[],
+        opts?: {
+            featuresSnapshot?: Feature[]
+            categoriesSnapshot?: Category[]
+            tagsSnapshot?: Tag[]
+        }
+    ): Task[] => {
+        const featureMap = new Map((opts?.featuresSnapshot ?? features).map((f) => [f.id, f]))
+        const categoryMap = new Map((opts?.categoriesSnapshot ?? categories).map((c) => [c.id, c]))
+        const tagMap = new Map((opts?.tagsSnapshot ?? allTags).map((x) => [x.id, x]))
+        return data.map((t) => {
+            let out: Task = { ...t }
+            const fid = (t.feature?.id ?? t.featureId ?? null) as string | null
+            if (fid && !t.feature) {
+                const feat = featureMap.get(fid)
+                if (feat) out = { ...out, feature: feat }
+            }
+            const cid = (t.category?.id ?? t.categoryId ?? null) as string | null
+            if (cid && !t.category) {
+                const cat = categoryMap.get(cid)
+                if (cat) out = { ...out, category: cat }
+            }
+            const rawTags = t.tags
+            if (Array.isArray(rawTags) && rawTags.length > 0) {
+                out = {
+                    ...out,
+                    tags: rawTags.map((tg) => {
+                        const full = tagMap.get(tg.id)
+                        return full ?? tg
+                    }),
+                }
+            }
+            return out
+        })
+    }
+
+    const buildListParams = (opts?: { filters?: TasksFilters; page?: number; size?: number }) => {
         const f = opts?.filters
         const featureSel = f?.featureId ?? selectedFeatureId
         const categorySel = f?.categoryId ?? selectedCategoryId
         const statusSel = f?.status ?? selectedStatus
         const tagIdsSel = f?.tagIds ?? selectedFilterTagIds
         const tagModeSel = f?.tagMode ?? tagFilterMode
-
         const effectiveFeatureId = forcedFeatureId ?? (featureSel !== '__all__' ? featureSel : undefined)
         const categoryId = categorySel !== '__all__' ? categorySel : undefined
         const status = statusSel !== '__all__' ? statusSel : undefined
         const tagIds = tagIdsSel.length > 0 ? tagIdsSel : undefined
+        return {
+            featureId: effectiveFeatureId ?? undefined,
+            status,
+            categoryId,
+            ...(archivedOnly ? { archivedOnly: true } : {}),
+            ...(tagIds
+                ? {
+                      tagIds,
+                      ...(tagIds.length >= 2 ? { tagMode: tagModeSel } : {}),
+                  }
+                : {}),
+            ...(usePagedList
+                ? {
+                      page: opts?.page ?? listPageIndex,
+                      size: opts?.size ?? listPageSize,
+                      includeSubtasks: listShowSubtasks,
+                      collapsedParentIds: [...collapsedTaskIds],
+                  }
+                : {}),
+        }
+    }
+
+    const refreshTasksCache = async (opts?: {
+        featuresSnapshot?: Feature[]
+        categoriesSnapshot?: Category[]
+        tagsSnapshot?: Tag[]
+        filters?: TasksFilters
+    }) => {
+        const params = buildListParams({ filters: opts?.filters })
+        const data = await listTasks(gameId, params)
+        setTasks(hydrateTasks(data, opts))
+    }
+
+    const refreshTasksPage = async (opts?: {
+        featuresSnapshot?: Feature[]
+        categoriesSnapshot?: Category[]
+        tagsSnapshot?: Tag[]
+        filters?: TasksFilters
+        page?: number
+        size?: number
+    }) => {
+        const params = buildListParams({
+            filters: opts?.filters,
+            page: opts?.page,
+            size: opts?.size,
+        })
+        const page = await listTasksPage(gameId, params)
+        const hydratedContent = page.content.map((row) => ({
+            ...row,
+            task: hydrateTasks([row.task], opts)[0]!,
+        }))
+        setListPageData({ ...page, content: hydratedContent })
+    }
+
+    const refreshTasks = async (opts?: {
+        featuresSnapshot?: Feature[]
+        categoriesSnapshot?: Category[]
+        tagsSnapshot?: Tag[]
+        filters?: TasksFilters
+        silent?: boolean
+        page?: number
+        size?: number
+    }) => {
+        if (!opts?.silent) setListLoading(true)
         try {
-            const data = await listTasks(gameId, {
-                featureId: effectiveFeatureId ?? undefined,
-                status,
-                categoryId,
-                ...(archivedOnly ? { archivedOnly: true } : {}),
-                ...(tagIds
-                    ? {
-                          tagIds,
-                          ...(tagIds.length >= 2 ? { tagMode: tagModeSel } : {}),
-                      }
-                    : {}),
-            })
-            // The list endpoint returns sparse refs (id-only) for feature/category/tags. Re-hydrate from the
-            // already-loaded lookup snapshots so downstream UI (chips, filter pills) has full names/colors
-            // even on the very first paint after bootstrap. `opts` lets the bootstrap pass freshly-fetched
-            // snapshots before component state has caught up.
-            const featureMap = new Map((opts?.featuresSnapshot ?? features).map((f) => [f.id, f]))
-            const categoryMap = new Map((opts?.categoriesSnapshot ?? categories).map((c) => [c.id, c]))
-            const tagMap = new Map((opts?.tagsSnapshot ?? allTags).map((x) => [x.id, x]))
-            setTasks(
-                data.map((t) => {
-                    let out: Task = { ...t }
-                    const fid = (t.feature?.id ?? t.featureId ?? null) as string | null
-                    if (fid && !t.feature) {
-                        const f = featureMap.get(fid)
-                        if (f) out = { ...out, feature: f }
-                    }
-                    const cid = (t.category?.id ?? t.categoryId ?? null) as string | null
-                    if (cid && !t.category) {
-                        const cat = categoryMap.get(cid)
-                        if (cat) out = { ...out, category: cat }
-                    }
-                    const rawTags = t.tags
-                    if (Array.isArray(rawTags) && rawTags.length > 0) {
-                        out = {
-                            ...out,
-                            tags: rawTags.map((tg) => {
-                                const full = tagMap.get(tg.id)
-                                return full ?? tg
-                            }),
-                        }
-                    }
-                    return out
-                })
-            )
+            if (usePagedList) {
+                await Promise.all([
+                    refreshTasksCache(opts),
+                    refreshTasksPage(opts),
+                ])
+            } else {
+                await refreshTasksCache(opts)
+            }
         } catch {
             setTasks([])
+            if (usePagedList) {
+                setListPageData({
+                    content: [],
+                    totalElements: 0,
+                    totalPages: 0,
+                    number: 0,
+                    size: listPageSize,
+                })
+            }
             throw new Error('tasks')
+        } finally {
+            if (!opts?.silent) setListLoading(false)
         }
     }
 
@@ -215,15 +324,21 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                                 setSelectedStatus(storedFilters.status)
                                 setSelectedFilterTagIds(storedFilters.tagIds)
                                 setTagFilterMode(storedFilters.tagMode)
+                                if (storedFilters.listPageSize != null) {
+                                    setListPageSize(storedFilters.listPageSize)
+                                }
                             }
                         }
                     }
 
+                    const bootPageSize = storedFilters?.listPageSize ?? listPageSize
                     await refreshTasks({
                         featuresSnapshot: f,
                         categoriesSnapshot: cats,
                         tagsSnapshot: tagsSnap,
                         filters: storedFilters ?? undefined,
+                        page: 0,
+                        size: bootPageSize,
                     })
                     setState({ kind: 'idle' })
                 } catch {
@@ -374,7 +489,8 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         }
         void (async () => {
             try {
-                await refreshTasks()
+                await refreshTasks({ page: 0 })
+                if (usePagedList) setListPageIndex(0)
             } catch {
                 setState({ kind: 'error', message: 'Failed to load tasks.' })
             }
@@ -391,6 +507,22 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     ])
 
     useEffect(() => {
+        if (!usePagedList || !taskPageBootstrapDone) return
+        if (skipPagedRefreshOnce.current) {
+            skipPagedRefreshOnce.current = false
+            return
+        }
+        void (async () => {
+            try {
+                await refreshTasks({ silent: true })
+            } catch {
+                setState({ kind: 'error', message: 'Failed to load tasks.' })
+            }
+        })()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [listPageIndex, listPageSize, collapsedTaskIds, listShowSubtasks])
+
+    useEffect(() => {
         if (archivedOnly || forcedFeatureId != null) return
         if (skipPersistFiltersOnce.current) {
             skipPersistFiltersOnce.current = false
@@ -403,6 +535,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 status: selectedStatus,
                 tagIds: selectedFilterTagIds,
                 tagMode: tagFilterMode,
+                listPageSize,
             })
         }, 300)
         return () => window.clearTimeout(timer)
@@ -415,6 +548,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         selectedStatus,
         selectedFilterTagIds,
         tagFilterMode,
+        listPageSize,
     ])
 
     useEffect(() => {
@@ -541,7 +675,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             await createTask(gameId, buildCreateTaskBody(modal.draft, title))
             writeLastTaskFeatureId(gameId, modal.draft.featureId)
             closeModal()
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             setState({ kind: 'success', message: 'Task created.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to create task.' })
@@ -568,7 +702,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         try {
             const created = await createTask(gameId, buildCreateTaskBody(previousDraft, title))
             writeLastTaskFeatureId(gameId, previousDraft.featureId)
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             const parentFeatureId = String(created.feature?.id ?? created.featureId ?? previousDraft.featureId)
             let nextDraft = draftForNextSubtask(created.id, previousDraft)
             nextDraft = { ...nextDraft, featureId: parentFeatureId, parentTaskId: created.id }
@@ -603,7 +737,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 surface: 'view',
                 draft: draftFromTask(updated),
             })
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             setState({ kind: 'success', message: 'Task updated.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to update task.' })
@@ -626,13 +760,12 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         const ok = window.confirm(`Delete task "${t.title}"?`)
         if (!ok) return
 
-        setState({ kind: 'loading', message: 'Deleting…' })
         try {
             await deleteTask(gameId, t.id)
             if (modal.kind === 'task' && modal.taskId === t.id) {
                 closeModal()
             }
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             setState({ kind: 'success', message: 'Task deleted.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to delete task.' })
@@ -647,7 +780,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         try {
             await archiveTask(gameId, modal.taskId)
             closeModal()
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             setState({ kind: 'success', message: 'Task archived.' })
         } catch {
             setState({ kind: 'error', message: 'Failed to archive task.' })
@@ -662,7 +795,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         try {
             await unarchiveTask(gameId, modal.taskId)
             closeModal()
-            await refreshTasks()
+            await refreshTasks({ silent: true })
             await refreshFeatures()
             setState({ kind: 'success', message: 'Task unarchived.' })
         } catch {
@@ -694,7 +827,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                 parentTaskId: typeof pid === 'string' && pid.length > 0 ? pid : null,
                 sourceGameExceptionId: sid,
             })
-            await refreshTasks()
+            await refreshTasks({ silent: true })
         } catch {
             setState({ kind: 'error', message: 'Failed to advance status.' })
         } finally {
@@ -732,8 +865,17 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
 
     const showFilterPanel = !(archivedOnly && layout === 'embedded') && forcedFeatureId == null
 
+    const listEmpty = usePagedList ? listPageData.totalElements === 0 : tasks.length === 0
+    const listShownLabel = usePagedList
+        ? listPageData.totalElements === 0
+            ? '0 rows'
+            : `${listPageData.totalElements} rows`
+        : `${tasks.length} shown`
+
     const tasksLayoutBody = (
-        <div className={`cardBody tasksLayout ${showFilterPanel ? '' : 'tasksLayoutSingleColumn'}`.trim()}>
+        <div
+            className={`cardBody tasksLayout ${showFilterPanel ? '' : 'tasksLayoutSingleColumn'} ${usePagedList ? 'tasksLayoutPaged' : ''} ${layout === 'embedded' ? 'tasksLayoutEmbedded' : ''}`.trim()}
+        >
             {showFilterPanel ? (
                 <TasksFilterPanel
                     gameId={gameId}
@@ -759,31 +901,46 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             <div className="tasksContent">
                 {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
                 {state.kind === 'success' && <div className="banner bannerSuccess">{state.message}</div>}
-                {state.kind === 'loading' && <div className="banner">{state.message}</div>}
-
-                {tasks.length === 0 && state.kind !== 'loading' && (
-                    <div className="emptyState">No tasks match your filters.</div>
+                {!taskPageBootstrapDone && state.kind === 'loading' && (
+                    <div className="banner">{state.message}</div>
                 )}
 
-                {tasks.length > 0 && (
-                    <TasksListTable
-                        tasks={tasks}
-                        listRows={listRows}
-                        listShowSubtasks={listShowSubtasks}
-                        setListShowSubtasks={setListShowSubtasks}
-                        features={features}
-                        categories={categories}
-                        collapsedTaskIds={collapsedTaskIds}
-                        toggleTaskRowCollapsed={toggleTaskRowCollapsed}
-                        advancingTaskId={advancingTaskId}
-                        state={state}
-                        openTaskView={openTaskView}
-                        onAdvanceStatus={onAdvanceStatus}
-                        onDelete={onDelete}
-                        onTagChipClick={(tg) => setTagBrowseModalTag(tg)}
-                        mode={archivedOnly && layout === 'embedded' ? 'archiveEmbedded' : 'default'}
-                    />
-                )}
+                <TasksListTable
+                    tasks={tasks}
+                    listRows={listRows}
+                    listShowSubtasks={listShowSubtasks}
+                    setListShowSubtasks={onListShowSubtasksChange}
+                    features={features}
+                    categories={categories}
+                    collapsedTaskIds={collapsedTaskIds}
+                    toggleTaskRowCollapsed={toggleTaskRowCollapsed}
+                    advancingTaskId={advancingTaskId}
+                    state={state}
+                    openTaskView={openTaskView}
+                    onAdvanceStatus={onAdvanceStatus}
+                    onDelete={onDelete}
+                    onTagChipClick={(tg) => setTagBrowseModalTag(tg)}
+                    mode={archivedOnly && layout === 'embedded' ? 'archiveEmbedded' : 'default'}
+                    listLoading={listLoading}
+                    listEmpty={listEmpty && !listLoading}
+                    pagination={
+                        usePagedList ? (
+                            <ListPaginationBar
+                                idPrefix="tasks-list"
+                                pageSize={listPageSize}
+                                onPageSizeChange={(next) => {
+                                    setListPageSize(next)
+                                    setListPageIndex(0)
+                                }}
+                                page={listPageIndex}
+                                onPageChange={setListPageIndex}
+                                totalElements={listPageData.totalElements}
+                                contentLength={listPageData.content.length}
+                                loading={listLoading}
+                            />
+                        ) : null
+                    }
+                />
             </div>
         </div>
     )
@@ -791,20 +948,22 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     return (
         <>
             {layout === 'page' ? (
-                <section className="gamePageSection">
-                    <div className="cardHeader">
-                        <h2 className="cardTitle">{archivedOnly ? 'Archived tasks' : 'Tasks'}</h2>
-                        <div className="cardHeaderMetaRow">
-                            <span className="muted" style={{ fontSize: 13 }}>
-                                {filteredCountLabel}
-                            </span>
-                            <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
-                                {tasks.length} shown
-                            </span>
+                <div className="gamePageStack tasksPageStack">
+                    <section className="gamePageSection tasksPageSection">
+                        <div className="cardHeader">
+                            <h2 className="cardTitle">{archivedOnly ? 'Archived tasks' : 'Tasks'}</h2>
+                            <div className="cardHeaderMetaRow">
+                                <span className="muted" style={{ fontSize: 13 }}>
+                                    {filteredCountLabel}
+                                </span>
+                                <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
+                                    {listShownLabel}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                    {tasksLayoutBody}
-                </section>
+                        {tasksLayoutBody}
+                    </section>
+                </div>
             ) : (
                 tasksLayoutBody
             )}

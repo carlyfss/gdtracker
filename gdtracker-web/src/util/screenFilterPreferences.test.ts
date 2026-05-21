@@ -59,6 +59,23 @@ describe('readTasksFilters', () => {
         })
     })
 
+    it('round-trips listPageSize', () => {
+        writeTasksFilters('g1', {
+            featureId: 'f1',
+            categoryId: '__all__',
+            status: '__all__',
+            tagIds: [],
+            tagMode: 'ANY',
+            listPageSize: 50,
+        })
+        const got = readTasksFilters('g1', {
+            featureIds: ['f1'],
+            categoryIds: [],
+            tagIds: [],
+        })
+        assert.equal(got?.listPageSize, 50)
+    })
+
     it('removes storage when all defaults', () => {
         writeTasksFilters('g1', {
             featureId: 'f1',
