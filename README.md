@@ -134,3 +134,4 @@ Each app keeps its own developer guidance under `docs/`:
 - [gdtracker-api/docs/README.md](./gdtracker-api/docs/README.md) — **deprecated** Spring API (legacy only).
 
 When changing behavior, update the relevant `docs/` in the same change so the feature/directory maps stay accurate.
+ 
