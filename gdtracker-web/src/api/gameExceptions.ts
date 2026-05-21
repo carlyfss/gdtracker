@@ -21,6 +21,24 @@ export async function listGameExceptions(gameId: string): Promise<GameException[
     return Array.isArray(res.data) ? (res.data as GameException[]) : []
 }
 
+export type GameExceptionsSincePage = {
+    items: GameException[]
+    latestMs: number
+}
+
+export async function listGameExceptionsSince(
+    gameId: string,
+    sinceMs: number,
+    limit = 200
+): Promise<GameExceptionsSincePage> {
+    const res = await api.get(`${base(gameId)}/since`, { params: { sinceMs, limit } })
+    const raw = res.data as Partial<GameExceptionsSincePage> | null
+    return {
+        items: Array.isArray(raw?.items) ? (raw!.items as GameException[]) : [],
+        latestMs: typeof raw?.latestMs === 'number' && Number.isFinite(raw.latestMs) ? raw.latestMs : sinceMs,
+    }
+}
+
 export async function listGameExceptionsInterval(
     gameId: string,
     fromMs: number,
