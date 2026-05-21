@@ -35,3 +35,21 @@ func (s *Server) requireOwnedGame(w http.ResponseWriter, r *http.Request, gameID
 	}
 	return g, true
 }
+
+func (s *Server) requireOwnedDeletedGame(w http.ResponseWriter, r *http.Request, gameID string) (*repository.GameRow, bool) {
+	uid, ok := s.requireUserID(w, r)
+	if !ok {
+		return nil, false
+	}
+	ctx := r.Context()
+	g, err := s.games.FindDeletedByIDAndOwner(ctx, gameID, uid)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return nil, false
+	}
+	if g == nil {
+		http.Error(w, "game not found", http.StatusNotFound)
+		return nil, false
+	}
+	return g, true
+}

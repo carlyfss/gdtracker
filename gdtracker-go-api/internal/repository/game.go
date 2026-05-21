@@ -39,7 +39,7 @@ func NewGameRepository(db *sql.DB) *GameRepository {
 
 func (r *GameRepository) ListByOwnerOrderByNameAsc(ctx context.Context, ownerID string) ([]GameSummary, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name FROM games WHERE user_id = $1 ORDER BY name ASC`,
+		`SELECT id, name FROM games WHERE user_id = $1 AND deleted_at IS NULL ORDER BY name ASC`,
 		ownerID,
 	)
 	if err != nil {
@@ -61,7 +61,7 @@ func (r *GameRepository) FindByIDAndOwner(ctx context.Context, gameID, ownerID s
 	var g GameRow
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, name, user_id, ingest_token_hash, ingest_token_created_at, last_integration_validation_at
-		 FROM games WHERE id = $1 AND user_id = $2`,
+		 FROM games WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
 		gameID, ownerID,
 	).Scan(&g.ID, &g.Name, &g.OwnerID, &g.IngestTokenHash, &g.IngestTokenCreatedAt, &g.LastIntegrationValAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -77,7 +77,7 @@ func (r *GameRepository) FindByID(ctx context.Context, gameID string) (*GameRow,
 	var g GameRow
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, name, user_id, ingest_token_hash, ingest_token_created_at, last_integration_validation_at
-		 FROM games WHERE id = $1`,
+		 FROM games WHERE id = $1 AND deleted_at IS NULL`,
 		gameID,
 	).Scan(&g.ID, &g.Name, &g.OwnerID, &g.IngestTokenHash, &g.IngestTokenCreatedAt, &g.LastIntegrationValAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -85,6 +85,22 @@ func (r *GameRepository) FindByID(ctx context.Context, gameID string) (*GameRow,
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find game: %w", err)
+	}
+	return &g, nil
+}
+
+func (r *GameRepository) FindDeletedByIDAndOwner(ctx context.Context, gameID, ownerID string) (*GameRow, error) {
+	var g GameRow
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, name, user_id, ingest_token_hash, ingest_token_created_at, last_integration_validation_at
+		 FROM games WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL`,
+		gameID, ownerID,
+	).Scan(&g.ID, &g.Name, &g.OwnerID, &g.IngestTokenHash, &g.IngestTokenCreatedAt, &g.LastIntegrationValAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find deleted game owned: %w", err)
 	}
 	return &g, nil
 }

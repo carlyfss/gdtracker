@@ -10,7 +10,7 @@ func TestEmbeddedMigrationsCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 54 {
-		t.Fatalf("expected 54 migration files (27 up + 27 down), got %d", len(entries))
+	if len(entries) != 56 {
+		t.Fatalf("expected 56 migration files (28 up + 28 down), got %d", len(entries))
 	}
 }

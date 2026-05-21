@@ -190,6 +190,86 @@ paths:
           description: Validation error
         "401":
           description: Not authenticated
+  /api/games/deleted:
+    get:
+      tags: [Games]
+      operationId: listDeletedGames
+      summary: List soft-deleted games for the current user with related row counts
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeletedGameSummary"
+        "401":
+          description: Not authenticated
+  /api/games/{gameId}:
+    delete:
+      tags: [Games]
+      operationId: softDeleteGame
+      summary: Soft-delete a game and cascade deleted_at to related rows
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "204":
+          description: Soft-deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Game not found or not owned
+  /api/games/{gameId}/restore:
+    post:
+      tags: [Games]
+      operationId: restoreGame
+      summary: Restore a soft-deleted game and clear deleted_at on related rows
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSummary"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Soft-deleted game not found or not owned
+  /api/games/{gameId}/purge-preview:
+    get:
+      tags: [Games]
+      operationId: getGamePurgePreview
+      summary: Preview rows that would be permanently removed for a soft-deleted game
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GamePurgePreview"
+        "401":
+          description: Not authenticated
+        "404":
+          description: Soft-deleted game not found or not owned
+  /api/games/{gameId}/permanent:
+    delete:
+      tags: [Games]
+      operationId: permanentlyDeleteGame
+      summary: Permanently purge a soft-deleted game and all related rows
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "204":
+          description: Permanently deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Soft-deleted game not found or not owned
   /api/games/{gameId}/ingest-token:
     get:
       tags: [Games]
@@ -1456,6 +1536,93 @@ components:
       required: [name]
       properties:
         name: { type: string }
+    GameDeleteStats:
+      type: object
+      additionalProperties: false
+      properties:
+        features: { type: integer, format: int64 }
+        tasks: { type: integer, format: int64 }
+        categories: { type: integer, format: int64 }
+        tags: { type: integer, format: int64 }
+        gameConfigurations: { type: integer, format: int64 }
+        gameExceptions: { type: integer, format: int64 }
+        gameExceptionTaskSequences: { type: integer, format: int64 }
+        gameExceptionTaskSequencesPerGame: { type: integer, format: int64 }
+        gameEventTraces: { type: integer, format: int64 }
+        gameEventDefinitions: { type: integer, format: int64 }
+        gameEvents: { type: integer, format: int64 }
+        gamePlayers: { type: integer, format: int64 }
+        gameFeedbackMeterDefinitions: { type: integer, format: int64 }
+        gameFeedback: { type: integer, format: int64 }
+        planningNodes: { type: integer, format: int64 }
+        taskPlanningDocumentRefs: { type: integer, format: int64 }
+        taskTags: { type: integer, format: int64 }
+        archivedFeatures: { type: integer, format: int64 }
+        archivedTasks: { type: integer, format: int64 }
+    DeletedGameSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, deletedAt, stats]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        deletedAt: { type: string, format: date-time }
+        stats:
+          $ref: "#/components/schemas/GameDeleteStats"
+    CappedStringList:
+      type: object
+      additionalProperties: false
+      required: [items, total, more]
+      properties:
+        items:
+          type: array
+          items: { type: string }
+        total: { type: integer, format: int64 }
+        more: { type: integer, format: int64 }
+    GamePurgePreview:
+      type: object
+      additionalProperties: false
+      required:
+        - gameId
+        - name
+        - deletedAt
+        - stats
+        - features
+        - tasks
+        - categories
+        - tags
+        - gameExceptions
+        - gameEvents
+        - gameEventTraces
+        - gamePlayers
+        - gameFeedback
+        - planningNodes
+      properties:
+        gameId: { type: string }
+        name: { type: string }
+        deletedAt: { type: string, format: date-time }
+        stats:
+          $ref: "#/components/schemas/GameDeleteStats"
+        features:
+          $ref: "#/components/schemas/CappedStringList"
+        tasks:
+          $ref: "#/components/schemas/CappedStringList"
+        categories:
+          $ref: "#/components/schemas/CappedStringList"
+        tags:
+          $ref: "#/components/schemas/CappedStringList"
+        gameExceptions:
+          $ref: "#/components/schemas/CappedStringList"
+        gameEvents:
+          $ref: "#/components/schemas/CappedStringList"
+        gameEventTraces:
+          $ref: "#/components/schemas/CappedStringList"
+        gamePlayers:
+          $ref: "#/components/schemas/CappedStringList"
+        gameFeedback:
+          $ref: "#/components/schemas/CappedStringList"
+        planningNodes:
+          $ref: "#/components/schemas/CappedStringList"
     IngestTokenStatus:
       type: object
       properties:

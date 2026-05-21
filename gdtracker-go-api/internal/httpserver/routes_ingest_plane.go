@@ -18,7 +18,8 @@ func (s *Server) registerIngestPlaneRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /games/{gameId}/integration/status", s.getIntegrationStatus)
 }
 
-// verifyIngestForGame loads game by id and verifies Bearer token against stored hash.
+// verifyIngestForGame loads an active game by id and verifies Bearer token against stored hash.
+// Soft-deleted games are excluded (FindByID filters deleted_at IS NULL) and yield 404.
 func (s *Server) verifyIngestForGame(w http.ResponseWriter, r *http.Request, gameID string) (*repository.GameRow, bool) {
 	if s.db == nil || s.games == nil {
 		s.noDB(w)
