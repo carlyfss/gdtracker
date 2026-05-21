@@ -10,15 +10,7 @@ import { getConfiguration } from '../api/configuration'
 import type { Feature } from '../api/features'
 import { listFeatures } from '../api/features'
 import type { Task, TaskListPage, TaskStatus } from '../api/tasks'
-import {
-    archiveTask,
-    createTask,
-    deleteTask,
-    listTasks,
-    listTasksPage,
-    unarchiveTask,
-    updateTask,
-} from '../api/tasks'
+import { archiveTask, createTask, deleteTask, listTasks, listTasksPage, unarchiveTask, updateTask } from '../api/tasks'
 import { ListPaginationBar } from '../components/ListPaginationBar'
 import { nextTaskStatus, statusLabel } from '../util/taskStatus'
 import {
@@ -260,10 +252,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         if (!opts?.silent) setListLoading(true)
         try {
             if (usePagedList) {
-                await Promise.all([
-                    refreshTasksCache(opts),
-                    refreshTasksPage(opts),
-                ])
+                await Promise.all([refreshTasksCache(opts), refreshTasksPage(opts)])
             } else {
                 await refreshTasksCache(opts)
             }
@@ -903,9 +892,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             <div className="tasksContent">
                 {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
                 {state.kind === 'success' && <div className="banner bannerSuccess">{state.message}</div>}
-                {!taskPageBootstrapDone && state.kind === 'loading' && (
-                    <div className="banner">{state.message}</div>
-                )}
+                {!taskPageBootstrapDone && state.kind === 'loading' && <div className="banner">{state.message}</div>}
 
                 <TasksListTable
                     tasks={tasks}

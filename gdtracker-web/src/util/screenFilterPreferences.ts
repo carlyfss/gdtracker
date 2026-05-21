@@ -89,7 +89,10 @@ export function readTasksFilters(gameId: string, v: TasksFiltersValidators): Tas
 
     let listPageSize: number | undefined
     const rawSize = pickNumber(data.listPageSize)
-    if (rawSize != null && TASKS_LIST_PAGE_SIZE_OPTIONS.includes(rawSize as (typeof TASKS_LIST_PAGE_SIZE_OPTIONS)[number])) {
+    if (
+        rawSize != null &&
+        TASKS_LIST_PAGE_SIZE_OPTIONS.includes(rawSize as (typeof TASKS_LIST_PAGE_SIZE_OPTIONS)[number])
+    ) {
         listPageSize = rawSize
     }
 
