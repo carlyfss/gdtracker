@@ -62,6 +62,27 @@ export type ListTasksParams = {
     archivedOnly?: boolean
 }
 
+export type ListTasksPageParams = ListTasksParams & {
+    page?: number
+    size?: number
+    includeSubtasks?: boolean
+    collapsedParentIds?: string[]
+}
+
+export type TaskListDisplayRow = {
+    task: Task
+    depth: number
+    hasChildren: boolean
+}
+
+export type TaskListPage = {
+    content: TaskListDisplayRow[]
+    totalElements: number
+    totalPages: number
+    number: number
+    size: number
+}
+
 export type UpsertTaskBody = {
     title: string
     description?: string | null
@@ -78,8 +99,7 @@ function base(gameId: string) {
     return `/api/games/${encodeURIComponent(gameId)}/tasks`
 }
 
-function buildListTasksQuery(params: ListTasksParams): string {
-    const search = new URLSearchParams()
+function appendListTasksFilters(search: URLSearchParams, params: ListTasksParams): void {
     if (params.featureId) search.set('featureId', params.featureId)
     if (params.status) search.set('status', params.status)
     if (params.categoryId) search.set('categoryId', params.categoryId)
@@ -94,6 +114,11 @@ function buildListTasksQuery(params: ListTasksParams): string {
     if (params.archivedOnly === true) {
         search.set('archivedOnly', 'true')
     }
+}
+
+function buildListTasksQuery(params: ListTasksParams): string {
+    const search = new URLSearchParams()
+    appendListTasksFilters(search, params)
     const qs = search.toString()
     return qs ? `?${qs}` : ''
 }
@@ -102,6 +127,36 @@ export async function listTasks(gameId: string, params: ListTasksParams = {}): P
     const url = `${base(gameId)}${buildListTasksQuery(params)}`
     const res = await api.get(url)
     return Array.isArray(res.data) ? (res.data as Task[]) : []
+}
+
+export async function listTasksPage(gameId: string, params: ListTasksPageParams = {}): Promise<TaskListPage> {
+    const search = new URLSearchParams()
+    appendListTasksFilters(search, params)
+    if (typeof params.page === 'number' && Number.isFinite(params.page)) {
+        search.set('page', String(Math.max(0, Math.floor(params.page))))
+    }
+    if (typeof params.size === 'number' && Number.isFinite(params.size)) {
+        search.set('size', String(Math.max(1, Math.floor(params.size))))
+    }
+    if (params.includeSubtasks === false) {
+        search.set('includeSubtasks', 'false')
+    }
+    const collapsed = params.collapsedParentIds?.filter((id) => id.trim().length > 0) ?? []
+    for (const id of collapsed) {
+        search.append('collapsedParentIds', id)
+    }
+    const qs = search.toString()
+    const url = `${base(gameId)}${qs ? `?${qs}` : ''}`
+    const res = await api.get(url)
+    const raw = res.data as Partial<TaskListPage> | null
+    const content = Array.isArray(raw?.content) ? (raw!.content as TaskListDisplayRow[]) : []
+    return {
+        content,
+        totalElements: typeof raw?.totalElements === 'number' ? raw!.totalElements : 0,
+        totalPages: typeof raw?.totalPages === 'number' ? raw!.totalPages : 0,
+        number: typeof raw?.number === 'number' ? raw!.number : 0,
+        size: typeof raw?.size === 'number' ? raw!.size : 0,
+    }
 }
 
 export async function createTask(gameId: string, body: UpsertTaskBody): Promise<Task> {

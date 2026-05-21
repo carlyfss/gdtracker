@@ -1,0 +1,22 @@
+ALTER TABLE games ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE features ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE tasks ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE categories ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE tags ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_configurations ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_exceptions ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_exception_task_sequences ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_exception_task_sequences_per_game ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_event_traces ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_event_definitions ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_events ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_players ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_feedback_meter_definitions ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE game_feedback ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE planning_nodes ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE task_planning_document_refs ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE task_tags ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE archived_features ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE archived_tasks ADD COLUMN deleted_at TIMESTAMPTZ;
+
+CREATE INDEX idx_games_user_id_active ON games (user_id) WHERE deleted_at IS NULL;
