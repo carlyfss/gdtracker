@@ -69,7 +69,7 @@ func PurgeExpiredArchived(ctx context.Context, db *sql.DB, logger *log.Logger) e
 }
 
 func listAllGameIDs(ctx context.Context, conn *sql.Conn) ([]string, error) {
-	rows, err := conn.QueryContext(ctx, `SELECT id FROM games`)
+	rows, err := conn.QueryContext(ctx, `SELECT id FROM games WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("list games: %w", err)
 	}

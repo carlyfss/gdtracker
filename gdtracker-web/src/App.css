@@ -3483,3 +3483,126 @@
     font-weight: 700;
     color: var(--text-h);
 }
+
+.dangerZone {
+    border-color: rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.dangerZone .cardTitle {
+    color: rgb(252, 165, 165);
+}
+
+.deletedGamesList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.deletedGamesRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.deletedGamesRowMain {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.deletedGamesRowName {
+    font-weight: 650;
+    color: var(--text-h);
+}
+
+.deletedGamesRowStats {
+    font-size: 12px;
+}
+
+.deletedGamesRowActions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.modalCard.modalCardDanger {
+    border-color: rgba(248, 113, 113, 0.45);
+    box-shadow:
+        0 24px 48px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(248, 113, 113, 0.12);
+}
+
+.modalCardDanger .modalTitle {
+    color: rgb(252, 165, 165);
+}
+
+.purgePreviewWarning {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--text-h);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.purgePreviewGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+    .purgePreviewGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.purgePreviewBlock {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.purgePreviewBlockTitle {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-h);
+}
+
+.purgePreviewList {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.purgePreviewList li + li {
+    margin-top: 4px;
+}
+
+.purgePreviewEmpty,
+.purgePreviewMore {
+    margin: 0;
+    font-size: 13px;
+}
+
+.purgePreviewMore {
+    margin-top: 8px;
+}

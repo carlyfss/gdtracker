@@ -4,6 +4,7 @@ import { GameCategoriesSection } from './configuration/sections/GameCategoriesSe
 import { GameConfigFormSection } from './configuration/sections/GameConfigFormSection'
 import { GameEventsSection } from './configuration/sections/GameEventsSection'
 import { GameFeaturesSection } from './configuration/sections/GameFeaturesSection'
+import { GameDeleteSection } from './configuration/sections/GameDeleteSection'
 import { GameExceptionTaskTemplatesSection } from './configuration/sections/GameExceptionTaskTemplatesSection'
 import { GameTagsSection } from './configuration/sections/GameTagsSection'
 
@@ -20,6 +21,7 @@ export function ConfigurationPage() {
             <GameCategoriesSection gameId={gameId} onCategoriesChanged={bumpConfigAndCategories} />
             <GameTagsSection gameId={gameId} />
             <GameExceptionTaskTemplatesSection gameId={gameId} refreshToken={configRefresh} />
+            <GameDeleteSection gameId={gameId} />
         </div>
     )
 }
