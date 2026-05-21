@@ -2,8 +2,19 @@
 # Usage (Jenkins secrets must export VITE_* into the job env before build):
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache frontend
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate backend frontend
+#
+# Rate limits: override in root `.env` (RATE_LIMIT_*). Prod clears GDTRACKER_ENV=dev and sets explicit defaults.
 
 services:
+    backend:
+        environment:
+            GDTRACKER_ENV: ${GDTRACKER_ENV:-}
+            RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+            RATE_LIMIT_READ_PER_MIN: ${RATE_LIMIT_READ_PER_MIN:-180}
+            RATE_LIMIT_READ_BURST: ${RATE_LIMIT_READ_BURST:-360}
+            RATE_LIMIT_WRITE_PER_MIN: ${RATE_LIMIT_WRITE_PER_MIN:-90}
+            RATE_LIMIT_INGEST_PER_MIN: ${RATE_LIMIT_INGEST_PER_MIN:-90}
+
     frontend:
         build:
             args:

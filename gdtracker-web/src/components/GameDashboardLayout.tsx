@@ -6,6 +6,7 @@ import feedbackNavIcon from '../assets/icons/feedback_page.svg'
 import integrationNavIcon from '../assets/icons/integration_page.svg'
 import planningNavIcon from '../assets/icons/planning_page.svg'
 import sdkNavIcon from '../assets/icons/sdk_page.svg'
+import { GameExceptionsSyncProvider } from '../context/GameExceptionsSyncContext'
 import { GameIdProvider } from '../context/GameIdContext'
 import { GameThemeProvider } from '../context/GameThemeContext'
 import { AppAuthenticatedShell } from './AppAuthenticatedShell'
@@ -212,14 +213,18 @@ export function GameDashboardLayout() {
         </>
     )
 
+    const pollExceptions = active === 'dashboard'
+
     return (
         <GameIdProvider gameId={gameId}>
             <GameThemeProvider>
-                <AppAuthenticatedShell sidebarNav={sidebarNav} mainAriaLabel={active}>
-                    <div className="appMainInner dashboardPageEnter">
-                        <Outlet key={gameId} />
-                    </div>
-                </AppAuthenticatedShell>
+                <GameExceptionsSyncProvider gameId={gameId} pollEnabled={pollExceptions}>
+                    <AppAuthenticatedShell sidebarNav={sidebarNav} mainAriaLabel={active}>
+                        <div className="appMainInner dashboardPageEnter">
+                            <Outlet key={gameId} />
+                        </div>
+                    </AppAuthenticatedShell>
+                </GameExceptionsSyncProvider>
             </GameThemeProvider>
         </GameIdProvider>
     )

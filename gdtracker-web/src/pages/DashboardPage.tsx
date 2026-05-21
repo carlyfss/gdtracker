@@ -13,7 +13,7 @@ import {
     reserveExceptionTaskIndex,
     type GameException,
 } from '../api/gameExceptions'
-import { useGameExceptionsSync } from '../hooks/useGameExceptionsSync'
+import { useGameExceptionsSyncContext } from '../context/GameExceptionsSyncContext'
 import { listTasks, type Task } from '../api/tasks'
 import { useGameId } from '../context/GameIdContext'
 import { readDashboardFilters, writeDashboardFilters } from '../util/screenFilterPreferences'
@@ -89,7 +89,7 @@ export function DashboardPage() {
     const gameId = useGameId()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
-    const { exceptions, loading, syncMessage, syncGeneration } = useGameExceptionsSync(gameId)
+    const { exceptions, loading, syncMessage, syncGeneration } = useGameExceptionsSyncContext()
     const [exceptionBucket, setExceptionBucket] = useState<TimeBucket>('minute')
     const [selectedBucketStartMs, setSelectedBucketStartMs] = useState<number | null>(null)
     const [selectedIntervalExceptions, setSelectedIntervalExceptions] = useState<GameException[]>([])

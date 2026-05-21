@@ -1,9 +1,16 @@
-import axios, { isAxiosError } from 'axios'
+import axios, { isAxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { isAuth0Mode } from '../config/authMode'
+import { parseRetryAfterSeconds } from '../util/apiRateLimit'
 import { notifyApiUnauthorized } from './apiUnauthorized'
 
 let csrfTokenOverride: string | null = null
 let accessTokenGetter: (() => Promise<string | null>) | null = null
+
+type Retry429Config = InternalAxiosRequestConfig & { _retry429?: boolean }
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
 
 export function setAccessTokenGetter(fn: (() => Promise<string | null>) | null): void {
     accessTokenGetter = fn
@@ -68,9 +75,28 @@ function shouldNotifyUnauthorized(url: string): boolean {
     return true
 }
 
+function isIdempotentRetryMethod(method: string | undefined): boolean {
+    const m = (method ?? 'get').toLowerCase()
+    return m === 'get' || m === 'head'
+}
+
 api.interceptors.response.use(
     (res) => res,
-    (err) => {
+    async (err) => {
+        const config = err.config as Retry429Config | undefined
+        if (
+            isAxiosError(err) &&
+            err.response?.status === 429 &&
+            config &&
+            !config._retry429 &&
+            isIdempotentRetryMethod(config.method)
+        ) {
+            const retrySec = parseRetryAfterSeconds(err) ?? 1
+            await sleep(retrySec * 1000)
+            config._retry429 = true
+            return api.request(config)
+        }
+
         if (isAxiosError(err) && err.response?.status === 401) {
             const url = err.config?.url ?? ''
             if (shouldNotifyUnauthorized(url)) {

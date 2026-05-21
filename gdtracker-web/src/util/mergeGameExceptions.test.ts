@@ -13,10 +13,7 @@ describe('mergeGameExceptions', () => {
     })
 
     it('overwrites existing id', () => {
-        const { merged } = mergeGameExceptions(
-            [{ id: 'a', errorMessage: 'old' }],
-            [{ id: 'a', errorMessage: 'new' }]
-        )
+        const { merged } = mergeGameExceptions([{ id: 'a', errorMessage: 'old' }], [{ id: 'a', errorMessage: 'new' }])
         assert.equal(merged.length, 1)
         assert.equal(merged[0].errorMessage, 'new')
     })
