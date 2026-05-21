@@ -84,6 +84,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     const [advancingTaskId, setAdvancingTaskId] = useState<string | null>(null)
     const [listShowSubtasks, setListShowSubtasks] = useState(true)
     const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(() => new Set())
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
     const [modal, setModal] = useState<TaskModalState>({ kind: 'closed' })
     const [tagBrowseModalTag, setTagBrowseModalTag] = useState<Tag | null>(null)
@@ -874,6 +875,15 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         selectedStatus,
     ])
 
+    const mobileActiveFilterCount = useMemo(() => {
+        let count = 0
+        if (selectedFeatureId !== '__all__') count += 1
+        if (selectedCategoryId !== '__all__') count += 1
+        if (selectedStatus !== '__all__') count += 1
+        if (selectedFilterTagIds.length > 0) count += 1
+        return count
+    }, [selectedCategoryId, selectedFeatureId, selectedFilterTagIds.length, selectedStatus])
+
     const showFilterPanel = !(archivedOnly && layout === 'embedded') && forcedFeatureId == null
 
     const listEmpty = usePagedList ? listPageData.totalElements === 0 : tasks.length === 0
@@ -888,27 +898,55 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             className={`cardBody tasksLayout ${showFilterPanel ? '' : 'tasksLayoutSingleColumn'} ${usePagedList ? 'tasksLayoutPaged' : ''} ${layout === 'embedded' ? 'tasksLayoutEmbedded' : ''}`.trim()}
         >
             {showFilterPanel ? (
-                <TasksFilterPanel
-                    gameId={gameId}
-                    archivedOnly={archivedOnly}
-                    state={state}
-                    features={features}
-                    categories={categories}
-                    allTags={allTags}
-                    selectedFeatureId={selectedFeatureId}
-                    setSelectedFeatureId={onFilterFeatureChange}
-                    selectedCategoryId={selectedCategoryId}
-                    setSelectedCategoryId={setSelectedCategoryId}
-                    selectedFilterTagIds={selectedFilterTagIds}
-                    toggleFilterTagId={toggleFilterTagId}
-                    tagFilterMode={tagFilterMode}
-                    setTagFilterMode={setTagFilterMode}
-                    selectedStatus={selectedStatus}
-                    setSelectedStatus={setSelectedStatus}
-                    openCreateModal={openCreateModal}
-                    filteredCountLabel={filteredCountLabel}
-                    listShownLabel={listShownLabel}
-                />
+                <>
+                    <button
+                        type="button"
+                        className="tasksFilterMobileToggle"
+                        aria-expanded={mobileFilterOpen}
+                        aria-controls="tasks-filter-panel"
+                        onClick={() => setMobileFilterOpen((o) => !o)}
+                    >
+                        {mobileFilterOpen ? (
+                            'Hide filters'
+                        ) : (
+                            <>
+                                Show filters
+                                {mobileActiveFilterCount > 0 ? (
+                                    <span className="tasksFilterMobileToggleHint">
+                                        {' '}
+                                        · {mobileActiveFilterCount} active
+                                    </span>
+                                ) : null}
+                            </>
+                        )}
+                    </button>
+                    <div
+                        id="tasks-filter-panel"
+                        className={`tasksFilterPanelWrap ${mobileFilterOpen ? 'is-open' : ''}`.trim()}
+                    >
+                        <TasksFilterPanel
+                            gameId={gameId}
+                            archivedOnly={archivedOnly}
+                            state={state}
+                            features={features}
+                            categories={categories}
+                            allTags={allTags}
+                            selectedFeatureId={selectedFeatureId}
+                            setSelectedFeatureId={onFilterFeatureChange}
+                            selectedCategoryId={selectedCategoryId}
+                            setSelectedCategoryId={setSelectedCategoryId}
+                            selectedFilterTagIds={selectedFilterTagIds}
+                            toggleFilterTagId={toggleFilterTagId}
+                            tagFilterMode={tagFilterMode}
+                            setTagFilterMode={setTagFilterMode}
+                            selectedStatus={selectedStatus}
+                            setSelectedStatus={setSelectedStatus}
+                            openCreateModal={openCreateModal}
+                            filteredCountLabel={filteredCountLabel}
+                            listShownLabel={listShownLabel}
+                        />
+                    </div>
+                </>
             ) : null}
 
             <div className="tasksContent">

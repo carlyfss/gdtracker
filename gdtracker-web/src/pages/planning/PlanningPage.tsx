@@ -646,6 +646,10 @@ export function PlanningPage() {
 
     return (
         <section className="gamePageSection planningPage">
+            <p className="planningMobileNotice" role="note">
+                Planning works best on a desktop screen. On phones you can browse documents; editing may require
+                horizontal scrolling.
+            </p>
             {banner ? (
                 <div className="planningBanner" role="alert">
                     {banner}
