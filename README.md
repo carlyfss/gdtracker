@@ -59,6 +59,12 @@ docker compose build --no-cache frontend  # rebuild after changing VITE_API_BASE
 | `GDTRACKER_ARCHIVE_RETENTION_TIMEZONE` | no | backend | With archive retention |
 | `GDTRACKER_ARCHIVE_RETENTION_HOUR` | no | backend | With archive retention |
 | `GDTRACKER_ARCHIVE_RETENTION_MINUTE` | no | backend | With archive retention |
+| `GDTRACKER_ENV` | no | backend | `dev` / `local` / `development` raises default read rate limit when `RATE_LIMIT_READ_PER_MIN` unset; compose local default is `dev` |
+| `RATE_LIMIT_ENABLED` | no | backend | `true` (default); set `false` to disable API rate limiting |
+| `RATE_LIMIT_READ_PER_MIN` | no | backend | Read tier (`GET`/`HEAD`); prod compose default `180` via `docker-compose.prod.yml` |
+| `RATE_LIMIT_READ_BURST` | no | backend | Read burst; prod default `360` |
+| `RATE_LIMIT_WRITE_PER_MIN` | no | backend | Mutating methods; prod default `90` |
+| `RATE_LIMIT_INGEST_PER_MIN` | no | backend | Ingest endpoint; prod default `90` |
 | `VITE_API_BASE_URL` | yes for prod image build | frontend | Baked into the bundle at image build time — typically `http://localhost:${SERVER_PORT}` from the browser |
 | `FRONTEND_PORT` | no | frontend | Host port published for the SPA (default `5173`) |
 

@@ -38,35 +38,54 @@ func TestRateLimitTierFor(t *testing.T) {
 	}
 }
 
-func TestRateLimitStore_blocksBurst(t *testing.T) {
+func TestReadBurstForPerMin(t *testing.T) {
+	t.Parallel()
+	if readBurstForPerMin(180) != 360 {
+		t.Fatalf("got %d", readBurstForPerMin(180))
+	}
+	if readBurstForPerMin(900) != 900 {
+		t.Fatalf("got %d", readBurstForPerMin(900))
+	}
+}
+
+func TestRateLimitStore_allowsSpaBurst(t *testing.T) {
+	t.Parallel()
+	store := newRateLimitStore()
+	key := "user:test"
+	perMin := 180
+	burst := readBurstForPerMin(perMin)
+	allowed := 0
+	for i := 0; i < 40; i++ {
+		if store.allow(key, perMin, burst) {
+			allowed++
+		}
+	}
+	if allowed < 40 {
+		t.Fatalf("expected 40 parallel SPA reads allowed, got %d", allowed)
+	}
+}
+
+func TestRateLimitStore_blocksSustainedAbuse(t *testing.T) {
 	t.Parallel()
 	store := newRateLimitStore()
 	key := "test:ip"
 	perMin := 60
-	allowed := 0
-	for i := 0; i < 50; i++ {
-		if store.allow(key, perMin) {
-			allowed++
-		}
-	}
-	if allowed < 1 {
-		t.Fatal("expected at least one allowed request")
-	}
+	burst := 5
 	blocked := 0
-	for i := 0; i < 200; i++ {
-		if !store.allow(key, perMin) {
+	for i := 0; i < 100; i++ {
+		if !store.allow(key, perMin, burst) {
 			blocked++
 		}
 	}
-	if blocked < 1 {
-		t.Fatal("expected some blocked requests under burst")
+	if blocked < 50 {
+		t.Fatalf("expected many blocked requests after burst, got %d blocked", blocked)
 	}
 }
 
 func TestRateLimitMiddleware_returns429(t *testing.T) {
 	t.Parallel()
 	s := &Server{authMode: AuthModeSession}
-	cfg := rateLimitConfig{enabled: true, readPerMin: 1, writePerMin: 1, ingestPerMin: 1}
+	cfg := rateLimitConfig{enabled: true, readPerMin: 1, readBurst: 1, writePerMin: 1, ingestPerMin: 1}
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

@@ -10,15 +10,7 @@ import { getConfiguration } from '../api/configuration'
 import type { Feature } from '../api/features'
 import { listFeatures } from '../api/features'
 import type { Task, TaskListPage, TaskStatus } from '../api/tasks'
-import {
-    archiveTask,
-    createTask,
-    deleteTask,
-    listTasks,
-    listTasksPage,
-    unarchiveTask,
-    updateTask,
-} from '../api/tasks'
+import { archiveTask, createTask, deleteTask, listTasks, listTasksPage, unarchiveTask, updateTask } from '../api/tasks'
 import { ListPaginationBar } from '../components/ListPaginationBar'
 import { nextTaskStatus, statusLabel } from '../util/taskStatus'
 import {
@@ -245,7 +237,9 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             ...row,
             task: hydrateTasks([row.task], opts)[0]!,
         }))
-        setListPageData({ ...page, content: hydratedContent })
+        const hydrated = { ...page, content: hydratedContent }
+        setListPageData(hydrated)
+        return hydrated
     }
 
     const refreshTasks = async (opts?: {
@@ -256,14 +250,23 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         silent?: boolean
         page?: number
         size?: number
+        /** Paged layout: fetch table page only (avoids duplicate full listTasks on mount). */
+        pageOnly?: boolean
     }) => {
         if (!opts?.silent) setListLoading(true)
         try {
             if (usePagedList) {
-                await Promise.all([
-                    refreshTasksCache(opts),
-                    refreshTasksPage(opts),
-                ])
+                const page = await refreshTasksPage(opts)
+                if (opts?.pageOnly) {
+                    setTasks(
+                        hydrateTasks(
+                            page.content.map((row) => row.task),
+                            opts
+                        )
+                    )
+                } else {
+                    await refreshTasksCache(opts)
+                }
             } else {
                 await refreshTasksCache(opts)
             }
@@ -284,8 +287,11 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         }
     }
 
+    const bootstrapGenRef = useRef(0)
+
     useEffect(() => {
         let cancelled = false
+        const gen = ++bootstrapGenRef.current
         const timer = window.setTimeout(() => {
             setTaskPageBootstrapDone(false)
             void (async () => {
@@ -339,12 +345,15 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                         filters: storedFilters ?? undefined,
                         page: 0,
                         size: bootPageSize,
+                        pageOnly: usePagedList,
                     })
+                    if (cancelled || gen !== bootstrapGenRef.current) return
                     setState({ kind: 'idle' })
                 } catch {
+                    if (cancelled || gen !== bootstrapGenRef.current) return
                     setState({ kind: 'error', message: 'Failed to load tasks.' })
                 } finally {
-                    if (!cancelled) {
+                    if (!cancelled && gen === bootstrapGenRef.current) {
                         setTaskPageBootstrapDone(true)
                     }
                 }
@@ -483,13 +492,14 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
     ])
 
     useEffect(() => {
+        if (!taskPageBootstrapDone) return
         if (skipFilterRefreshOnce.current) {
             skipFilterRefreshOnce.current = false
             return
         }
         void (async () => {
             try {
-                await refreshTasks({ page: 0 })
+                await refreshTasks({ page: 0, pageOnly: usePagedList })
                 if (usePagedList) setListPageIndex(0)
             } catch {
                 setState({ kind: 'error', message: 'Failed to load tasks.' })
@@ -504,6 +514,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         selectedStatus,
         gameId,
         archivedOnly,
+        taskPageBootstrapDone,
     ])
 
     useEffect(() => {
@@ -514,7 +525,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         }
         void (async () => {
             try {
-                await refreshTasks({ silent: true })
+                await refreshTasks({ silent: true, pageOnly: true })
             } catch {
                 setState({ kind: 'error', message: 'Failed to load tasks.' })
             }
@@ -903,9 +914,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
             <div className="tasksContent">
                 {state.kind === 'error' && <div className="banner bannerError">{state.message}</div>}
                 {state.kind === 'success' && <div className="banner bannerSuccess">{state.message}</div>}
-                {!taskPageBootstrapDone && state.kind === 'loading' && (
-                    <div className="banner">{state.message}</div>
-                )}
+                {!taskPageBootstrapDone && state.kind === 'loading' && <div className="banner">{state.message}</div>}
 
                 <TasksListTable
                     tasks={tasks}

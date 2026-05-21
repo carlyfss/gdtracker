@@ -2,6 +2,7 @@ import { isAxiosError } from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listGameExceptions, listGameExceptionsSince, type GameException } from '../api/gameExceptions'
 import { nextBackoffMs, parseRetryAfterSeconds } from '../util/apiRateLimit'
+import { getGameExceptionsCache, setGameExceptionsCache } from '../util/gameExceptionsCache'
 import { mergeGameExceptions } from '../util/mergeGameExceptions'
 
 const VISIBLE_POLL_MS = 15_000
@@ -16,16 +17,34 @@ export type GameExceptionsSyncState = {
     syncGeneration: number
 }
 
-export function useGameExceptionsSync(gameId: string): GameExceptionsSyncState {
-    const [exceptions, setExceptions] = useState<GameException[]>([])
-    const [loading, setLoading] = useState(true)
+export function useGameExceptionsSync(gameId: string, pollEnabled: boolean): GameExceptionsSyncState {
+    const cached = getGameExceptionsCache(gameId)
+    const [exceptions, setExceptions] = useState<GameException[]>(() => cached?.exceptions ?? [])
+    const [loading, setLoading] = useState(() => !cached)
     const [syncMessage, setSyncMessage] = useState<string | null>(null)
     const [syncGeneration, setSyncGeneration] = useState(0)
-    const latestMsRef = useRef(0)
+    const latestMsRef = useRef(cached?.latestMs ?? 0)
     const backoffMsRef = useRef(0)
 
     useEffect(() => {
         let cancelled = false
+        const warm = getGameExceptionsCache(gameId)
+        if (warm) {
+            latestMsRef.current = warm.latestMs
+            backoffMsRef.current = 0
+            const resetTimer = window.setTimeout(() => {
+                if (!cancelled) {
+                    setExceptions(warm.exceptions)
+                    setLoading(false)
+                    setSyncMessage(null)
+                }
+            }, 0)
+            return () => {
+                cancelled = true
+                window.clearTimeout(resetTimer)
+            }
+        }
+
         latestMsRef.current = 0
         backoffMsRef.current = 0
         const resetTimer = window.setTimeout(() => {
@@ -40,6 +59,7 @@ export function useGameExceptionsSync(gameId: string): GameExceptionsSyncState {
                 if (cancelled) return
                 const { merged, latestMs } = mergeGameExceptions([], data)
                 latestMsRef.current = latestMs
+                setGameExceptionsCache(gameId, { exceptions: merged, latestMs })
                 setExceptions(merged)
             })
             .catch(() => {
@@ -62,17 +82,27 @@ export function useGameExceptionsSync(gameId: string): GameExceptionsSyncState {
             setExceptions((prev) => {
                 const { merged, latestMs } = mergeGameExceptions(prev, page.items)
                 latestMsRef.current = Math.max(latestMs, page.latestMs)
+                setGameExceptionsCache(gameId, {
+                    exceptions: merged,
+                    latestMs: latestMsRef.current,
+                })
                 return merged
             })
             setSyncGeneration((g) => g + 1)
         } else {
             latestMsRef.current = Math.max(latestMsRef.current, page.latestMs)
+            const cachedNow = getGameExceptionsCache(gameId)
+            if (cachedNow) {
+                setGameExceptionsCache(gameId, { ...cachedNow, latestMs: latestMsRef.current })
+            }
         }
         backoffMsRef.current = 0
         setSyncMessage(null)
     }, [gameId])
 
     useEffect(() => {
+        if (!pollEnabled) return
+
         let cancelled = false
         let timer = 0
 
@@ -103,17 +133,11 @@ export function useGameExceptionsSync(gameId: string): GameExceptionsSyncState {
 
         schedule(baseInterval())
 
-        const onVisibility = () => {
-            if (!cancelled) schedule(0)
-        }
-        document.addEventListener('visibilitychange', onVisibility)
-
         return () => {
             cancelled = true
             window.clearTimeout(timer)
-            document.removeEventListener('visibilitychange', onVisibility)
         }
-    }, [gameId, pollOnce])
+    }, [gameId, pollEnabled, pollOnce])
 
     return { exceptions, loading, syncMessage, syncGeneration }
 }

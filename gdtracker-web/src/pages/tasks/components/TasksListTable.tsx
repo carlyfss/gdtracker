@@ -102,173 +102,173 @@ export function TasksListTable({
                             </tr>
                         ) : null}
                         {listRows.map((row, idx) => {
-                        const t = row.task
-                        const { name: fn, color: fc } = featureMeta(t, features)
-                        const { name: cn, color: cc } = categoryMeta(t, categories)
-                        const atDone = isTaskDone(t.status)
-                        const busyRow = advancingTaskId === t.id
-                        const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
-                        const progLabels = formatChildProgressLabel(progDone, progTotal)
-                        const showFeature = row.depth === 0
-                        const rowTags = sortedTaskTags(t)
-                        const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
-                        return (
-                            <tr
-                                key={t.id}
-                                className="tasksListRow"
-                                data-done={atDone ? 'true' : undefined}
-                                data-odd={idx % 2 === 1}
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`View task: ${t.title}`}
-                                onClick={() => openTaskView(t)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault()
-                                        openTaskView(t)
-                                    }
-                                }}
-                            >
-                                <td
-                                    style={{
-                                        paddingLeft: 10 + row.depth * 14,
+                            const t = row.task
+                            const { name: fn, color: fc } = featureMeta(t, features)
+                            const { name: cn, color: cc } = categoryMeta(t, categories)
+                            const atDone = isTaskDone(t.status)
+                            const busyRow = advancingTaskId === t.id
+                            const { done: progDone, total: progTotal } = directChildProgress(t.id, tasks)
+                            const progLabels = formatChildProgressLabel(progDone, progTotal)
+                            const showFeature = row.depth === 0
+                            const rowTags = sortedTaskTags(t)
+                            const rowExpanded = row.hasChildren && !collapsedTaskIds.has(t.id)
+                            return (
+                                <tr
+                                    key={t.id}
+                                    className="tasksListRow"
+                                    data-done={atDone ? 'true' : undefined}
+                                    data-odd={idx % 2 === 1}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`View task: ${t.title}`}
+                                    onClick={() => openTaskView(t)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            openTaskView(t)
+                                        }
                                     }}
                                 >
-                                    <span
+                                    <td
                                         style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                            minWidth: 0,
+                                            paddingLeft: 10 + row.depth * 14,
                                         }}
                                     >
-                                        {row.hasChildren && listShowSubtasks ? (
-                                            <button
-                                                type="button"
-                                                className="iconBtn tasksTaskTreeToggle"
-                                                title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
-                                                aria-expanded={rowExpanded}
-                                                aria-label={
-                                                    rowExpanded
-                                                        ? `Collapse subtasks for ${t.title}`
-                                                        : `Expand subtasks for ${t.title}`
-                                                }
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    toggleTaskRowCollapsed(t.id)
-                                                }}
-                                            >
-                                                <IconChevronTaskTree expanded={rowExpanded} />
-                                            </button>
-                                        ) : (
-                                            <span className="tasksTaskTreeSpacer" aria-hidden />
-                                        )}
-                                        <span style={{ minWidth: 0 }}>{t.title}</span>
-                                    </span>
-                                </td>
-                                <td className="tasksListProgressCol">
-                                    {progTotal > 0 ? (
-                                        <span title="Subtasks done / total (status DONE)">
-                                            <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
-                                            <span className="muted">{progLabels.ratio}</span>
-                                        </span>
-                                    ) : null}
-                                </td>
-                                {archiveEmbedded ? null : (
-                                    <td className="tasksListStatusCol">
                                         <span
-                                            className="tasksStatusPill"
-                                            data-status={(t.status as TaskStatus) ?? 'TODO'}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                minWidth: 0,
+                                            }}
                                         >
-                                            {statusLabel(t.status as TaskStatus)}
+                                            {row.hasChildren && listShowSubtasks ? (
+                                                <button
+                                                    type="button"
+                                                    className="iconBtn tasksTaskTreeToggle"
+                                                    title={rowExpanded ? 'Hide subtasks' : 'Show subtasks'}
+                                                    aria-expanded={rowExpanded}
+                                                    aria-label={
+                                                        rowExpanded
+                                                            ? `Collapse subtasks for ${t.title}`
+                                                            : `Expand subtasks for ${t.title}`
+                                                    }
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        toggleTaskRowCollapsed(t.id)
+                                                    }}
+                                                >
+                                                    <IconChevronTaskTree expanded={rowExpanded} />
+                                                </button>
+                                            ) : (
+                                                <span className="tasksTaskTreeSpacer" aria-hidden />
+                                            )}
+                                            <span style={{ minWidth: 0 }}>{t.title}</span>
                                         </span>
                                     </td>
-                                )}
-                                {archiveEmbedded ? null : (
+                                    <td className="tasksListProgressCol">
+                                        {progTotal > 0 ? (
+                                            <span title="Subtasks done / total (status DONE)">
+                                                <span className="tasksProgressPct">{progLabels.pct}</span>{' '}
+                                                <span className="muted">{progLabels.ratio}</span>
+                                            </span>
+                                        ) : null}
+                                    </td>
+                                    {archiveEmbedded ? null : (
+                                        <td className="tasksListStatusCol">
+                                            <span
+                                                className="tasksStatusPill"
+                                                data-status={(t.status as TaskStatus) ?? 'TODO'}
+                                            >
+                                                {statusLabel(t.status as TaskStatus)}
+                                            </span>
+                                        </td>
+                                    )}
+                                    {archiveEmbedded ? null : (
+                                        <td>
+                                            {showFeature ? (
+                                                <span className="filterItemInner">
+                                                    <span className="featureSwatch" style={{ backgroundColor: fc }} />
+                                                    <span style={{ color: fc }}>{fn}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="muted">—</span>
+                                            )}
+                                        </td>
+                                    )}
                                     <td>
-                                        {showFeature ? (
+                                        {cn ? (
                                             <span className="filterItemInner">
-                                                <span className="featureSwatch" style={{ backgroundColor: fc }} />
-                                                <span style={{ color: fc }}>{fn}</span>
+                                                <span className="featureSwatch" style={{ backgroundColor: cc }} />
+                                                <span style={{ color: cc }}>{cn}</span>
                                             </span>
                                         ) : (
                                             <span className="muted">—</span>
                                         )}
                                     </td>
-                                )}
-                                <td>
-                                    {cn ? (
-                                        <span className="filterItemInner">
-                                            <span className="featureSwatch" style={{ backgroundColor: cc }} />
-                                            <span style={{ color: cc }}>{cn}</span>
-                                        </span>
-                                    ) : (
-                                        <span className="muted">—</span>
-                                    )}
-                                </td>
-                                <td className="tasksListTagCol">
-                                    {rowTags.length > 0 ? (
-                                        <div className="tasksTagCell">
-                                            {rowTags.map((tg) => {
-                                                const tc = normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR)
-                                                return (
-                                                    <button
-                                                        key={tg.id}
-                                                        type="button"
-                                                        className="tagChip tagChipInteractive"
-                                                        style={{
-                                                            backgroundColor: tc,
-                                                            color: chipTextColor(tc),
-                                                        }}
-                                                        title={`#${tg.name}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            onTagChipClick(tg)
-                                                        }}
-                                                    >
-                                                        #{tg.name}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <span className="muted">—</span>
-                                    )}
-                                </td>
-                                <td onClick={(e) => e.stopPropagation()}>
-                                    <div className="iconBtnRow" style={{ justifyContent: 'flex-end' }}>
-                                        {archiveEmbedded ? null : (
+                                    <td className="tasksListTagCol">
+                                        {rowTags.length > 0 ? (
+                                            <div className="tasksTagCell">
+                                                {rowTags.map((tg) => {
+                                                    const tc = normalizeHex6(tg.color, FALLBACK_FEATURE_COLOR)
+                                                    return (
+                                                        <button
+                                                            key={tg.id}
+                                                            type="button"
+                                                            className="tagChip tagChipInteractive"
+                                                            style={{
+                                                                backgroundColor: tc,
+                                                                color: chipTextColor(tc),
+                                                            }}
+                                                            title={`#${tg.name}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                onTagChipClick(tg)
+                                                            }}
+                                                        >
+                                                            #{tg.name}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <span className="muted">—</span>
+                                        )}
+                                    </td>
+                                    <td onClick={(e) => e.stopPropagation()}>
+                                        <div className="iconBtnRow" style={{ justifyContent: 'flex-end' }}>
+                                            {archiveEmbedded ? null : (
+                                                <button
+                                                    type="button"
+                                                    className="iconBtn"
+                                                    title={atDone ? 'Task is done' : 'Advance to next status'}
+                                                    aria-label="Advance to next status"
+                                                    disabled={atDone || busyRow || state.kind === 'loading'}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        void onAdvanceStatus(t)
+                                                    }}
+                                                >
+                                                    <IconCheck />
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
-                                                className="iconBtn"
-                                                title={atDone ? 'Task is done' : 'Advance to next status'}
-                                                aria-label="Advance to next status"
-                                                disabled={atDone || busyRow || state.kind === 'loading'}
+                                                className="iconBtn iconBtnDanger"
+                                                title="Delete task"
+                                                aria-label="Delete task"
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    void onAdvanceStatus(t)
+                                                    void onDelete(t)
                                                 }}
                                             >
-                                                <IconCheck />
+                                                <IconTrash />
                                             </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            className="iconBtn iconBtnDanger"
-                                            title="Delete task"
-                                            aria-label="Delete task"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                void onDelete(t)
-                                            }}
-                                        >
-                                            <IconTrash />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        )
-                    })}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )
+                        })}
                     </tbody>
                 </table>
             </div>

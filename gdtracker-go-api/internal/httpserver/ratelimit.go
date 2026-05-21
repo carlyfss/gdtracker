@@ -24,6 +24,7 @@ const (
 type rateLimitConfig struct {
 	enabled      bool
 	readPerMin   int
+	readBurst    int
 	writePerMin  int
 	ingestPerMin int
 }
@@ -33,12 +34,58 @@ func loadRateLimitConfig() rateLimitConfig {
 	if v := strings.TrimSpace(os.Getenv("RATE_LIMIT_ENABLED")); v != "" {
 		enabled = v != "0" && !strings.EqualFold(v, "false")
 	}
+
+	readPerMin := envIntDefault("RATE_LIMIT_READ_PER_MIN", 0)
+	if readPerMin <= 0 {
+		if isDevTrackerEnv() {
+			readPerMin = 900
+		} else {
+			readPerMin = 180
+		}
+	}
+
+	readBurst := envIntDefault("RATE_LIMIT_READ_BURST", 0)
+	if readBurst <= 0 {
+		readBurst = readBurstForPerMin(readPerMin)
+	}
+
 	return rateLimitConfig{
 		enabled:      enabled,
-		readPerMin:   envIntDefault("RATE_LIMIT_READ_PER_MIN", 60),
-		writePerMin:  envIntDefault("RATE_LIMIT_WRITE_PER_MIN", 30),
-		ingestPerMin: envIntDefault("RATE_LIMIT_INGEST_PER_MIN", 30),
+		readPerMin:   readPerMin,
+		readBurst:    readBurst,
+		writePerMin:  envIntDefault("RATE_LIMIT_WRITE_PER_MIN", 90),
+		ingestPerMin: envIntDefault("RATE_LIMIT_INGEST_PER_MIN", 90),
 	}
+}
+
+func isDevTrackerEnv() bool {
+	v := strings.TrimSpace(os.Getenv("GDTRACKER_ENV"))
+	return strings.EqualFold(v, "dev") || strings.EqualFold(v, "development") || strings.EqualFold(v, "local")
+}
+
+func readBurstForPerMin(perMin int) int {
+	burst := perMin
+	if burst < 360 {
+		burst = 360
+	}
+	if burst > perMin*3 {
+		burst = perMin * 3
+	}
+	return burst
+}
+
+func burstForTier(tier rateLimitTier, cfg rateLimitConfig, perMin int) int {
+	if tier == rateTierRead {
+		return cfg.readBurst
+	}
+	burst := perMin / 2
+	if burst < 1 {
+		burst = 1
+	}
+	if burst > perMin {
+		burst = perMin
+	}
+	return burst
 }
 
 func envIntDefault(key string, def int) int {
@@ -62,17 +109,13 @@ func newRateLimitStore() *rateLimitStore {
 	return &rateLimitStore{limiters: make(map[string]*rate.Limiter)}
 }
 
-func (s *rateLimitStore) allow(key string, perMin int) bool {
+func (s *rateLimitStore) allow(key string, perMin, burst int) bool {
 	if key == "" {
 		return true
 	}
 	lim := rate.Every(time.Minute / time.Duration(perMin))
-	burst := perMin / 2
 	if burst < 1 {
 		burst = 1
-	}
-	if burst > perMin {
-		burst = perMin
 	}
 
 	s.mu.Lock()
@@ -167,8 +210,9 @@ func RateLimitMiddleware(s *Server, cfg rateLimitConfig) func(http.Handler) http
 			case rateTierIngest:
 				perMin = cfg.ingestPerMin
 			}
+			burst := burstForTier(tier, cfg, perMin)
 			key := s.rateLimitKey(r, tier)
-			if !store.allow(key, perMin) {
+			if !store.allow(key, perMin, burst) {
 				retryAfter := 60 / perMin
 				if retryAfter < 1 {
 					retryAfter = 1
