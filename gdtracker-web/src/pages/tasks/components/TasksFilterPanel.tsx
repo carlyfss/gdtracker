@@ -28,6 +28,8 @@ export type TasksFilterPanelProps = {
     selectedStatus: TaskStatus | '__all__'
     setSelectedStatus: (v: TaskStatus | '__all__') => void
     openCreateModal: () => void
+    filteredCountLabel: string
+    listShownLabel: string
 }
 
 export function TasksFilterPanel({
@@ -48,6 +50,8 @@ export function TasksFilterPanel({
     selectedStatus,
     setSelectedStatus,
     openCreateModal,
+    filteredCountLabel,
+    listShownLabel,
 }: TasksFilterPanelProps) {
     const featureSelected = useMemo((): FilterPillItem[] => {
         if (selectedFeatureId === '__all__') return []
@@ -243,6 +247,15 @@ export function TasksFilterPanel({
                     </button>
                 </div>
             )}
+
+            <p className="tasksFilterPanelSummary muted" aria-live="polite">
+                {filteredCountLabel}
+                <span className="tasksFilterPanelSummarySep" aria-hidden>
+                    {' '}
+                    ·{' '}
+                </span>
+                {listShownLabel}
+            </p>
         </aside>
     )
 }
