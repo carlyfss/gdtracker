@@ -33,6 +33,7 @@ Pre-release: `gdtracker-go-api/v0.6.0-beta.1`
 
 - [ ] Identify which app(s) changed in this release.
 - [ ] Choose MAJOR / MINOR / PATCH per app (see release-manager skill).
+- [ ] Run release git steps only after explicit user approval (see release-manager skill).
 - [ ] Update **trigger file(s) only** for changed apps.
 - [ ] Run relevant tests/build for touched apps.
 - [ ] Commit: `chore(release): bump <app> to X.Y.Z`
