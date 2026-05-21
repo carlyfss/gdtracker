@@ -6,6 +6,7 @@ import App from './App.tsx'
 import { ApiUnauthorizedBridge } from './components/ApiUnauthorizedBridge'
 import { AuthRootProvider } from './context/AuthRootProvider'
 import './index.css'
+import './styles/breakpoints.css'
 
 const updateSW = registerSW({
     immediate: true,

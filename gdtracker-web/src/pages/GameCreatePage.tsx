@@ -62,7 +62,12 @@ export function GameCreatePage() {
     }
 
     return (
-        <AppAuthenticatedShell sidebarNav={null} sidebarNavLabel="Game hub" mainAriaLabel="Create game">
+        <AppAuthenticatedShell
+            sidebarNav={null}
+            sidebarNavLabel="Game hub"
+            mainAriaLabel="Create game"
+            breadcrumbs={[{ label: 'Games', to: '/games' }, { label: 'New game' }]}
+        >
             <div className="appMainInner gameCreateMain">
                 <div className="authSurface" style={{ width: 'min(520px, 100%)' }}>
                     <h1 className="authTitle">Create a game</h1>

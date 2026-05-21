@@ -1,9 +1,12 @@
-import type { ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import godotLogo from '../assets/godot_white.svg'
 import gamesNavIcon from '../assets/icons/games_page.svg'
 import logoutNavIcon from '../assets/icons/logout_button.svg'
 import { useAuth } from '../context/AuthContext'
+import type { AppBreadcrumb } from '../util/appBreadcrumbs'
+import { AppMobileHeader } from './AppMobileHeader'
+import { AppNavDrawer } from './AppNavDrawer'
 
 type Props = {
     children: ReactNode
@@ -13,6 +16,10 @@ type Props = {
     sidebarNavLabel?: string
     /** Optional `aria-label` on `<main>`. */
     mainAriaLabel?: string
+    breadcrumbs?: AppBreadcrumb[]
+    /** Labeled nav links for the mobile drawer (same routes as sidebar). */
+    mobileDrawerNav?: ReactNode
+    mobileHeaderActions?: ReactNode
 }
 
 export function AppAuthenticatedShell({
@@ -20,15 +27,34 @@ export function AppAuthenticatedShell({
     sidebarNav,
     sidebarNavLabel = 'Game sections',
     mainAriaLabel,
+    breadcrumbs = [{ label: 'Games', to: '/games' }],
+    mobileDrawerNav,
+    mobileHeaderActions,
 }: Props) {
     const location = useLocation()
     const navigate = useNavigate()
     const { logout } = useAuth()
+    const [drawerOpen, setDrawerOpen] = useState(false)
 
     const gamesHubActive = location.pathname === '/games' || location.pathname.startsWith('/games/')
 
+    const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+    const toggleDrawer = useCallback(() => setDrawerOpen((o) => !o), [])
+
     return (
-        <div className="appShell">
+        <div className="appShell appShell--authenticated">
+            <AppMobileHeader
+                breadcrumbs={breadcrumbs}
+                onOpenMenu={toggleDrawer}
+                menuOpen={drawerOpen}
+                actions={mobileHeaderActions}
+            />
+            <AppNavDrawer
+                open={drawerOpen}
+                onClose={closeDrawer}
+                gameNav={mobileDrawerNav ?? sidebarNav}
+                sidebarNavLabel={sidebarNavLabel}
+            />
             <div className="appBody">
                 <aside className="appSidebar" aria-label="App navigation">
                     <div className="appSidebarTop">
