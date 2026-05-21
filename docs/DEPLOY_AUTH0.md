@@ -44,6 +44,18 @@ VITE_API_BASE_URL=https://api.krondevrasp.com
 
 Auth0 Dashboard URLs: [`gdtracker-go-api/docs/AUTH0_LOCAL_DEV.md`](../gdtracker-go-api/docs/AUTH0_LOCAL_DEV.md) (production section).
 
+## Auth0 Dashboard — authorize SPA for API (fixes `oauth/token` `access_denied`)
+
+If Auth0 redirects to `https://gdtracker.krondevrasp.com/?code=…` but **`POST …/oauth/token` returns 401** with **`access_denied`**, the SPA is usually **not authorized** for the GDTracker API audience.
+
+1. **Applications → APIs →** your GDTracker API (identifier = `AUTH0_AUDIENCE`, e.g. `https://api.krondevrasp.com`).
+2. **Applications → Applications →** your SPA → **APIs** tab → enable **GDTracker API** (Authorized).
+3. Confirm SPA **Application Type** = Single Page Application; **Token Endpoint Authentication Method** = None.
+4. **Grant Types:** Authorization Code (and Refresh Token if used).
+5. **Actions → Flows:** ensure no Login/Post-Login Action returns `access_denied`.
+
+`VITE_AUTH0_AUDIENCE` and `AUTH0_AUDIENCE` must match the API **Identifier** exactly (not the Management API `…/api/v2/`).
+
 ## PWA / service worker after deploy
 
 `VITE_*` are baked at build time. **`docker compose up` alone does not update the login UI.**
@@ -69,9 +81,21 @@ If **MISSING** in the container, rebuild the frontend image; if **OK** on server
 
 ## Verify Auth0 login
 
-1. No `GET /api/csrf` in Network (API is auth0 mode).
-2. `GET https://api.krondevrasp.com/api/auth/me` with `Authorization: Bearer …` → **200**.
-3. No `bad-precaching-response` in the console.
+1. After sign-in, **`POST https://<tenant>.us.auth0.com/oauth/token` → 200** (not 401 `access_denied`).
+2. No `GET /api/csrf` in Network (API is auth0 mode).
+3. `GET https://api.krondevrasp.com/api/auth/me` with `Authorization: Bearer …` → **200**.
+4. No `bad-precaching-response` in the console.
+
+### Asset hash coherence (after frontend deploy)
+
+`index.html`, `sw.js`, and files under `/assets/` must reference the **same** build:
+
+```bash
+docker compose exec frontend sh -c \
+  'grep -o "index-[^\"]*\.js" /usr/share/nginx/html/index.html; ls /usr/share/nginx/html/assets/index-*.js'
+```
+
+The hash in `index.html` must exist in `assets/`. If not, rebuild with `--no-cache frontend` and `--force-recreate frontend`.
 
 ## Rollback
 
