@@ -40,6 +40,24 @@ FROM game_exceptions WHERE game_id = $1 ORDER BY timestamp DESC`, gameID)
 	return scanGameExceptions(rows)
 }
 
+func (r *GameExceptionRepository) ListByGameSinceTimestamp(ctx context.Context, gameID string, since time.Time, limit int) ([]GameExceptionRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, error_message, short_error_message, location, map, stack_trace, timestamp, game_player_id
+FROM game_exceptions WHERE game_id = $1 AND timestamp > $2 ORDER BY timestamp DESC LIMIT $3`,
+		gameID, since, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list exceptions since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanGameExceptions(rows)
+}
+
 func (r *GameExceptionRepository) ListByGameAndTimestampBetween(ctx context.Context, gameID string, from, to time.Time) ([]GameExceptionRow, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, error_message, short_error_message, location, map, stack_trace, timestamp, game_player_id

@@ -1246,6 +1246,19 @@
     flex-wrap: wrap;
 }
 
+.dashboardExceptionsToolbarTitle {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.dashboardSyncStatus {
+    font-size: 0.85rem;
+    color: var(--text);
+    opacity: 0.85;
+}
+
 .dashboardExceptionsRightStack {
     display: flex;
     flex-direction: column;
