@@ -512,15 +512,35 @@ paths:
         - name: archivedOnly
           in: query
           schema: { type: boolean, default: false }
+        - name: page
+          in: query
+          description: 0-based page index (with `size`, returns a paginated list of flattened display rows)
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          description: Page size 1–100 (default 25 when paginated)
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: includeSubtasks
+          in: query
+          description: When paginated, include subtasks in flattened rows (default true)
+          schema: { type: boolean, default: true }
+        - name: collapsedParentIds
+          in: query
+          description: Parent task IDs whose children are hidden (paginated mode only)
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
       responses:
         "200":
-          description: OK
+          description: OK — JSON array when `page`/`size` omitted; `TaskListPage` when paginated
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Task"
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/Task"
+                  - $ref: "#/components/schemas/TaskListPage"
         "401":
           description: Not authenticated
         "404":
@@ -1772,6 +1792,24 @@ components:
           type: array
           description: Linked planning documents (markdown or excalidraw) for this task.
           items: { $ref: "#/components/schemas/TaskPlanningDocumentRef" }
+    TaskListDisplayRow:
+      type: object
+      description: One flattened task row for the Tasks list UI (tree order).
+      properties:
+        task: { $ref: "#/components/schemas/Task" }
+        depth: { type: integer, minimum: 0 }
+        hasChildren: { type: boolean }
+    TaskListPage:
+      type: object
+      description: Paginated flattened task list (Spring-style page).
+      properties:
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/TaskListDisplayRow" }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+        number: { type: integer }
+        size: { type: integer }
     TaskPlanningDocumentRef:
       type: object
       properties:
