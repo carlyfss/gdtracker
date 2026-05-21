@@ -895,6 +895,8 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
                     selectedStatus={selectedStatus}
                     setSelectedStatus={setSelectedStatus}
                     openCreateModal={openCreateModal}
+                    filteredCountLabel={filteredCountLabel}
+                    listShownLabel={listShownLabel}
                 />
             ) : null}
 
@@ -949,20 +951,7 @@ export function TasksPageBody({ gameId, archivedOnly = false, layout = 'page', f
         <>
             {layout === 'page' ? (
                 <div className="gamePageStack tasksPageStack">
-                    <section className="gamePageSection tasksPageSection">
-                        <div className="cardHeader">
-                            <h2 className="cardTitle">{archivedOnly ? 'Archived tasks' : 'Tasks'}</h2>
-                            <div className="cardHeaderMetaRow">
-                                <span className="muted" style={{ fontSize: 13 }}>
-                                    {filteredCountLabel}
-                                </span>
-                                <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
-                                    {listShownLabel}
-                                </span>
-                            </div>
-                        </div>
-                        {tasksLayoutBody}
-                    </section>
+                    <section className="gamePageSection tasksPageSection">{tasksLayoutBody}</section>
                 </div>
             ) : (
                 tasksLayoutBody
