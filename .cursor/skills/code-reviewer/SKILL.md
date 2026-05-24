@@ -67,6 +67,12 @@ description: Review backend (gdtracker-api, gdtracker-go-api) and frontend (gdtr
   - When a function must remain complex (algorithmic, multi-branch, performance-sensitive), require a short comment block at the top explaining intent, inputs/outputs, and any non-obvious trade-offs.
   - Do **not** request narration comments that just restate code; comments should explain **why**, not **what** (matches workspace guidance).
 
+### 5. Version bump required for product changes
+- When a changeset touches **product code** under `gdtracker-web/` or `gdtracker-go-api/` (handlers, UI, services, migrations, etc.) **without** a matching trigger-file bump in the same PR/changeset, raise a **Critical** finding.
+- **Trigger files**: `gdtracker-web/package.json` `"version"`; `gdtracker-go-api/docs/openapi.yaml` `info.version`.
+- **Exceptions**: docs-only changes under `docs/`; workspace/skill-only changes; explicit user waiver.
+- **Owner**: **release-manager** — suggest bump level (MAJOR / MINOR / PATCH) per release-manager SemVer rules; developer personas do not edit trigger files.
+
 ## Routing fixes to developers
 
 For each finding, label the owner:

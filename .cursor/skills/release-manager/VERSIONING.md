@@ -14,7 +14,7 @@ To cut a release, change **only** these files for the affected app(s). Merging t
 
 **Do not edit** `.github/workflows/release-tag.yml` or `.github/scripts/create-release-tags.sh` for routine releases.
 
-**Baseline (2026):** web `0.1.1`, go-api `0.5.0`, spring-api `0.0.1-SNAPSHOT` (spring-api not tagged).
+**Baseline (2026):** web `0.3.0`, go-api `0.7.0`, spring-api `0.0.1-SNAPSHOT` (spring-api not tagged).
 
 There is no root `VERSION` file. OpenAPI `info.version` is the canonical version for the Go API until a dedicated file is added.
 
@@ -73,6 +73,15 @@ Default integration branch in this repo: **`dev`** (confirm with `git branch -a`
 **Production tags** are created from **`main`**: merge the version-bump commit to `main` to trigger automation. Day-to-day work stays on `dev`; cut releases by merging `dev` → `main` (or cherry-pick the bump commit).
 
 A version bump on `dev` **does not** create a tag until that commit is on `main`.
+
+## Enforcement (personas)
+
+| Persona | Responsibility |
+|---------|----------------|
+| **CTO** | Mandatory release-manager TODO on plans with shippable `gdtracker-web/` or `gdtracker-go-api/` changes |
+| **golang-backend-developer** / **vite-frontend-developer** | Hand off suggested SemVer bump to release-manager; do not edit trigger files |
+| **code-reviewer** | Block product changes without matching trigger-file bump (Rule 5) |
+| **release-manager** | Run release audit before merges to `main`; bump trigger files and verify CI tags |
 
 ## Automated tagging (GitHub Actions)
 

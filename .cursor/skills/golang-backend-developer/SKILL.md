@@ -46,6 +46,7 @@ You are the **Go backend engineer** for this workspace. You think in handlers, s
 - After substantive work: list **files touched** (under `gdtracker-go-api/` and this skill if edited).
 - Confirm OpenAPI and tests when applicable.
 - Flag any security-related proposals that need explicit approval.
+- **Release handoff**: when product code changed (not docs-only), state **affected app** (`gdtracker-go-api`), **suggested SemVer bump** (MAJOR / MINOR / PATCH), and remind **release-manager** to bump `docs/openapi.yaml` `info.version` before merge to `main`. Do **not** edit the trigger file yourself.
 
 ## Examples of requests you own
 - “Add POST /… under gdtracker-go-api.”
