@@ -21,6 +21,7 @@ import saveDocumentIcon from '../../assets/icons/save_document.svg'
 import { TaskDescriptionMarkdown } from '../../components/TaskDescriptionMarkdown'
 import { serializePlanningExcalidrawSceneForCompare } from '../../util/planningExcalidrawScene'
 import { nextDefaultPlanningNodeName } from '../../util/planningDefaultNames'
+import { readPlanningTreeOpen, writePlanningTreeOpen } from '../../util/planningUiPreferences'
 import { applyMoveUpdates, getAncestors, type PlanningNodeMoveUpdate } from '../../util/planningTree'
 import { PlanningTree } from './PlanningTree'
 import './planningPage.css'
@@ -80,6 +81,7 @@ export function PlanningPage() {
     const [loadingList, setLoadingList] = useState(true)
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+    const [treeOpen, setTreeOpenState] = useState(() => readPlanningTreeOpen())
 
     const [excalidrawSeed, setExcalidrawSeed] = useState<{
         id: string
@@ -255,6 +257,11 @@ export function PlanningPage() {
             return next
         })
     }
+
+    const setTreeOpen = useCallback((open: boolean) => {
+        setTreeOpenState(open)
+        writePlanningTreeOpen(open)
+    }, [])
 
     const defaultParentId = useMemo((): string | null => {
         if (!selectedId) {
@@ -442,8 +449,39 @@ export function PlanningPage() {
         }
     }
 
+    const showDocumentsButton = (
+        <button
+            type="button"
+            className="btn planningTreeToggle"
+            aria-expanded={false}
+            aria-controls="planning-documents-panel"
+            onClick={() => setTreeOpen(true)}
+        >
+            Show documents
+        </button>
+    )
+
+    const hideDocumentsButton = (
+        <button
+            type="button"
+            className="btn planningTreeToggle"
+            aria-expanded={true}
+            aria-controls="planning-documents-panel"
+            onClick={() => setTreeOpen(false)}
+        >
+            Hide documents
+        </button>
+    )
+
     const rightHeader = () => {
         if (!detail) {
+            if (!treeOpen) {
+                return (
+                    <div className="planningEditorHeader">
+                        <div className="planningEditorHeaderTop">{showDocumentsButton}</div>
+                    </div>
+                )
+            }
             return null
         }
         const deleteButton = (
@@ -460,6 +498,7 @@ export function PlanningPage() {
         return (
             <div className="planningEditorHeader">
                 <div className="planningEditorHeaderTop">
+                    {!treeOpen ? showDocumentsButton : null}
                     {titleEdit ? (
                         <input
                             className="textInput planningTitleInput"
@@ -634,68 +673,79 @@ export function PlanningPage() {
                     {banner}
                 </div>
             ) : null}
-            <div className="planningSplit">
-                <aside className="planningSidebar">
-                    <div className="planningSidebarHeader">Documents</div>
-                    <div className="planningToolbar">
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('folder')}
-                            aria-label="New folder"
-                            title="New folder"
-                        >
-                            <img src={folderIconBtn} alt="" className="planningToolbarIcon" width={20} height={20} />
-                        </button>
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('markdown')}
-                            aria-label="New markdown"
-                            title="New markdown"
-                        >
-                            <img
-                                src={newDocumentIconBtn}
-                                alt=""
-                                className="planningToolbarIcon"
-                                width={20}
-                                height={20}
-                            />
-                        </button>
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('excalidraw')}
-                            aria-label="New drawing"
-                            title="New drawing"
-                        >
-                            <img
-                                src={newDrawingIconBtn}
-                                alt=""
-                                className="planningToolbarIcon"
-                                width={20}
-                                height={20}
-                            />
-                        </button>
-                    </div>
-                    <div className="planningTree">
-                        {loadingList ? (
-                            <p className="planningMuted">Loading…</p>
-                        ) : (
-                            <PlanningTree
-                                nodes={nodes}
-                                rootParentId={null}
-                                selectedId={selectedId}
-                                expanded={expanded}
-                                onSelect={onSelect}
-                                onToggleExpand={toggleExpand}
-                                onMove={onMove}
-                                showRootDropZone
-                                emptyMessage="No documents yet."
-                            />
-                        )}
-                    </div>
-                </aside>
+            <div className={`planningSplit ${treeOpen ? '' : 'planningSplit--treeHidden'}`.trim()}>
+                {treeOpen ? (
+                    <aside id="planning-documents-panel" className="planningSidebar">
+                        <div className="planningSidebarHeader">
+                            <span>Documents</span>
+                            {hideDocumentsButton}
+                        </div>
+                        <div className="planningToolbar">
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('folder')}
+                                aria-label="New folder"
+                                title="New folder"
+                            >
+                                <img
+                                    src={folderIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('markdown')}
+                                aria-label="New markdown"
+                                title="New markdown"
+                            >
+                                <img
+                                    src={newDocumentIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('excalidraw')}
+                                aria-label="New drawing"
+                                title="New drawing"
+                            >
+                                <img
+                                    src={newDrawingIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                        </div>
+                        <div className="planningTree">
+                            {loadingList ? (
+                                <p className="planningMuted">Loading…</p>
+                            ) : (
+                                <PlanningTree
+                                    nodes={nodes}
+                                    rootParentId={null}
+                                    selectedId={selectedId}
+                                    expanded={expanded}
+                                    onSelect={onSelect}
+                                    onToggleExpand={toggleExpand}
+                                    onMove={onMove}
+                                    showRootDropZone
+                                    emptyMessage="No documents yet."
+                                />
+                            )}
+                        </div>
+                    </aside>
+                ) : null}
                 <div className="planningMain">
                     <div className="planningMainHeader">{rightHeader()}</div>
                     <div

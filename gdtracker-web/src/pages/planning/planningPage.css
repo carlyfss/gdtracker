@@ -23,6 +23,10 @@
     align-items: stretch;
 }
 
+.planningSplit--treeHidden {
+    grid-template-columns: 1fr;
+}
+
 @media (max-width: 900px) {
     .planningSplit {
         grid-template-columns: 1fr;
@@ -42,8 +46,20 @@
 }
 
 .planningSidebarHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-weight: 600;
     font-size: 0.95rem;
+}
+
+.planningTreeToggle {
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 4px 10px;
+    white-space: nowrap;
 }
 
 .planningToolbar {
