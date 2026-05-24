@@ -125,9 +125,17 @@ EOF
 
 Do not run commit commands unless the user explicitly approves or mentions committing in chat.
 
-### Phase N — Release (when user asks)
+### Release audit
 
-**Only proceed when the user explicitly asks to cut a release.** CI-first (default). Manual steps are fallback only.
+Before merges to **`main`**, or when batching multiple product PRs:
+
+1. List commits since the latest `<app>/v*` tag per affected app (`git log <tag>..HEAD -- <app-path>`).
+2. If product code changed but trigger files did not, **block the release** and propose bump(s) with MAJOR / MINOR / PATCH rationale.
+3. Confirm trigger-file version matches the intended tag before merge.
+
+### Phase N — Release
+
+Proceed when the user asks to cut a release, when a **CTO plan includes the mandatory release TODO**, or when **batching product merges to `main`**. CI-first (default). Manual steps are fallback only.
 
 1. Confirm affected app(s) and bump type (major / minor / patch).
 2. Update **trigger file(s) only** for those apps (see table above).
@@ -242,4 +250,6 @@ Optional final phase when release is in scope:
 
 - **Owner**: release-manager
 - **Deliverable:** bump trigger file(s); user performs (or approves) commit and merge to `main`; CI creates tag + GitHub release
-- **Acceptance:** user explicitly requested release; user performed (or approved) commit/merge steps; Actions **Release tag** green; tag matches trigger file; release notes updated on GitHub if needed
+- **Acceptance:** user performed (or approved) commit/merge steps; Actions **Release tag** green; tag matches trigger file; release notes updated on GitHub if needed
+
+When CTO delegates a product plan, the release TODO is **mandatory**, not optional (see CTO skill).

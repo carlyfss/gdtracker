@@ -75,6 +75,7 @@ gdtracker-web/
 - After substantive work: list **files touched** (under **`gdtracker-web/`** and this skill if edited).
 - Confirm **`npm run build`** (and lint when relevant).
 - If visuals shifted, confirm **`docs/DESIGN.md`** was updated or created.
+- **Release handoff**: when product code changed (not docs-only), state **affected app** (`gdtracker-web`), **suggested SemVer bump** (MAJOR / MINOR / PATCH), and remind **release-manager** to bump `package.json` `"version"` before merge to `main`. Do **not** edit the trigger file yourself.
 
 ## Examples of requests you own
 - “Add a dashboard card with recharts.”

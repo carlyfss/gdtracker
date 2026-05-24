@@ -61,10 +61,10 @@ description: >-
   - **Acceptance criteria**
   - **Touched paths** (expected directories/files)
 - Only add detail when it changes decisions or prevents rework (no long explanations).
-- When the plan includes a **release cut**, add an optional final TODO:
+- When the plan delivers **shippable product changes** under `gdtracker-web/` or `gdtracker-go-api/` (features, fixes, refactors — not docs-only or workspace-only work), add a **mandatory final TODO** for release-manager (not optional):
   - **Owner**: release-manager
   - **Deliverable**: bump trigger file(s) for affected app(s); user performs (or approves) commit and merge to `main`; CI creates tag `<app>/vX.Y.Z` + GitHub release
-  - **Acceptance**: user explicitly requested release; user performed (or approved) commit/merge steps; Actions **Release tag** succeeded; tag matches trigger file; release notes list breaking changes and cross-app compatibility if any
+  - **Acceptance**: user performed (or approved) commit/merge steps; Actions **Release tag** succeeded; tag matches trigger file; release notes list breaking changes and cross-app compatibility if any
 
 #### Infra impact gate (mandatory every time)
 - While drafting TODOs, **classify infra impact**. Treat as **yes** if any touched path matches or implies: `Dockerfile*`, `docker-compose*.yml`, `docker-compose*.yaml`, `Jenkinsfile*`, `.jenkins/**`, or TODOs that mention container images, Compose services, volumes/networks, CI/CD, Jenkins jobs/pipelines, or deploy hooks. Also treat as **yes** when the plan obviously introduces a **new port, service, or env var** that Compose or deploy config would need even if no infra path is listed yet.
