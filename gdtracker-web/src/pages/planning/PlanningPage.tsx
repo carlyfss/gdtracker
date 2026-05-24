@@ -21,48 +21,15 @@ import saveDocumentIcon from '../../assets/icons/save_document.svg'
 import { TaskDescriptionMarkdown } from '../../components/TaskDescriptionMarkdown'
 import { serializePlanningExcalidrawSceneForCompare } from '../../util/planningExcalidrawScene'
 import { nextDefaultPlanningNodeName } from '../../util/planningDefaultNames'
+import { readPlanningTreeOpen, writePlanningTreeOpen } from '../../util/planningUiPreferences'
+import { applyMoveUpdates, getAncestors, type PlanningNodeMoveUpdate } from '../../util/planningTree'
+import { PlanningTree } from './PlanningTree'
 import './planningPage.css'
 
 const PlanningExcalidrawPanel = lazy(async () => {
     const m = await import('./PlanningExcalidrawPanel')
     return { default: m.PlanningExcalidrawPanel }
 })
-
-type TreeEntry = {
-    node: PlanningNodeMeta
-    children: TreeEntry[]
-}
-
-function buildTree(nodes: PlanningNodeMeta[]): TreeEntry[] {
-    const byParent = new Map<string | null, PlanningNodeMeta[]>()
-    for (const n of nodes) {
-        const p = n.parentId
-        if (!byParent.has(p)) {
-            byParent.set(p, [])
-        }
-        byParent.get(p)!.push(n)
-    }
-    const cmp = (a: PlanningNodeMeta, b: PlanningNodeMeta) => {
-        const folderRank = (k: PlanningNodeMeta['kind']) => (k === 'folder' ? 1 : 0)
-        const ra = folderRank(a.kind)
-        const rb = folderRank(b.kind)
-        if (ra !== rb) {
-            return ra - rb
-        }
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    }
-    for (const list of byParent.values()) {
-        list.sort(cmp)
-    }
-    const walk = (parentId: string | null): TreeEntry[] => {
-        const list = byParent.get(parentId) ?? []
-        return list.map((node) => ({
-            node,
-            children: walk(node.id),
-        }))
-    }
-    return walk(null)
-}
 
 function useDebouncedCallback<A extends unknown[]>(
     cb: (...args: A) => void | Promise<void>,
@@ -114,6 +81,7 @@ export function PlanningPage() {
     const [loadingList, setLoadingList] = useState(true)
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+    const [treeOpen, setTreeOpenState] = useState(() => readPlanningTreeOpen())
 
     const [excalidrawSeed, setExcalidrawSeed] = useState<{
         id: string
@@ -238,7 +206,45 @@ export function PlanningPage() {
         [setSearchParams]
     )
 
-    const tree = useMemo(() => buildTree(nodes), [nodes])
+    const folderAncestors = useMemo(() => {
+        if (!detail || detail.kind !== 'folder') {
+            return []
+        }
+        return getAncestors(nodes, detail.id)
+    }, [nodes, detail])
+
+    const onMove = useCallback(
+        async (updates: PlanningNodeMoveUpdate[]) => {
+            if (!gameId || updates.length === 0) {
+                return
+            }
+            const snapshot = nodes
+            setNodes(applyMoveUpdates(nodes, updates))
+            setBanner(null)
+            try {
+                await Promise.all(
+                    updates.map((u) =>
+                        updatePlanningNode(gameId, u.id, { parentId: u.parentId, sortOrder: u.sortOrder })
+                    )
+                )
+                await refreshList()
+                setExpanded((prev) => {
+                    const next = new Set(prev)
+                    for (const u of updates) {
+                        if (u.parentId) {
+                            next.add(u.parentId)
+                        }
+                    }
+                    return next
+                })
+            } catch (e) {
+                setNodes(snapshot)
+                setBanner(describeApiError(e, 'Failed to move item.'))
+                throw e
+            }
+        },
+        [gameId, nodes, refreshList]
+    )
 
     const toggleExpand = (id: string) => {
         setExpanded((prev) => {
@@ -251,6 +257,11 @@ export function PlanningPage() {
             return next
         })
     }
+
+    const setTreeOpen = useCallback((open: boolean) => {
+        setTreeOpenState(open)
+        writePlanningTreeOpen(open)
+    }, [])
 
     const defaultParentId = useMemo((): string | null => {
         if (!selectedId) {
@@ -438,66 +449,39 @@ export function PlanningPage() {
         }
     }
 
-    const renderTree = (entries: TreeEntry[], depth: number) => {
-        return entries.map(({ node, children }) => {
-            const isFolder = node.kind === 'folder'
-            const open = expanded.has(node.id)
-            const selected = node.id === selectedId
-            return (
-                <div key={node.id}>
-                    <div
-                        className={`planningTreeRow planningTreeRowDepth${Math.min(depth, 6)}${
-                            selected ? ' planningTreeRowSelected' : ''
-                        }`}
-                    >
-                        {isFolder ? (
-                            <button
-                                type="button"
-                                className="planningTreeChevron"
-                                aria-expanded={open}
-                                aria-label={open ? 'Collapse folder' : 'Expand folder'}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleExpand(node.id)
-                                }}
-                            >
-                                {open ? '▾' : '▸'}
-                            </button>
-                        ) : (
-                            <span className="planningTreeChevronSpacer" aria-hidden />
-                        )}
-                        <button
-                            type="button"
-                            className="planningTreeLabel"
-                            onClick={() => onSelect(node.id)}
-                            title={node.name}
-                        >
-                            <span className="planningTreeKind">
-                                {isFolder ? (
-                                    <img
-                                        src={folderIconBtn}
-                                        alt=""
-                                        className="planningTreeKindIcon"
-                                        width={18}
-                                        height={18}
-                                    />
-                                ) : node.kind === 'markdown' ? (
-                                    'md'
-                                ) : (
-                                    '✎'
-                                )}
-                            </span>
-                            <span className="planningTreeName">{node.name}</span>
-                        </button>
-                    </div>
-                    {isFolder && open ? renderTree(children, depth + 1) : null}
-                </div>
-            )
-        })
-    }
+    const showDocumentsButton = (
+        <button
+            type="button"
+            className="btn planningTreeToggle"
+            aria-expanded={false}
+            aria-controls="planning-documents-panel"
+            onClick={() => setTreeOpen(true)}
+        >
+            Show documents
+        </button>
+    )
+
+    const hideDocumentsButton = (
+        <button
+            type="button"
+            className="btn planningTreeToggle"
+            aria-expanded={true}
+            aria-controls="planning-documents-panel"
+            onClick={() => setTreeOpen(false)}
+        >
+            Hide documents
+        </button>
+    )
 
     const rightHeader = () => {
         if (!detail) {
+            if (!treeOpen) {
+                return (
+                    <div className="planningEditorHeader">
+                        <div className="planningEditorHeaderTop">{showDocumentsButton}</div>
+                    </div>
+                )
+            }
             return null
         }
         const deleteButton = (
@@ -514,6 +498,7 @@ export function PlanningPage() {
         return (
             <div className="planningEditorHeader">
                 <div className="planningEditorHeaderTop">
+                    {!treeOpen ? showDocumentsButton : null}
                     {titleEdit ? (
                         <input
                             className="textInput planningTitleInput"
@@ -607,7 +592,40 @@ export function PlanningPage() {
             return <p className="planningMuted">Select a document or create one.</p>
         }
         if (detail.kind === 'folder') {
-            return <p className="planningMuted">Folder — create documents inside from the toolbar.</p>
+            return (
+                <div className="planningFolderOverview">
+                    {folderAncestors.length > 0 ? (
+                        <nav className="planningBreadcrumb" aria-label="Folder path">
+                            {folderAncestors.map((a) => (
+                                <span key={a.id} className="planningBreadcrumbSegment">
+                                    <button
+                                        type="button"
+                                        className="planningBreadcrumbLink"
+                                        onClick={() => onSelect(a.id)}
+                                    >
+                                        {a.name}
+                                    </button>
+                                    <span className="planningBreadcrumbSep" aria-hidden>
+                                        /
+                                    </span>
+                                </span>
+                            ))}
+                            <span className="planningBreadcrumbCurrent">{detail.name}</span>
+                        </nav>
+                    ) : null}
+                    <PlanningTree
+                        nodes={nodes}
+                        rootParentId={detail.id}
+                        selectedId={selectedId}
+                        expanded={expanded}
+                        onSelect={onSelect}
+                        onToggleExpand={toggleExpand}
+                        onMove={onMove}
+                        fill
+                        emptyMessage="This folder is empty. Use the toolbar to create documents inside."
+                    />
+                </div>
+            )
         }
         if (detail.kind === 'markdown') {
             if (mdMode === 'preview') {
@@ -655,67 +673,88 @@ export function PlanningPage() {
                     {banner}
                 </div>
             ) : null}
-            <div className="planningSplit">
-                <aside className="planningSidebar">
-                    <div className="planningSidebarHeader">Documents</div>
-                    <div className="planningToolbar">
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('folder')}
-                            aria-label="New folder"
-                            title="New folder"
-                        >
-                            <img src={folderIconBtn} alt="" className="planningToolbarIcon" width={20} height={20} />
-                        </button>
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('markdown')}
-                            aria-label="New markdown"
-                            title="New markdown"
-                        >
-                            <img
-                                src={newDocumentIconBtn}
-                                alt=""
-                                className="planningToolbarIcon"
-                                width={20}
-                                height={20}
-                            />
-                        </button>
-                        <button
-                            type="button"
-                            className="btn planningIconBtn planningIconBtnOnly"
-                            onClick={() => void onCreate('excalidraw')}
-                            aria-label="New drawing"
-                            title="New drawing"
-                        >
-                            <img
-                                src={newDrawingIconBtn}
-                                alt=""
-                                className="planningToolbarIcon"
-                                width={20}
-                                height={20}
-                            />
-                        </button>
-                    </div>
-                    <div className="planningTree">
-                        {loadingList ? (
-                            <p className="planningMuted">Loading…</p>
-                        ) : tree.length === 0 ? (
-                            <p className="planningMuted">No documents yet.</p>
-                        ) : (
-                            renderTree(tree, 0)
-                        )}
-                    </div>
-                </aside>
+            <div className={`planningSplit ${treeOpen ? '' : 'planningSplit--treeHidden'}`.trim()}>
+                {treeOpen ? (
+                    <aside id="planning-documents-panel" className="planningSidebar">
+                        <div className="planningSidebarHeader">
+                            <span>Documents</span>
+                            {hideDocumentsButton}
+                        </div>
+                        <div className="planningToolbar">
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('folder')}
+                                aria-label="New folder"
+                                title="New folder"
+                            >
+                                <img
+                                    src={folderIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('markdown')}
+                                aria-label="New markdown"
+                                title="New markdown"
+                            >
+                                <img
+                                    src={newDocumentIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                            <button
+                                type="button"
+                                className="btn planningIconBtn planningIconBtnOnly"
+                                onClick={() => void onCreate('excalidraw')}
+                                aria-label="New drawing"
+                                title="New drawing"
+                            >
+                                <img
+                                    src={newDrawingIconBtn}
+                                    alt=""
+                                    className="planningToolbarIcon"
+                                    width={20}
+                                    height={20}
+                                />
+                            </button>
+                        </div>
+                        <div className="planningTree">
+                            {loadingList ? (
+                                <p className="planningMuted">Loading…</p>
+                            ) : (
+                                <PlanningTree
+                                    nodes={nodes}
+                                    rootParentId={null}
+                                    selectedId={selectedId}
+                                    expanded={expanded}
+                                    onSelect={onSelect}
+                                    onToggleExpand={toggleExpand}
+                                    onMove={onMove}
+                                    showRootDropZone
+                                    emptyMessage="No documents yet."
+                                />
+                            )}
+                        </div>
+                    </aside>
+                ) : null}
                 <div className="planningMain">
                     <div className="planningMainHeader">{rightHeader()}</div>
                     <div
                         className={
                             detail?.kind === 'excalidraw'
                                 ? 'planningMainBody planningMainBody--excal'
-                                : 'planningMainBody'
+                                : detail?.kind === 'folder'
+                                  ? 'planningMainBody planningMainBody--folder'
+                                  : 'planningMainBody'
                         }
                     >
                         {rightBody()}
