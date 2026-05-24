@@ -10,6 +10,7 @@ import { normalizeHex6 } from '../../../util/hexColor'
 import { isTaskDone, statusLabel } from '../../../util/taskStatus'
 import { directChildProgress, formatChildProgressLabel, type TaskListRow } from '../../../util/taskTree'
 import { IconChevronTaskTree, IconCheck } from './TaskIcons'
+import { TasksListCards } from './TasksListCards'
 import { categoryMeta, FALLBACK_FEATURE_COLOR, featureMeta, sortedTaskTags, type UiState } from '../tasksPageUtils'
 
 export type TasksListTableProps = {
@@ -56,7 +57,21 @@ export function TasksListTable({
     const archiveEmbedded = mode === 'archiveEmbedded'
     return (
         <div className="tableWrap tasksTableWrap">
-            <div className="tasksListToolbar">
+            <TasksListCards
+                listRows={listRows}
+                tasks={tasks}
+                features={features}
+                categories={categories}
+                advancingTaskId={advancingTaskId}
+                state={state}
+                openTaskView={openTaskView}
+                onAdvanceStatus={onAdvanceStatus}
+                onDelete={onDelete}
+                archiveEmbedded={archiveEmbedded}
+                listLoading={listLoading}
+                listEmpty={listEmpty}
+            />
+            <div className="tasksListToolbar tasksListToolbar--table">
                 <label htmlFor="tasks-subtasks-visibility" className="tasksListToolbarLabel">
                     Subtasks
                 </label>
@@ -73,7 +88,7 @@ export function TasksListTable({
                 />
                 {pagination}
             </div>
-            <div className="tasksTableScroll">
+            <div className="tasksTableScroll tasksTableScroll--desktop">
                 <table className="table tableCompact tableTasksList">
                     <thead>
                         <tr>

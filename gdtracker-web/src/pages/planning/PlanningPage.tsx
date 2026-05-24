@@ -21,48 +21,14 @@ import saveDocumentIcon from '../../assets/icons/save_document.svg'
 import { TaskDescriptionMarkdown } from '../../components/TaskDescriptionMarkdown'
 import { serializePlanningExcalidrawSceneForCompare } from '../../util/planningExcalidrawScene'
 import { nextDefaultPlanningNodeName } from '../../util/planningDefaultNames'
+import { applyMoveUpdates, getAncestors, type PlanningNodeMoveUpdate } from '../../util/planningTree'
+import { PlanningTree } from './PlanningTree'
 import './planningPage.css'
 
 const PlanningExcalidrawPanel = lazy(async () => {
     const m = await import('./PlanningExcalidrawPanel')
     return { default: m.PlanningExcalidrawPanel }
 })
-
-type TreeEntry = {
-    node: PlanningNodeMeta
-    children: TreeEntry[]
-}
-
-function buildTree(nodes: PlanningNodeMeta[]): TreeEntry[] {
-    const byParent = new Map<string | null, PlanningNodeMeta[]>()
-    for (const n of nodes) {
-        const p = n.parentId
-        if (!byParent.has(p)) {
-            byParent.set(p, [])
-        }
-        byParent.get(p)!.push(n)
-    }
-    const cmp = (a: PlanningNodeMeta, b: PlanningNodeMeta) => {
-        const folderRank = (k: PlanningNodeMeta['kind']) => (k === 'folder' ? 1 : 0)
-        const ra = folderRank(a.kind)
-        const rb = folderRank(b.kind)
-        if (ra !== rb) {
-            return ra - rb
-        }
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    }
-    for (const list of byParent.values()) {
-        list.sort(cmp)
-    }
-    const walk = (parentId: string | null): TreeEntry[] => {
-        const list = byParent.get(parentId) ?? []
-        return list.map((node) => ({
-            node,
-            children: walk(node.id),
-        }))
-    }
-    return walk(null)
-}
 
 function useDebouncedCallback<A extends unknown[]>(
     cb: (...args: A) => void | Promise<void>,
@@ -238,7 +204,45 @@ export function PlanningPage() {
         [setSearchParams]
     )
 
-    const tree = useMemo(() => buildTree(nodes), [nodes])
+    const folderAncestors = useMemo(() => {
+        if (!detail || detail.kind !== 'folder') {
+            return []
+        }
+        return getAncestors(nodes, detail.id)
+    }, [nodes, detail])
+
+    const onMove = useCallback(
+        async (updates: PlanningNodeMoveUpdate[]) => {
+            if (!gameId || updates.length === 0) {
+                return
+            }
+            const snapshot = nodes
+            setNodes(applyMoveUpdates(nodes, updates))
+            setBanner(null)
+            try {
+                await Promise.all(
+                    updates.map((u) =>
+                        updatePlanningNode(gameId, u.id, { parentId: u.parentId, sortOrder: u.sortOrder })
+                    )
+                )
+                await refreshList()
+                setExpanded((prev) => {
+                    const next = new Set(prev)
+                    for (const u of updates) {
+                        if (u.parentId) {
+                            next.add(u.parentId)
+                        }
+                    }
+                    return next
+                })
+            } catch (e) {
+                setNodes(snapshot)
+                setBanner(describeApiError(e, 'Failed to move item.'))
+                throw e
+            }
+        },
+        [gameId, nodes, refreshList]
+    )
 
     const toggleExpand = (id: string) => {
         setExpanded((prev) => {
@@ -438,64 +442,6 @@ export function PlanningPage() {
         }
     }
 
-    const renderTree = (entries: TreeEntry[], depth: number) => {
-        return entries.map(({ node, children }) => {
-            const isFolder = node.kind === 'folder'
-            const open = expanded.has(node.id)
-            const selected = node.id === selectedId
-            return (
-                <div key={node.id}>
-                    <div
-                        className={`planningTreeRow planningTreeRowDepth${Math.min(depth, 6)}${
-                            selected ? ' planningTreeRowSelected' : ''
-                        }`}
-                    >
-                        {isFolder ? (
-                            <button
-                                type="button"
-                                className="planningTreeChevron"
-                                aria-expanded={open}
-                                aria-label={open ? 'Collapse folder' : 'Expand folder'}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleExpand(node.id)
-                                }}
-                            >
-                                {open ? '▾' : '▸'}
-                            </button>
-                        ) : (
-                            <span className="planningTreeChevronSpacer" aria-hidden />
-                        )}
-                        <button
-                            type="button"
-                            className="planningTreeLabel"
-                            onClick={() => onSelect(node.id)}
-                            title={node.name}
-                        >
-                            <span className="planningTreeKind">
-                                {isFolder ? (
-                                    <img
-                                        src={folderIconBtn}
-                                        alt=""
-                                        className="planningTreeKindIcon"
-                                        width={18}
-                                        height={18}
-                                    />
-                                ) : node.kind === 'markdown' ? (
-                                    'md'
-                                ) : (
-                                    '✎'
-                                )}
-                            </span>
-                            <span className="planningTreeName">{node.name}</span>
-                        </button>
-                    </div>
-                    {isFolder && open ? renderTree(children, depth + 1) : null}
-                </div>
-            )
-        })
-    }
-
     const rightHeader = () => {
         if (!detail) {
             return null
@@ -607,7 +553,40 @@ export function PlanningPage() {
             return <p className="planningMuted">Select a document or create one.</p>
         }
         if (detail.kind === 'folder') {
-            return <p className="planningMuted">Folder — create documents inside from the toolbar.</p>
+            return (
+                <div className="planningFolderOverview">
+                    {folderAncestors.length > 0 ? (
+                        <nav className="planningBreadcrumb" aria-label="Folder path">
+                            {folderAncestors.map((a) => (
+                                <span key={a.id} className="planningBreadcrumbSegment">
+                                    <button
+                                        type="button"
+                                        className="planningBreadcrumbLink"
+                                        onClick={() => onSelect(a.id)}
+                                    >
+                                        {a.name}
+                                    </button>
+                                    <span className="planningBreadcrumbSep" aria-hidden>
+                                        /
+                                    </span>
+                                </span>
+                            ))}
+                            <span className="planningBreadcrumbCurrent">{detail.name}</span>
+                        </nav>
+                    ) : null}
+                    <PlanningTree
+                        nodes={nodes}
+                        rootParentId={detail.id}
+                        selectedId={selectedId}
+                        expanded={expanded}
+                        onSelect={onSelect}
+                        onToggleExpand={toggleExpand}
+                        onMove={onMove}
+                        fill
+                        emptyMessage="This folder is empty. Use the toolbar to create documents inside."
+                    />
+                </div>
+            )
         }
         if (detail.kind === 'markdown') {
             if (mdMode === 'preview') {
@@ -646,6 +625,10 @@ export function PlanningPage() {
 
     return (
         <section className="gamePageSection planningPage">
+            <p className="planningMobileNotice" role="note">
+                Planning works best on a desktop screen. On phones you can browse documents; editing may require
+                horizontal scrolling.
+            </p>
             {banner ? (
                 <div className="planningBanner" role="alert">
                     {banner}
@@ -698,10 +681,18 @@ export function PlanningPage() {
                     <div className="planningTree">
                         {loadingList ? (
                             <p className="planningMuted">Loading…</p>
-                        ) : tree.length === 0 ? (
-                            <p className="planningMuted">No documents yet.</p>
                         ) : (
-                            renderTree(tree, 0)
+                            <PlanningTree
+                                nodes={nodes}
+                                rootParentId={null}
+                                selectedId={selectedId}
+                                expanded={expanded}
+                                onSelect={onSelect}
+                                onToggleExpand={toggleExpand}
+                                onMove={onMove}
+                                showRootDropZone
+                                emptyMessage="No documents yet."
+                            />
                         )}
                     </div>
                 </aside>
@@ -711,7 +702,9 @@ export function PlanningPage() {
                         className={
                             detail?.kind === 'excalidraw'
                                 ? 'planningMainBody planningMainBody--excal'
-                                : 'planningMainBody'
+                                : detail?.kind === 'folder'
+                                  ? 'planningMainBody planningMainBody--folder'
+                                  : 'planningMainBody'
                         }
                     >
                         {rightBody()}
