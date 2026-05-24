@@ -10,6 +10,7 @@ import {
     type GameSummary,
 } from '../api/games'
 import { AppAuthenticatedShell } from '../components/AppAuthenticatedShell'
+import { setCachedGameName } from '../hooks/useGameDisplayName'
 import { PermanentDeleteGameModal } from '../components/PermanentDeleteGameModal'
 
 function deletedGameStats(g: DeletedGameSummary): string {
@@ -66,6 +67,7 @@ export function GamesHubPage() {
         setError(null)
         try {
             const g = await createGame(name)
+            setCachedGameName(g.id, g.name)
             setNewName('')
             navigate(`/g/${encodeURIComponent(g.id)}/dashboard`, { replace: false })
         } catch (err) {
@@ -96,7 +98,12 @@ export function GamesHubPage() {
     const showHubContent = !loading && (games.length > 0 || deletedGames.length > 0)
 
     return (
-        <AppAuthenticatedShell sidebarNav={null} sidebarNavLabel="Game hub" mainAriaLabel="Games list">
+        <AppAuthenticatedShell
+            sidebarNav={null}
+            sidebarNavLabel="Game hub"
+            mainAriaLabel="Games list"
+            breadcrumbs={[{ label: 'Games' }]}
+        >
             <div className="gamesHub">
                 <header className="gamesHubIntro">
                     <h1 className="gamesHubTitle">Your games</h1>
@@ -119,6 +126,7 @@ export function GamesHubPage() {
                                             key={g.id}
                                             className="gamesListItem"
                                             to={`/g/${encodeURIComponent(g.id)}/dashboard`}
+                                            onClick={() => setCachedGameName(g.id, g.name)}
                                         >
                                             <span style={{ fontWeight: 650 }}>{g.name}</span>
                                             <span style={{ fontSize: 12, opacity: 0.75 }}>Open</span>

@@ -924,7 +924,7 @@ export function HeatmapPage() {
                     <h2 className="cardTitle">Game events</h2>
                 </div>
                 <div className="cardBody">
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+                    <div className="heatmapFiltersRow">
                         <input
                             type="search"
                             className="textInput"
@@ -932,7 +932,6 @@ export function HeatmapPage() {
                             value={eventSearchInput}
                             onChange={(e) => setEventSearchInput(e.target.value)}
                             aria-label="Search game events"
-                            style={{ minWidth: 200, flex: '1 1 200px' }}
                         />
                         <input
                             type="search"
@@ -941,9 +940,8 @@ export function HeatmapPage() {
                             value={playerIdInput}
                             onChange={(e) => setPlayerIdInput(e.target.value)}
                             aria-label="Filter game events by player id"
-                            style={{ minWidth: 200, flex: '1 1 200px' }}
                         />
-                        <div style={{ flex: '1 1 220px', minWidth: 180, maxWidth: 420 }}>
+                        <div className="heatmapFilterPills">
                             <FilterPillAddGroup
                                 title="Event code"
                                 selected={gameEventsCodeSelected}

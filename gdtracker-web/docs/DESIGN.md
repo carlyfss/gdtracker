@@ -84,7 +84,14 @@ The same variable **names** are reassigned in `@media (prefers-color-scheme: lig
 
 ## Layout and shell
 
-Spacing, header inset (**16px**), sidebar (**67px** icon rail), and dashboard section patterns are described in **[`docs/README.md`](README.md)** (Stack and decisions → Layout) and implemented in **[`src/App.css`](../src/App.css)** (e.g. `.appShell`, `.appHeader`, `.gamePageSection`). Page background is flat **`var(--bg)`** — no radial gradient blobs on `.appShell` or auth fullscreen routes.
+Breakpoints: **`--breakpoint-sm`** (640px), **`--breakpoint-md`** (768px), **`--breakpoint-lg`** (1024px) in [`src/styles/breakpoints.css`](../src/styles/breakpoints.css).
+
+| Viewport      | Chrome                                                                                                                                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **≥768px**    | [`AppAuthenticatedShell`](../src/components/AppAuthenticatedShell.tsx): **67px icon sidebar** + main (`.appSidebar`, tooltips on hover).                                                                                                                                                                   |
+| **&lt;768px** | Same shell: **`.appMobileHeader`** (menu + breadcrumbs via [`AppMobileHeader`](../src/components/AppMobileHeader.tsx)) and **`.appNavDrawer`** overlay ([`AppNavDrawer`](../src/components/AppNavDrawer.tsx)). Game nav links share config in [`src/nav/gameNavConfig.tsx`](../src/nav/gameNavConfig.tsx). |
+
+Main content padding **16px** (12px on mobile). Page background is flat **`var(--bg)`** — no radial gradient blobs on `.appShell` or auth fullscreen routes. Game routes use `.gamePageSection` / `.gamePageStack`. More detail: **[`docs/README.md`](README.md)** (Layout). Implementation: **[`src/App.css`](../src/App.css)** (`.appShell`, `.appMobileHeader`, `.appNavDrawer*`, responsive tasks/dashboard rules).
 
 ---
 

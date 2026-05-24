@@ -456,6 +456,552 @@
     transform: translateY(-50%) translateX(0);
 }
 
+/* --- Mobile shell (header + drawer); desktop keeps icon sidebar --- */
+
+.appMobileHeader {
+    display: none;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    backdrop-filter: blur(10px);
+    padding-top: env(safe-area-inset-top, 0);
+}
+
+.appMobileHeaderInner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    min-height: 48px;
+}
+
+.appMobileMenuButton {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text-h);
+    cursor: pointer;
+}
+
+.appMobileMenuButton:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.appMobileMenuIcon {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+    box-shadow:
+        0 -6px 0 currentColor,
+        0 6px 0 currentColor;
+}
+
+.appBreadcrumbs {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.appBreadcrumbsList {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.appBreadcrumbsItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.appBreadcrumbsSep {
+    opacity: 0.55;
+    flex-shrink: 0;
+}
+
+.appBreadcrumbsLink {
+    color: var(--accent-2);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.appBreadcrumbsLink:hover {
+    text-decoration: underline;
+}
+
+.appBreadcrumbsCurrent {
+    color: var(--text-h);
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.appMobileHeaderActions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.appNavDrawerRoot {
+    display: none;
+}
+
+.appNavDrawerBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+.appNavDrawerPanel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1201;
+    width: min(320px, 88vw);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.appNavDrawerHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.appNavDrawerLogoLink {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 36px;
+    border-radius: 10px;
+    text-decoration: none;
+}
+
+.appNavDrawerLogo {
+    max-width: 32px;
+    max-height: 28px;
+    object-fit: contain;
+}
+
+.appNavDrawerTitle {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--text-h);
+}
+
+.appNavDrawerClose {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-h);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.appNavDrawerSection {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 12px;
+}
+
+.appNavDrawerList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.appNavDrawerLink {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text);
+    border: 1px solid transparent;
+    box-sizing: border-box;
+}
+
+.appNavDrawerLink:hover {
+    background: var(--accent-bg);
+    color: var(--text-h);
+}
+
+.appNavDrawerLink[data-active='true'] {
+    background: var(--accent-bg);
+    border-color: var(--accent-border);
+    color: var(--text-h);
+    font-weight: 650;
+}
+
+.appNavDrawerLinkIcon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+}
+
+.appNavDrawerLinkLabel {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.appNavDrawerFooter {
+    flex-shrink: 0;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.appNavDrawerLogout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--text-h);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.tasksFilterMobileToggle {
+    display: none;
+}
+
+.tasksFilterPanelWrap {
+    min-width: 0;
+}
+
+.tasksListCards {
+    display: none;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tasksListCard {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    overflow: hidden;
+}
+
+.tasksListCardMain {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tasksListCardTitle {
+    font-weight: 650;
+    color: var(--text-h);
+    word-break: break-word;
+}
+
+.tasksListCardMeta {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.tasksListCardActions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 8px 8px 0;
+}
+
+.tasksListCardActionBtn {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.planningMobileNotice {
+    display: none;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--accent-border);
+    background: var(--accent-bg);
+    font-size: 13px;
+    color: var(--text-h);
+}
+
+.heatmapFiltersRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.heatmapFiltersRow .textInput {
+    min-width: 0;
+    flex: 1 1 160px;
+    max-width: 100%;
+}
+
+.heatmapFiltersRow .heatmapFilterPills {
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+@media (max-width: 767px) {
+    .appMobileHeader {
+        display: block;
+    }
+
+    .appShell--authenticated .appSidebar {
+        display: none;
+    }
+
+    .appNavDrawerRoot {
+        display: block;
+    }
+
+    .appShell--authenticated .appMain {
+        padding: 12px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
+    }
+
+    .appSidebarTooltip {
+        display: none;
+    }
+
+    .tasksLayout,
+    .tasksLayout.tasksLayoutPaged {
+        grid-template-columns: 1fr;
+    }
+
+    .tasksPageSection.gamePageSection {
+        overflow-x: visible;
+    }
+
+    .tasksFilterMobileToggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        align-self: flex-start;
+        width: auto;
+        min-width: min(100%, 12rem);
+        max-width: 100%;
+        min-height: 44px;
+        margin: 0 0 8px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text-h);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .tasksFilterMobileToggleHint {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text);
+        opacity: 0.85;
+    }
+
+    .tasksFilterPanelWrap {
+        display: none;
+        width: 100%;
+        min-width: 0;
+        margin-bottom: 10px;
+    }
+
+    .tasksFilterPanelWrap.is-open {
+        display: block;
+    }
+
+    .tasksFilterPanelWrap .tasksFilterPanel {
+        width: 100%;
+        min-width: 0;
+        align-self: stretch;
+    }
+
+    .tasksLayout.tasksLayoutPaged .tasksFilterPanel {
+        flex: 0 0 auto;
+        align-self: stretch;
+        overflow: visible;
+        max-height: none;
+    }
+
+    .tasksFilterPanelFooter {
+        margin-top: 0;
+    }
+
+    .tasksFilterMatchRow {
+        margin-bottom: 10px;
+    }
+
+    .filterPillAddGroupBody {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .filterPillAddGroupBody .filterPillAddSelect {
+        order: 1;
+    }
+
+    .filterPillAddGroupBody .filterPillList {
+        order: 2;
+    }
+
+    .tasksListCards {
+        display: flex;
+    }
+
+    .tasksListToolbar--table,
+    .tasksTableScroll--desktop {
+        display: none;
+    }
+
+    .dashboardSplit {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboardExceptionSearchSection {
+        grid-template-columns: 1fr;
+    }
+
+    .chartWrap {
+        height: min(60vh, 380px);
+    }
+
+    .formGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .gamesList {
+        grid-template-columns: 1fr;
+    }
+
+    .planningMobileNotice {
+        display: block;
+    }
+
+    .modalBackdrop {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .modalCard.modalCardTask {
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+    }
+
+    .modalTaskColumns {
+        flex-direction: column;
+    }
+
+    .modalTaskSubtasksPane {
+        width: 100%;
+        flex: 0 0 auto;
+        max-height: 40vh;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding-left: 0;
+        padding-top: 12px;
+    }
+}
+
+@media (min-width: 768px) {
+    .appMobileHeader {
+        display: none !important;
+    }
+
+    .appNavDrawerRoot {
+        display: none !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .textInput,
+    .exceptionSearchInput,
+    .authInput {
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+
 .configSubheading {
     font-size: 15px;
     font-weight: 650;
@@ -1056,6 +1602,22 @@
     flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
+}
+
+/* After .tasksLayout.tasksLayoutPaged desktop columns — wins cascade at ≤767px */
+@media (max-width: 767px) {
+    .tasksLayout,
+    .tasksLayout.tasksLayoutPaged {
+        grid-template-columns: 1fr;
+    }
+
+    .tasksFilterMobileToggle,
+    .tasksFilterPanelWrap,
+    .tasksContent {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+    }
 }
 
 .tasksLayoutEmbedded .tasksContent {
@@ -3144,9 +3706,19 @@
     .chartWrap {
         height: 320px;
     }
-    .tasksLayout {
+    .tasksLayout,
+    .tasksLayout.tasksLayoutPaged {
         grid-template-columns: 1fr;
     }
+
+    .tasksFilterMobileToggle,
+    .tasksFilterPanelWrap,
+    .tasksContent {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+    }
+
     .formGrid {
         grid-template-columns: 1fr;
     }
