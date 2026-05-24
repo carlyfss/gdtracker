@@ -16,28 +16,41 @@ Reference for **colors, typography, and where layout is documented**. Implementa
 
 ## Colors (CSS variables)
 
-Semantic tokens are set on `:root` in [`src/index.css`](../src/index.css). **`--accent`** and derived **`--accent-*`** respond to the accent hue; other tokens are neutrals and surfaces.
+Semantic tokens are set on `:root` in [`src/index.css`](../src/index.css). **`--accent`** and derived **`--accent-*`** respond to the accent hue; surfaces use **neutral grayscale** (no blue-tinted panels).
+
+### Flat color principle
+
+Interactive surfaces (buttons, pills, list items, row highlights, banners) use **solid fills** where **border color equals background color**. Hover states step to **`--accent-hover`**, **`--surface-hover`**, or semantic `*-hover` tokens — not legacy purple/blue overlays or “lighter interior + darker border” pairs. **`--accent-bg`** is reserved for **focus rings** on form controls.
 
 ### Default dark (`color-scheme: dark`)
 
-| Variable          | Role                     | Default (dark)   |
-| ----------------- | ------------------------ | ---------------- |
-| `--text`          | Body text                | `#a1a1aa`        |
-| `--text-h`        | Headings / emphasis text | `#fafafa`        |
-| `--bg`            | Page background          | `#0b0b0f`        |
-| `--panel`         | Panel surface            | `#111118`        |
-| `--panel-2`       | Secondary panel          | `#151522`        |
-| `--border`        | Borders                  | `#27272a`        |
-| `--code-bg`       | Inline `code` background | `#14141d`        |
-| `--accent`        | Primary / brand accent   | `#478cbf`        |
-| `--accent-2`      | Lighter accent (mix)     | `color-mix(...)` |
-| `--accent-bg`     | Subtle accent fill       | `color-mix(...)` |
-| `--accent-border` | Accent-tinted borders    | `color-mix(...)` |
-| `--shadow`        | Elevation shadow         | (see CSS)        |
+| Variable                               | Role                         | Default (dark)           |
+| -------------------------------------- | ---------------------------- | ------------------------ |
+| `--text`                               | Body text                    | `#a1a1aa`                |
+| `--text-h`                             | Headings / emphasis text     | `#fafafa`                |
+| `--text-muted`                         | Secondary / hint text        | `rgba(255,255,255,0.55)` |
+| `--bg`                                 | Page background (flat)       | `#0b0b0f`                |
+| `--panel`                              | Panel surface                | `#121212`                |
+| `--panel-2`                            | Secondary panel              | `#1a1a1a`                |
+| `--panel-elevated`                     | Raised inset panels          | `#161616`                |
+| `--chrome-bg`                          | Header / sidebar             | `#121212`                |
+| `--border`                             | Borders                      | `#2a2a2a`                |
+| `--border-subtle`                      | Subtle dividers              | `#242424`                |
+| `--code-bg`                            | Inline `code` background     | `#161616`                |
+| `--surface-hover`                      | Neutral list/button hover    | `#1e1e1e`                |
+| `--surface-active`                     | Neutral pressed/active       | `#252525`                |
+| `--accent`                             | Primary / brand accent       | `#478cbf`                |
+| `--accent-hover`                       | Accent hover (flat buttons)  | `color-mix(...)`         |
+| `--accent-2`                           | Lighter accent (mix)         | `color-mix(...)`         |
+| `--accent-bg`                          | Focus ring fill only         | `color-mix(...)`         |
+| `--accent-border`                      | Accent border (= `--accent`) | `var(--accent)`          |
+| `--success` / `--danger` / `--warning` | Semantic actions             | (see CSS)                |
+| `--status-*`                           | Task status pill / done row  | (see CSS)                |
+| `--shadow`                             | Elevation shadow             | (see CSS)                |
 
 ### Light mode (`prefers-color-scheme: light`)
 
-The same variable **names** are reassigned in `@media (prefers-color-scheme: light)` in [`src/index.css`](../src/index.css) (e.g. `--text` `#4b5563`, `--bg` `#ffffff`, `--accent` `#366994`). **`--accent-2`**, **`--accent-bg`**, and **`--accent-border`** are still derived from `--accent` via `color-mix`.
+The same variable **names** are reassigned in `@media (prefers-color-scheme: light)` in [`src/index.css`](../src/index.css) (e.g. `--text` `#4b5563`, `--bg` `#ffffff`, `--panel` `#f5f5f5`, `--accent` `#366994`). Hover mixes use white instead of black.
 
 ### Per-game accent
 
@@ -71,7 +84,7 @@ The same variable **names** are reassigned in `@media (prefers-color-scheme: lig
 
 ## Layout and shell
 
-Spacing, header inset (**16px**), sidebar, and dashboard section patterns are described in **[`docs/README.md`](README.md)** (Stack and decisions → Layout) and implemented in **[`src/App.css`](../src/App.css)** (e.g. `.appShell`, `.appHeader`, `.gamePageSection`). Prefer linking here rather than duplicating long layout prose.
+Spacing, header inset (**16px**), sidebar (**67px** icon rail), and dashboard section patterns are described in **[`docs/README.md`](README.md)** (Stack and decisions → Layout) and implemented in **[`src/App.css`](../src/App.css)** (e.g. `.appShell`, `.appHeader`, `.gamePageSection`). Page background is flat **`var(--bg)`** — no radial gradient blobs on `.appShell` or auth fullscreen routes.
 
 ---
 
@@ -81,6 +94,6 @@ Charts (e.g. Recharts) often use **`var(--accent-2)`** or event-specific colors;
 
 **Task tags:** filled pill styling lives under **`.tagChip`** / **`.tagChipInteractive`** / **`.tasksTagCell`** in [`src/App.css`](../src/App.css); foreground vs fill uses [`chipTextColor`](../src/util/chipTextColor.ts).
 
-**Integration page:** instructional panels use **`.integrationSection*`**; the live validation block uses **`.integrationValidationPanel`** with **`data-state="idle"`** (neutral border, **`.integrationValidationIdleDot`**), **`data-state="waiting"`** (amber tint, **`.integrationThrobber`**), and **`data-state="ok"`** (green tint, check). Warnings use **`.integrationWarn`**. Implemented in [`src/App.css`](../src/App.css); page: [`IntegrationPage.tsx`](../src/pages/IntegrationPage.tsx). Sidebar raster icons (Archive, Feedback, Integration, Configuration): **`.appSidebarRasterIcon`** in [`GameDashboardLayout.tsx`](../src/components/GameDashboardLayout.tsx); primary nav still uses vector **`.appSidebarIcon svg`** icons.
+**Integration page:** instructional panels use **`.integrationSection*`**; the live validation block uses **`.integrationValidationPanel`** with flat **`data-state="idle"`** (neutral), **`data-state="waiting"`** (warning fill), and **`data-state="ok"`** (success fill). Warnings use **`.integrationWarn`**. Implemented in [`src/App.css`](../src/App.css); page: [`IntegrationPage.tsx`](../src/pages/IntegrationPage.tsx). Sidebar raster icons (Archive, Feedback, Integration, Configuration): **`.appSidebarRasterIcon`** in [`GameDashboardLayout.tsx`](../src/components/GameDashboardLayout.tsx); primary nav still uses vector **`.appSidebarIcon svg`** icons.
 
 **Feedback page:** page **`.gamePageStack`** with **`.feedbackPageSplit`** (50/50 grid, single column under **960px**); template table and inbox list share **`.gamePageSection`** / **`.cardHeader`** / **`.cardBody`**. Detail view uses the shared **`.modalBackdrop`** / **`.modalCard`** pattern. Page: [`FeedbackPage.tsx`](../src/pages/FeedbackPage.tsx).
