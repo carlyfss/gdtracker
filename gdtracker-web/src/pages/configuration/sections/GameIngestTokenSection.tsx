@@ -1,15 +1,44 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getIngestTokenStatus, regenerateIngestToken } from '../../../api/gameEvents'
 
 const INGEST_TOKEN_SECTION_SUBTITLE =
     'Authenticates your game client for posting events without a browser session or CSRF token.'
+
+const COPY_FLASH_MS = 1600
 
 export function GameIngestTokenSection({ gameId }: { gameId: string }) {
     const [ingestConfigured, setIngestConfigured] = useState(false)
     const [ingestCreatedAt, setIngestCreatedAt] = useState<string | null>(null)
     const [lastRevealedIngestToken, setLastRevealedIngestToken] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
+    const [copyCopied, setCopyCopied] = useState(false)
     const [banner, setBanner] = useState<{ kind: 'error' | 'success'; message: string } | null>(null)
+    const copyFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearCopyFlash = useCallback(() => {
+        if (copyFlashTimerRef.current) {
+            window.clearTimeout(copyFlashTimerRef.current)
+            copyFlashTimerRef.current = null
+        }
+        setCopyCopied(false)
+    }, [])
+
+    const flashCopySuccess = useCallback(() => {
+        clearCopyFlash()
+        setCopyCopied(true)
+        copyFlashTimerRef.current = window.setTimeout(() => {
+            copyFlashTimerRef.current = null
+            setCopyCopied(false)
+        }, COPY_FLASH_MS)
+    }, [clearCopyFlash])
+
+    useEffect(() => {
+        return () => {
+            if (copyFlashTimerRef.current) {
+                window.clearTimeout(copyFlashTimerRef.current)
+            }
+        }
+    }, [])
 
     const load = useCallback(async () => {
         setBanner(null)
@@ -34,6 +63,7 @@ export function GameIngestTokenSection({ gameId }: { gameId: string }) {
         if (!ok) return
         setBusy(true)
         setBanner(null)
+        clearCopyFlash()
         try {
             const res = await regenerateIngestToken(gameId)
             setIngestConfigured(true)
@@ -52,8 +82,9 @@ export function GameIngestTokenSection({ gameId }: { gameId: string }) {
         if (!lastRevealedIngestToken) return
         try {
             await navigator.clipboard.writeText(lastRevealedIngestToken)
+            flashCopySuccess()
         } catch {
-            /* ignore */
+            setBanner({ kind: 'error', message: 'Could not copy to clipboard. Select the token and copy manually.' })
         }
     }
 
@@ -99,8 +130,22 @@ export function GameIngestTokenSection({ gameId }: { gameId: string }) {
                     </span>
                     <code className="ingestTokenRevealValue">{lastRevealedIngestToken}</code>
                     <div className="ingestTokenRevealActions">
-                        <button type="button" className="btn" onClick={() => void onCopyRevealedToken()}>
-                            Copy token
+                        <button
+                            type="button"
+                            className={`btn ingestTokenCopyBtn${copyCopied ? ' ingestTokenCopyBtnCopied' : ''}`}
+                            onClick={() => void onCopyRevealedToken()}
+                            aria-live="polite"
+                        >
+                            {copyCopied ? (
+                                <>
+                                    <span className="ingestTokenCopyCheck" aria-hidden>
+                                        ✓
+                                    </span>{' '}
+                                    Copied
+                                </>
+                            ) : (
+                                'Copy token'
+                            )}
                         </button>
                     </div>
                 </div>
