@@ -1,7 +1,7 @@
 ---
 name: cloudflare-r2-rclone
 description: >-
-  Configure and troubleshoot Cloudflare R2 with rclone on devserver.local (Raspberry Pi).
+  Configure and troubleshoot Cloudflare R2 with rclone on the deploy host (Raspberry Pi).
   Use when setting up R2 backups, fixing rclone remote/config errors, verifying bucket access,
   or wiring scripts/backup-to-r2.sh to an rclone remote. Not AWS — R2 only.
 ---
@@ -10,7 +10,7 @@ description: >-
 
 ## Context
 
-- **Host:** Raspberry Pi `devserver.local` — see [deployment-devserver rule](../../rules/deployment-devserver.mdc)
+- **Host:** Raspberry Pi deploy host (`DEPLOY_HOST` in `.env.deploy`) — see [deployment-host rule](../../rules/deployment-host.mdc)
 - **Backup script:** [`scripts/backup-to-r2.sh`](../../scripts/backup-to-r2.sh)
 - **Connectivity test:** [`scripts/test-r2-rclone.sh`](../../scripts/test-r2-rclone.sh)
 - **Shared rclone env:** [`scripts/lib/rclone-r2-env.sh`](../../scripts/lib/rclone-r2-env.sh)

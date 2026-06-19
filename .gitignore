@@ -7,6 +7,7 @@ annotations.md
 .env.*
 !.env.example
 !.env.backup.example
+!.env.deploy.example
 
 # --- Node / Vite ---
 node_modules/

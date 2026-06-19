@@ -1,12 +1,14 @@
 # GDTracker backups (PostgreSQL → Cloudflare R2)
 
-Weekly backups on **devserver.local** dump the PostgreSQL database from Docker and upload compressed dumps to **Cloudflare R2** for off-site storage.
+Weekly backups on the **deploy host** dump the PostgreSQL database from Docker and upload compressed dumps to **Cloudflare R2** for off-site storage.
+
+Use real host from `.env.deploy`; docs use `deploy-host.local` as placeholder.
 
 ## Where things run
 
 | Component | Location |
 |---|---|
-| **PostgreSQL (source)** | Raspberry Pi **`devserver.local`** — container `gdtracker-postgres`, volume `gdtracker-pgdata` ([`docker-compose.yml`](../docker-compose.yml)) |
+| **PostgreSQL (source)** | Raspberry Pi **deploy host** (`DEPLOY_HOST` in `.env.deploy`) — container `gdtracker-postgres`, volume `gdtracker-pgdata` ([`docker-compose.yml`](../docker-compose.yml)) |
 | **Backup upload target** | **Cloudflare R2** (object storage) |
 | Backup script | [`scripts/backup-to-r2.sh`](../scripts/backup-to-r2.sh) |
 | R2 connectivity test | [`scripts/test-r2-rclone.sh`](../scripts/test-r2-rclone.sh) |
@@ -20,12 +22,12 @@ The database stays on the Pi. R2 is only the remote copy.
 - **All application data** in the `gdtracker` database: users, games, tasks, planning markdown, Excalidraw scenes, etc.
 - **Not backed up separately:** Excalidraw scenes are JSONB rows in Postgres, included in every dump.
 
-## Prerequisites (devserver.local)
+## Prerequisites (deploy host)
 
 Install on the Pi (once):
 
 ```bash
-ssh admin@devserver.local
+ssh admin@deploy-host.local
 
 # rclone — upload/list/delete to R2
 sudo apt update && sudo apt install -y rclone
@@ -34,7 +36,7 @@ sudo apt update && sudo apt install -y rclone
 docker ps --filter name=gdtracker-postgres
 ```
 
-The backup job must run **on the Pi** (Jenkins agent on devserver.local, manual SSH session, or cron).
+The backup job must run **on the Pi** (Jenkins agent on the deploy host, manual SSH session, or cron).
 
 ---
 
@@ -50,7 +52,7 @@ The backup scripts set rclone `no_check_bucket=true` automatically (required for
 Verify from the Pi (run as the same OS user as Jenkins — usually `jenkins`):
 
 ```bash
-ssh admin@devserver.local
+ssh admin@deploy-host.local
 
 export R2_ENDPOINT="https://<account_id>.r2.cloudflarestorage.com"
 export R2_BUCKET="gdtracker-backup"
@@ -69,10 +71,10 @@ For rclone setup pitfalls (endpoint URL, remote naming, common errors), see [`.c
 
 ---
 
-## 2. Manual backup (devserver.local)
+## 2. Manual backup (deploy host)
 
 ```bash
-ssh admin@devserver.local
+ssh admin@deploy-host.local
 cd /path/to/gdtracker   # repo checkout on the Pi
 
 export R2_ENDPOINT="https://<account_id>.r2.cloudflarestorage.com"
@@ -90,7 +92,7 @@ Success: console shows `[backup-to-r2] upload complete` and the R2 bucket has a 
 
 ## 3. Jenkins job: `GDTracker - Backup`
 
-Create a job on the **devserver.local** Jenkins agent. Jenkins runs as user **`jenkins`** — R2 credentials must be in the job env (not only in admin’s `~/.config/rclone/rclone.conf`).
+Create a job on the **deploy host** Jenkins agent. Jenkins runs as user **`jenkins`** — R2 credentials must be in the job env (not only in admin’s `~/.config/rclone/rclone.conf`).
 
 ### Two workspaces
 
@@ -167,7 +169,7 @@ The script keeps the newest **`BACKUP_RETENTION_COUNT`** dumps (default **8**) a
 
 ---
 
-## 5. Restore procedure (devserver.local)
+## 5. Restore procedure (deploy host)
 
 **Warning:** restore overwrites data. Test on a clone first.
 
@@ -176,7 +178,7 @@ The script keeps the newest **`BACKUP_RETENTION_COUNT`** dumps (default **8**) a
 On the Pi:
 
 ```bash
-ssh admin@devserver.local
+ssh admin@deploy-host.local
 
 export R2_ENDPOINT="https://<account_id>.r2.cloudflarestorage.com"
 export R2_BUCKET="gdtracker-backups"
@@ -226,7 +228,7 @@ Excalidraw scenes restore with the database — no separate file step.
 
 | Symptom | Likely cause |
 |---|---|
-| `postgres container not running` | Compose stack down on devserver.local |
+| `postgres container not running` | Compose stack down on the deploy host |
 | `pg_dump produced an empty file` | Wrong `POSTGRES_USER` / `POSTGRES_DB` |
 | rclone 403 on upload with Object token | Missing `no_check_bucket` — use current scripts (set automatically) or Admin token |
 | `service "postgres" is not running` | Wrong `COMPOSE_DIR` — use deploy workspace `GDTracker`, not backup workspace |
@@ -240,6 +242,6 @@ Excalidraw scenes restore with the database — no separate file step.
 ## Related docs
 
 - R2 + rclone setup: [`.cursor/skills/cloudflare-r2-rclone/SKILL.md`](../.cursor/skills/cloudflare-r2-rclone/SKILL.md)
-- Deploy host rule: [`.cursor/rules/deployment-devserver.mdc`](../.cursor/rules/deployment-devserver.mdc)
+- Deploy host rule: [`.cursor/rules/deployment-host.mdc`](../.cursor/rules/deployment-host.mdc)
 - Deploy stack: [`DEPLOY_AUTH0.md`](DEPLOY_AUTH0.md)
 - Postgres volume: [`README.md`](../README.md)
