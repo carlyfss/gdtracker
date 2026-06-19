@@ -6,6 +6,7 @@ annotations.md
 .env
 .env.*
 !.env.example
+!.env.backup.example
 
 # --- Node / Vite ---
 node_modules/
