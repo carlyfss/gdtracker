@@ -9,6 +9,7 @@ Weekly backups on **devserver.local** dump the PostgreSQL database from Docker a
 | **PostgreSQL (source)** | Raspberry Pi **`devserver.local`** — container `gdtracker-postgres`, volume `gdtracker-pgdata` ([`docker-compose.yml`](../docker-compose.yml)) |
 | **Backup upload target** | **Cloudflare R2** (object storage) |
 | Backup script | [`scripts/backup-to-r2.sh`](../scripts/backup-to-r2.sh) |
+| R2 connectivity test | [`scripts/test-r2-rclone.sh`](../scripts/test-r2-rclone.sh) |
 | Upload client | **[rclone](https://rclone.org/)** (Cloudflare R2 provider — no AWS tools) |
 | Env variable names | [`.env.backup.example`](../.env.backup.example) |
 
@@ -39,33 +40,32 @@ The backup job must run **on the Pi** (Jenkins agent on devserver.local, manual 
 
 ## 1. Cloudflare R2 setup (one-time)
 
-1. Cloudflare dashboard → **R2 → Create bucket** (e.g. `gdtracker-backups`).
+1. Cloudflare dashboard → **R2 → Create bucket** (e.g. `gdtracker-backup`).
 2. **Manage R2 API tokens → Create API token** scoped to that bucket:
-   - Object Read & Write
-   - Object Delete (retention prune)
-3. Note **endpoint URL**, **Access Key ID**, and **Secret Access Key**.
+   - **Object Read & Write** (read, write, list, and delete objects in the bucket — sufficient for backups; Admin not required)
+3. Note **endpoint URL** (account URL only — no bucket suffix), **Access Key ID**, and **Secret Access Key**.
 
-Verify from the Pi:
+The backup scripts set rclone `no_check_bucket=true` automatically (required for Object-scoped tokens).
+
+Verify from the Pi (run as the same OS user as Jenkins — usually `jenkins`):
 
 ```bash
 ssh admin@devserver.local
 
 export R2_ENDPOINT="https://<account_id>.r2.cloudflarestorage.com"
-export R2_BUCKET="gdtracker-backups"
+export R2_BUCKET="gdtracker-backup"
 export R2_ACCESS_KEY_ID="<access_key_id>"
 export R2_SECRET_ACCESS_KEY="<secret_access_key>"
 
-export RCLONE_CONFIG_r2_TYPE=s3
-export RCLONE_CONFIG_r2_PROVIDER=Cloudflare
-export RCLONE_CONFIG_r2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-export RCLONE_CONFIG_r2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-export RCLONE_CONFIG_r2_ENDPOINT="$R2_ENDPOINT"
-export RCLONE_CONFIG_r2_ACL=private
-
-rclone lsd "r2:${R2_BUCKET}"
+cd /path/to/gdtracker
+./scripts/test-r2-rclone.sh
 ```
 
+Success: `[test-r2-rclone] OK — Object Read & Write token can upload, list, and delete`.
+
 Store credentials in **Jenkins** (or a root-only env file on the Pi), not in git.
+
+For rclone setup pitfalls (endpoint URL, remote naming, common errors), see [`.cursor/skills/cloudflare-r2-rclone/SKILL.md`](../.cursor/skills/cloudflare-r2-rclone/SKILL.md).
 
 ---
 
@@ -88,9 +88,28 @@ Success: console shows `[backup-to-r2] upload complete` and the R2 bucket has a 
 
 ---
 
-## 3. Jenkins job: `gdtracker-backup-weekly`
+## 3. Jenkins job: `GDTracker - Backup`
 
-Create a job on the **devserver.local** Jenkins agent.
+Create a job on the **devserver.local** Jenkins agent. Jenkins runs as user **`jenkins`** — R2 credentials must be in the job env (not only in admin’s `~/.config/rclone/rclone.conf`).
+
+### Two workspaces
+
+| Job | Workspace | Purpose |
+|---|---|---|
+| **GDTracker** (deploy) | `/var/lib/jenkins/workspace/GDTracker` | Where `docker compose up` runs; Postgres project lives here |
+| **GDTracker - Backup** | `/var/lib/jenkins/workspace/GDTracker - Backup` | Checkout for backup script only |
+
+Set **`COMPOSE_DIR`** to the **deploy** workspace, not the backup workspace:
+
+```bash
+export COMPOSE_DIR="/var/lib/jenkins/workspace/GDTracker"
+```
+
+Confirm with:
+
+```bash
+docker inspect gdtracker-postgres --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'
+```
 
 ### Build triggers
 
@@ -114,22 +133,23 @@ Optional:
 | `POSTGRES_DB` | `gdtracker` |
 | `POSTGRES_CONTAINER` | `gdtracker-postgres` |
 | `BACKUP_RETENTION_COUNT` | `8` |
-| `COMPOSE_DIR` | Repo path on devserver.local |
+| `COMPOSE_DIR` | `/var/lib/jenkins/workspace/GDTracker` (deploy workspace) |
 
 ### Execute shell
 
 ```bash
 set -euo pipefail
 
-GDTRACKER_ROOT="${GDTRACKER_ROOT:-$(pwd)}"
-export COMPOSE_DIR="${COMPOSE_DIR:-$GDTRACKER_ROOT}"
+GDTRACKER_ROOT="${WORKSPACE}"
+export COMPOSE_DIR="/var/lib/jenkins/workspace/GDTracker"
 
-# If production uses the prod overlay:
-# export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+# R2_* must be bound from Jenkins credentials (jenkins user has no admin rclone.conf)
 
 test -x "${GDTRACKER_ROOT}/scripts/backup-to-r2.sh"
 "${GDTRACKER_ROOT}/scripts/backup-to-r2.sh"
 ```
+
+Optional: run [`scripts/test-r2-rclone.sh`](../scripts/test-r2-rclone.sh) in a separate test job before enabling the weekly schedule.
 
 ---
 
@@ -208,14 +228,18 @@ Excalidraw scenes restore with the database — no separate file step.
 |---|---|
 | `postgres container not running` | Compose stack down on devserver.local |
 | `pg_dump produced an empty file` | Wrong `POSTGRES_USER` / `POSTGRES_DB` |
-| rclone access denied | R2 token permissions or wrong bucket/endpoint |
+| rclone 403 on upload with Object token | Missing `no_check_bucket` — use current scripts (set automatically) or Admin token |
+| `service "postgres" is not running` | Wrong `COMPOSE_DIR` — use deploy workspace `GDTracker`, not backup workspace |
 | Retention prune skipped | Token missing list/delete permission |
 | `required command not found: rclone` | Run `sudo apt install -y rclone` on the Pi |
+| rclone `didn't find section in config file` | Wrong remote syntax — use `RemoteName:bucket`, not `r2:RemoteName`; see [cloudflare-r2-rclone skill](../.cursor/skills/cloudflare-r2-rclone/SKILL.md) |
+| rclone `directory not found` | Bucket name in endpoint URL — endpoint must be account URL only |
 
 ---
 
 ## Related docs
 
+- R2 + rclone setup: [`.cursor/skills/cloudflare-r2-rclone/SKILL.md`](../.cursor/skills/cloudflare-r2-rclone/SKILL.md)
 - Deploy host rule: [`.cursor/rules/deployment-devserver.mdc`](../.cursor/rules/deployment-devserver.mdc)
 - Deploy stack: [`DEPLOY_AUTH0.md`](DEPLOY_AUTH0.md)
 - Postgres volume: [`README.md`](../README.md)

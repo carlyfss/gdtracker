@@ -3,6 +3,10 @@
 # Uses rclone (not AWS CLI). See docs/BACKUPS.md.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/rclone-r2-env.sh
+source "${SCRIPT_DIR}/lib/rclone-r2-env.sh"
+
 log() {
     printf '[backup-to-r2] %s\n' "$*" >&2
 }
@@ -42,18 +46,7 @@ require_env R2_SECRET_ACCESS_KEY
 require_cmd docker
 require_cmd rclone
 
-# Ephemeral rclone remote — no config file on disk; credentials from env only.
-export RCLONE_CONFIG="${RCLONE_CONFIG:-}"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_TYPE=s3"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_PROVIDER=Cloudflare"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_ENDPOINT=${R2_ENDPOINT}"
-export "RCLONE_CONFIG_${RCLONE_REMOTE}_ACL=private"
-
-rclone_remote_path() {
-    printf '%s:%s/%s' "$RCLONE_REMOTE" "$R2_BUCKET" "$1"
-}
+configure_rclone_r2_env
 
 if [[ -n "$COMPOSE_DIR" ]]; then
     [[ -d "$COMPOSE_DIR" ]] || die "COMPOSE_DIR is not a directory: $COMPOSE_DIR"
