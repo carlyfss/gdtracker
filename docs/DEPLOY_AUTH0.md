@@ -32,23 +32,25 @@ docker compose exec frontend ls -la /usr/share/nginx/html/assets/ | head
 AUTH_MODE=auth0
 AUTH0_DOMAIN=your-tenant.us.auth0.com
 AUTH0_AUDIENCE=<GDTracker API identifier>
-GDTRACKER_CORS_ALLOWED_ORIGINS=https://gdtracker.krondevrasp.com
+GDTRACKER_CORS_ALLOWED_ORIGINS=https://app.example.com
 GDTRACKER_COOKIE_SECURE=true
 
 VITE_AUTH_MODE=auth0
 VITE_AUTH0_DOMAIN=your-tenant.us.auth0.com
 VITE_AUTH0_CLIENT_ID=your-spa-client-id
 VITE_AUTH0_AUDIENCE=<same as AUTH0_AUDIENCE>
-VITE_API_BASE_URL=https://api.krondevrasp.com
+VITE_API_BASE_URL=https://api.example.com
 ```
+
+Replace example hosts with values from `.env.deploy`.
 
 Auth0 Dashboard URLs: [`gdtracker-go-api/docs/AUTH0_LOCAL_DEV.md`](../gdtracker-go-api/docs/AUTH0_LOCAL_DEV.md) (production section).
 
 ## Auth0 Dashboard — authorize SPA for API (fixes `oauth/token` `access_denied`)
 
-If Auth0 redirects to `https://gdtracker.krondevrasp.com/?code=…` but **`POST …/oauth/token` returns 401** with **`access_denied`**, the SPA is usually **not authorized** for the GDTracker API audience.
+If Auth0 redirects to `https://app.example.com/?code=…` but **`POST …/oauth/token` returns 401** with **`access_denied`**, the SPA is usually **not authorized** for the GDTracker API audience.
 
-1. **Applications → APIs →** your GDTracker API (identifier = `AUTH0_AUDIENCE`, e.g. `https://api.krondevrasp.com`).
+1. **Applications → APIs →** your GDTracker API (identifier = `AUTH0_AUDIENCE`, e.g. `https://api.example.com`).
 2. **Applications → Applications →** your SPA → **APIs** tab → enable **GDTracker API** (Authorized).
 3. Confirm SPA **Application Type** = Single Page Application; **Token Endpoint Authentication Method** = None.
 4. **Grant Types:** Authorization Code (and Refresh Token if used).
@@ -62,7 +64,7 @@ If Auth0 redirects to `https://gdtracker.krondevrasp.com/?code=…` but **`POST 
 
 After each frontend deploy:
 
-1. **Unregister** service workers for `gdtracker.krondevrasp.com` (DevTools → Application → Service Workers).
+1. **Unregister** service workers for `app.example.com` (DevTools → Application → Service Workers).
 2. **Clear site data** or hard reload once.
 3. Confirm `/login` shows Auth0 text, not “Local testing only”.
 
@@ -73,7 +75,7 @@ Workbox precache failed because a hashed file in the manifest returned **404** (
 If the error persists:
 
 ```bash
-curl -sfI "https://gdtracker.krondevrasp.com/assets/<filename-from-error>.js"
+curl -sfI "https://app.example.com/assets/<filename-from-error>.js"
 docker compose exec frontend test -f "/usr/share/nginx/html/assets/<filename>.js" && echo OK || echo MISSING
 ```
 
@@ -83,7 +85,7 @@ If **MISSING** in the container, rebuild the frontend image; if **OK** on server
 
 1. After sign-in, **`POST https://<tenant>.us.auth0.com/oauth/token` → 200** (not 401 `access_denied`).
 2. No `GET /api/csrf` in Network (API is auth0 mode).
-3. `GET https://api.krondevrasp.com/api/auth/me` with `Authorization: Bearer …` → **200**.
+3. `GET https://api.example.com/api/auth/me` with `Authorization: Bearer …` → **200**.
 4. No `bad-precaching-response` in the console.
 
 ### Asset hash coherence (after frontend deploy)

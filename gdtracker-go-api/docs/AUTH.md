@@ -47,8 +47,8 @@ When `AUTH_MODE=auth0`, session login/register/logout/CSRF routes are **not** mo
 1. **Applications → Create Application → Single Page Application**
 2. Name: `GDTracker Web`
 3. Settings:
-   - **Allowed Callback URLs**: `https://gdtracker.krondevrasp.com`, `http://localhost:5173` (dev Auth0 testing)
-   - **Allowed Logout URLs**: `https://gdtracker.krondevrasp.com/login` (production); `http://localhost:5173/login` (Vite dev)
+   - **Allowed Callback URLs**: `https://app.example.com`, `http://localhost:5173` (dev Auth0 testing)
+   - **Allowed Logout URLs**: `https://app.example.com/login` (production); `http://localhost:5173/login` (Vite dev)
    - Docker deploy + PWA: [`../../docs/DEPLOY_AUTH0.md`](../../docs/DEPLOY_AUTH0.md)
    - **Allowed Web Origins**: same origins as callbacks (origins only, no path)
    - Local checklist: [`AUTH0_LOCAL_DEV.md`](AUTH0_LOCAL_DEV.md)
@@ -89,7 +89,7 @@ Set `app_metadata.gdtracker_user_id` on each imported user to their Postgres `us
 | `VITE_AUTH0_DOMAIN` | Frontend build | `gdtracker-prod.us.auth0.com` |
 | `VITE_AUTH0_CLIENT_ID` | Frontend build | SPA client id |
 | `VITE_AUTH0_AUDIENCE` | Frontend build | same as API audience |
-| `GDTRACKER_CORS_ALLOWED_ORIGINS` | Go API | `https://gdtracker.krondevrasp.com` |
+| `GDTRACKER_CORS_ALLOWED_ORIGINS` | Go API | `https://app.example.com` |
 
 ---
 
