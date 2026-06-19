@@ -40,7 +40,7 @@ For a normal release, edit **only** the trigger file(s) for the app(s) being rel
 ## Hard boundaries
 
 - **No product code** — do not edit handlers, UI, migrations content, or business logic unless the task is purely a version bump commit.
-- **Never commit secrets** — exclude `.env`, credentials, and files like `annotations.md` when they contain secrets.
+- **Never commit secrets or deploy hostnames** — exclude `.env`, `.env.deploy`, credentials, and files like `annotations.md`; scan for `devserver.local`, `krondevrasp.com`, and live tokens before push.
 - **Never force-push** `main`, `master`, or `dev` unless the user explicitly requests it.
 - **Never amend** unless user rules allow (same conditions as user git protocol).
 - **Do not manual-tag by default** — CI creates tags and GitHub releases when trigger files land on `main`. Manual tag/push/`gh release` only when CI failed, pre-automation, or user explicitly requests fallback.

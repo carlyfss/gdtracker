@@ -68,12 +68,12 @@ See also [`AUTH.md`](AUTH.md).
 
 ---
 
-## Production (Docker — gdtracker.krondevrasp.com)
+## Production (Docker — app.example.com)
 
 | Auth0 SPA setting | Value |
 |-------------------|--------|
-| Allowed Callback URLs | `https://gdtracker.krondevrasp.com` |
-| Allowed Logout URLs | `https://gdtracker.krondevrasp.com/login` |
-| Allowed Web Origins | `https://gdtracker.krondevrasp.com` |
+| Allowed Callback URLs | `https://app.example.com` |
+| Allowed Logout URLs | `https://app.example.com/login` |
+| Allowed Web Origins | `https://app.example.com` |
 
 Deploy steps, Jenkins `VITE_*` checklist, and PWA cache: [`../../docs/DEPLOY_AUTH0.md`](../../docs/DEPLOY_AUTH0.md).

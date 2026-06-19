@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dump PostgreSQL from gdtracker-postgres on devserver.local and upload to Cloudflare R2.
+# Dump PostgreSQL from gdtracker-postgres on the deploy host and upload to Cloudflare R2.
 # Uses rclone (not AWS CLI). See docs/BACKUPS.md.
 set -euo pipefail
 
@@ -25,7 +25,7 @@ require_env() {
     [[ -n "${!name:-}" ]] || die "required environment variable not set: $name"
 }
 
-# --- configuration (defaults match docker-compose.yml on devserver.local) ---
+# --- configuration (defaults match docker-compose.yml on the deploy host) ---
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-gdtracker-postgres}"
 POSTGRES_USER="${POSTGRES_USER:-gdtracker}"
 POSTGRES_DB="${POSTGRES_DB:-gdtracker}"
