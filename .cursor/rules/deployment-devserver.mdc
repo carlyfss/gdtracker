@@ -1,0 +1,36 @@
+---
+description: Production deploy host — Raspberry Pi at devserver.local, Docker Compose, SSH access
+alwaysApply: true
+---
+# Deployment host (devserver.local)
+
+GDTracker production runs on a **Raspberry Pi home server**, not on AWS or other cloud VMs.
+
+## Host and deploy model
+
+- **Hostname:** `devserver.local` (LAN; requires local network or VPN to reach)
+- **Deploy:** Docker Compose on that server — Postgres, Go API, and frontend containers
+- **Public URLs:** `gdtracker.krondevrasp.com` and `api.krondevrasp.com` (reverse proxy to the Pi stack)
+- **Postgres:** local Docker container `gdtracker-postgres`, volume `gdtracker-pgdata` — **not** RDS or other cloud DB
+- **Jenkins** (deploy and weekly backups): runs on or targets the **same Pi host** as Docker Compose
+
+## Cloud services (external only)
+
+- **Auth0** — authentication
+- **Cloudflare R2** — off-site backup storage (via **rclone** on the Pi)
+
+Do not assume the database or app runtime lives in AWS or any cloud VM. Backups use **rclone** with Cloudflare’s R2 provider — no AWS CLI or AWS account.
+
+## SSH access
+
+Agents **may** SSH to inspect and analyze the server when troubleshooting deploy, Docker, or backups:
+
+```bash
+ssh admin@devserver.local
+```
+
+**Allowed without extra approval:** read-only inspection — e.g. `docker ps`, `docker compose ps`, `docker logs`, disk usage, verifying backup job output, checking container health.
+
+**Requires explicit user approval:** destructive or state-changing commands — e.g. `docker compose down`, volume deletes, restores, package installs, config edits on the server.
+
+SSH assumes keys or login already work for `admin@devserver.local`; never store credentials in the repo or rules.
